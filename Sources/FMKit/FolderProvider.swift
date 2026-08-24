@@ -18,7 +18,9 @@
 // 7zFM does it, and why it can browse arbitrarily deep nesting without special cases.
 
 import Foundation
+#if canImport(ArchiveCore)   // module-guard
 import ArchiveCore
+#endif
 
 /// One navigable level: a real directory, an archive's interior, or a virtual root.
 ///

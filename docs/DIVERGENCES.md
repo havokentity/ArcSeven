@@ -772,3 +772,71 @@ files and enumerate the Archive format combo. Then invoke the shell verb
 `CRC SHA ▸ SHA-256 -> <name>.sha256`, open the resulting dialog if one appears, and enumerate the
 combo again. Record whether `Hash` is present in each case, and whether it is present when a
 `.sha256` file name is typed manually into the archive-name field.
+
+---
+
+## Addendum — decisions made while building M2 (the AppKit shell)
+
+These were settled against the running app, not on paper.
+
+### D-M2-1. Size columns show exact grouped byte counts, not "1.2 MB"
+
+7zFM's Size column is a raw count with digit grouping, and ArcSeven matches it. The
+temptation on macOS is `ByteCountFormatter` and "48 KB", but in an archive manager the
+whole point of the Size and Packed Size columns is to compare them against each other.
+Rounded values make that comparison meaningless — `50,000` vs `40,680` tells you
+something; "50 KB" vs "41 KB" tells you much less. Implemented with `FormatStyle`
+rather than `NumberFormatter`, which is not `Sendable` and cannot be a shared static
+under Swift 6.
+
+**Reversible?** Yes — a Settings toggle, once the Settings pane grows one.
+
+### D-M2-2. Directories report no size at all, rather than zero
+
+7-Zip stores `Size = 0` for directory entries. Rendering that literally puts a "0" in
+every folder row and, worse, clumps every folder at one end of a size sort. Directories
+return `nil` for both Size and Packed Size, so the cell is blank and the sort places
+them via the "missing sorts last" rule.
+
+**Reversible?** No reason to.
+
+### D-M2-3. The panel opens with the first real row selected and focused
+
+7zFM opens with no selection. On macOS a file manager that ignores the arrow keys until
+you click something feels broken, so the panel takes first responder and selects the
+first non-`..` row. Starting at `..` would waste the first Down keypress.
+
+**Reversible?** Yes, trivially.
+
+### D-M2-4. Toolbar actions not yet implemented say so
+
+Add / Test / Copy / Move / Delete present an explicit "not implemented yet" sheet naming
+the milestone. A button that silently does nothing reads as a bug; one that says what it
+is waiting for does not.
+
+**Reversible?** Removed as each action lands.
+
+---
+
+## Build-system note: the `module-guard` idiom
+
+`Package.swift` builds six modules (`ArchiveCore`, `FMKit`, `FMUI`, `Dialogs`,
+`SettingsUI`, `Support`); the Xcode target generated from `project.yml` compiles the
+same files into **one** module. Xcode cannot consume a local Swift package rooted at the
+project's own directory — the generated `packageProductDependencies` come out empty — so
+the two build systems genuinely disagree about module boundaries.
+
+Intra-project imports are therefore written as:
+
+```swift
+#if canImport(ArchiveCore)   // module-guard
+import ArchiveCore
+#endif
+```
+
+True under SwiftPM, false under Xcode where the types are already in scope. One copy of
+every source file, both build systems working, and `swift test` exercises exactly the
+sources the app ships. Grep for `module-guard` to find every instance.
+
+**Any new file that imports a sibling module must use this form**, or the app target
+fails with "Unable to resolve module dependency".

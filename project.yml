@@ -152,9 +152,15 @@ targets:
       - path: Sources/Dialogs
       - path: Sources/SettingsUI
       - path: Sources/Support
-      # Pure-logic layer. Compiled directly into the app rather than linked as a package
+      # Pure-logic layer, compiled directly into the app rather than linked as a package
       # product, so there is exactly one copy of these files on disk and `swift test`
-      # exercises the same sources the app ships. See Package.swift.
+      # exercises the same sources the app ships.
+      #
+      # That means the app is ONE Swift module while SwiftPM sees six. Intra-project
+      # `import` lines are therefore wrapped in `#if canImport(...)` (search for
+      # "module-guard"): true under SwiftPM, false here, where the types are already in
+      # scope. Xcode cannot consume a local package rooted at the project's own
+      # directory, so this is the seam that keeps both build systems on one source tree.
       - path: Sources/ArchiveCore
       - path: Sources/FMKit
 
@@ -173,8 +179,11 @@ targets:
         optional: true
         buildPhase:
           copyFiles:
+            # `wrapper` is the .app root, NOT Contents/, so the subpath must spell
+            # Contents out or the helper lands at ArcSeven.app/Helpers/7zz and the
+            # bundle fails `codesign --verify --deep --strict`.
             destination: wrapper
-            subpath: Helpers
+            subpath: Contents/Helpers
 
       # -- Copy Files: legal notices inside the bundle -----------------------------------
       # GPLv3 s5(d) wants Appropriate Legal Notices reachable from the UI, LGPL-2.1 s6

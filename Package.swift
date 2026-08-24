@@ -44,7 +44,7 @@ let strictSettings: [SwiftSetting] = [
 ]
 
 let package = Package(
-    name: "ArcSeven",
+    name: "ArcSevenKit",
     platforms: [
         // Matches MACOSX_DEPLOYMENT_TARGET in project.yml. Keep the two in step.
         .macOS(.v14),
@@ -52,6 +52,10 @@ let package = Package(
     products: [
         .library(name: "ArchiveCore", targets: ["ArchiveCore"]),
         .library(name: "FMKit", targets: ["FMKit"]),
+        .library(name: "FMUI", targets: ["FMUI"]),
+        .library(name: "Support", targets: ["Support"]),
+        .library(name: "Dialogs", targets: ["Dialogs"]),
+        .library(name: "SettingsUI", targets: ["SettingsUI"]),
     ],
     targets: [
         .target(
@@ -65,6 +69,30 @@ let package = Package(
             path: "Sources/FMKit",
             swiftSettings: strictSettings
         ),
+        .target(
+            name: "Support",
+            dependencies: ["ArchiveCore"],
+            path: "Sources/Support",
+            swiftSettings: strictSettings
+        ),
+        .target(
+            name: "Dialogs",
+            dependencies: ["FMKit", "ArchiveCore", "Support"],
+            path: "Sources/Dialogs",
+            swiftSettings: strictSettings
+        ),
+        .target(
+            name: "SettingsUI",
+            dependencies: ["FMKit", "ArchiveCore"],
+            path: "Sources/SettingsUI",
+            swiftSettings: strictSettings
+        ),
+        .target(
+            name: "FMUI",
+            dependencies: ["FMKit", "ArchiveCore", "Dialogs", "Support"],
+            path: "Sources/FMUI",
+            swiftSettings: strictSettings
+        ),
         .testTarget(
             name: "ArchiveCoreTests",
             dependencies: ["ArchiveCore"],
@@ -75,6 +103,12 @@ let package = Package(
             name: "FMKitTests",
             dependencies: ["FMKit", "ArchiveCore"],
             path: "Tests/FMKitTests",
+            swiftSettings: strictSettings
+        ),
+        .testTarget(
+            name: "SupportTests",
+            dependencies: ["Support"],
+            path: "Tests/SupportTests",
             swiftSettings: strictSettings
         ),
     ]
