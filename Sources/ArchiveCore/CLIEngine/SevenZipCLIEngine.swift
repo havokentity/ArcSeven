@@ -84,18 +84,71 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     ///   Splitting the streams is what lets the tokenizer treat stdout as pure
     ///   newline-terminated text and stderr as backspace-painted progress.
     /// - `-scsUTF-8` / `-sccUTF-8` UTF-8 for list files and console output.
-    static let commonSwitches = [
-        "-y",
-        "-bb3",
-        "-bso1",
-        "-bsp2",
-        "-bse2",
-        "-scsUTF-8",
-        "-sccUTF-8",
-    ]
+    static let commonSwitches = commonSwitches(passwordOnStdin: false)
+
+    /// Switches for every invocation.
+    ///
+    /// - Parameter passwordOnStdin: when `true`, `-y` is omitted so `7zz` will emit
+    ///   its "Enter password:" prompt and read the answer from our pipe. See
+    ///   ``passwordDelivery(for:)`` for why that matters.
+    static func commonSwitches(passwordOnStdin: Bool) -> [String] {
+        var switches = [
+            "-bb3",
+            "-bso1",
+            "-bsp2",
+            "-bse2",
+            "-scsUTF-8",
+            "-sccUTF-8",
+        ]
+        if !passwordOnStdin { switches.insert("-y", at: 0) }
+        return switches
+    }
 
     /// Switches for a listing, which wants no progress painting at all.
-    static let listSwitches = ["-y", "-slt", "-bso1", "-bsp0", "-bse2", "-scsUTF-8", "-sccUTF-8"]
+    static func listSwitches(passwordOnStdin: Bool) -> [String] {
+        var switches = ["-slt", "-bso1", "-bsp0", "-bse2", "-scsUTF-8", "-sccUTF-8"]
+        if !passwordOnStdin { switches.insert("-y", at: 0) }
+        return switches
+    }
+
+    // MARK: Password delivery
+
+    /// How a passphrase reaches `7zz` for a given operation.
+    ///
+    /// Verified empirically against the vendored 26.02 binary, and it is **not** what
+    /// the switch documentation implies:
+    ///
+    /// - A **bare `-p`** does not mean "read the password from stdin". It means an
+    ///   *empty* password, and it overrides the prompt. Using it on an encrypted
+    ///   archive fails with "Cannot open encrypted archive. Wrong password?".
+    /// - Omitting **both** `-y` and `-p` makes `7zz` print `Enter password:` and read
+    ///   the answer from stdin — a pipe works, no TTY required. This is the secure
+    ///   path: the passphrase never appears in the process table.
+    /// - The **creation** path has no such prompt. `7zz a` with no `-p` does not ask;
+    ///   it writes an **unencrypted** archive and exits **0**. The passphrase must go
+    ///   on argv as `-p<pw>`, where `ps` can see it, and the result must then be
+    ///   verified — see ``verifyEncryption(of:password:)``.
+    enum PasswordDelivery {
+        /// No passphrase involved; `-y` is safe.
+        case none
+        /// Prompt-driven, read from our pipe. `-y` must be omitted.
+        case stdin(String)
+        /// On argv. Visible in `ps`. Creation only.
+        case argv(String)
+
+        var usesStdin: Bool { if case .stdin = self { return true }; return false }
+
+        var stdinBytes: Data? {
+            guard case .stdin(let password) = self else { return nil }
+            return Data((password + "\n").utf8)
+        }
+    }
+
+    /// Delivery for a read operation (list, test, extract, readEntry).
+    static func readDelivery(_ password: String?) -> PasswordDelivery {
+        guard let password, !password.isEmpty else { return .none }
+        return .stdin(password)
+    }
 
     // MARK: Capabilities
 
@@ -131,13 +184,12 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     // MARK: Listing
 
     public func list(_ request: ListRequest) async throws -> ArchiveListing {
+        let delivery = Self.readDelivery(request.password)
         var arguments = ["l"]
-        arguments += Self.listSwitches
+        arguments += Self.listSwitches(passwordOnStdin: delivery.usesStdin)
         if let format = request.formatOverride {
             arguments.append("-t\(format.rawValue)")
         }
-        // Read-path password goes on stdin, never on argv.
-        arguments.append("-p")
         arguments.append("--")
         arguments.append(request.archiveURL.path)
 
@@ -145,7 +197,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             executableURL: executableURL,
             arguments: arguments,
             environment: environment(),
-            standardInput: passwordStdin(request.password)
+            standardInput: delivery.stdinBytes
         )
 
         let stderrLines = run.standardError.split(separator: "\n").map(String.init)
@@ -166,15 +218,15 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     // MARK: Streaming operations
 
     public func extract(_ request: ExtractRequest) -> ArchiveOperationStream {
+        let delivery = Self.readDelivery(request.password)
         let command = request.pathMode == .noPaths ? "e" : "x"
         var arguments = [command]
-        arguments += Self.commonSwitches
+        arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         arguments.append("-o\(request.destinationURL.path)")
         arguments.append(contentsOf: Self.overwriteSwitch(request.overwriteMode))
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
         if request.pathMode == .absolutePaths { arguments.append("-spf2") }
         if request.keepBrokenFiles { arguments.append("-tzip:kb") }
-        arguments.append("-p")
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         if let selected = request.selectedEntries { arguments.append(contentsOf: selected) }
@@ -182,16 +234,16 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .extract,
             arguments: arguments,
-            password: request.password,
+            delivery: delivery,
             path: request.archiveURL.path
         )
     }
 
     public func test(_ request: TestRequest) -> ArchiveOperationStream {
+        let delivery = Self.readDelivery(request.password)
         var arguments = ["t"]
-        arguments += Self.commonSwitches
+        arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
-        arguments.append("-p")
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         if let selected = request.selectedEntries { arguments.append(contentsOf: selected) }
@@ -199,14 +251,16 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .test,
             arguments: arguments,
-            password: request.password,
+            delivery: delivery,
             path: request.archiveURL.path
         )
     }
 
     public func compress(_ request: CompressRequest) -> ArchiveOperationStream {
+        // Creation has no stdin prompt: the passphrase must go on argv. See
+        // PasswordDelivery.
         var arguments = [Self.updateCommand(request.updateMode)]
-        arguments += Self.commonSwitches
+        arguments += Self.commonSwitches(passwordOnStdin: false)
         arguments += Self.updateSwitches(request.updateMode)
         arguments.append("-t\(request.format.rawValue)")
         arguments.append(contentsOf: CompressArgumentBuilder.methodSwitches(for: request))
@@ -215,7 +269,21 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         // Creation cannot take the passphrase on stdin. See the file header.
         if let encryption = request.encryption, !encryption.password.isEmpty {
             arguments.append("-p\(encryption.password)")
-            arguments.append("-mem=\(encryption.method.rawValue)")
+
+            // `-mem=` is a ZIP-only switch. `.7z` supports AES-256 and nothing else,
+            // and passing `-mem` to the 7z handler is rejected outright:
+            //
+            //     $ 7zz a -t7z -pX -mem=aes256 out.7z in.txt
+            //     System ERROR: E_INVALIDARG : One or more arguments are invalid
+            //
+            // Verified against the vendored 26.02 binary; covered by
+            // LiveEngineTests.encryptedRoundTrip.
+            if request.format == .zip {
+                arguments.append("-mem=\(encryption.method.switchValue)")
+            }
+
+            // Header encryption hides the file *names*, not just their contents.
+            // `.7z` only.
             if encryption.encryptFileNames, request.format == .sevenZip {
                 arguments.append("-mhe=on")
             }
@@ -239,31 +307,31 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .compress,
             arguments: arguments,
-            password: nil,
+            delivery: .none,
             path: request.archiveURL.path,
             afterSuccess: verify
         )
     }
 
     public func delete(_ request: DeleteRequest) -> ArchiveOperationStream {
+        let delivery = Self.readDelivery(request.password)
         var arguments = ["d"]
-        arguments += Self.commonSwitches
-        arguments.append("-p")
+        arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         arguments.append(contentsOf: request.entryPaths)
         return runStreaming(
             operation: .delete,
             arguments: arguments,
-            password: request.password,
+            delivery: delivery,
             path: request.archiveURL.path
         )
     }
 
     public func rename(_ request: RenameRequest) -> ArchiveOperationStream {
+        let delivery = Self.readDelivery(request.password)
         var arguments = ["rn"]
-        arguments += Self.commonSwitches
-        arguments.append("-p")
+        arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         for pair in request.renames {
@@ -273,14 +341,15 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .rename,
             arguments: arguments,
-            password: request.password,
+            delivery: delivery,
             path: request.archiveURL.path
         )
     }
 
     public func hash(_ request: HashRequest) -> ArchiveOperationStream {
+        let delivery = Self.readDelivery(request.password)
         var arguments = ["h"]
-        arguments += Self.commonSwitches
+        arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         arguments.append("-scrc\(request.algorithm.switchValue)")
         arguments.append("--")
         switch request.source {
@@ -295,18 +364,18 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .hash,
             arguments: arguments,
-            password: request.password,
+            delivery: delivery,
             path: nil
         )
     }
 
     public func benchmark(_ request: BenchmarkRequest) -> ArchiveOperationStream {
         var arguments = ["b"]
-        arguments += Self.commonSwitches
+        arguments += Self.commonSwitches(passwordOnStdin: false)
         if request.passes > 0 { arguments.append("-mmt\(request.passes)") }
         if let dictionary = request.dictionarySize { arguments.append("-md\(dictionary)") }
         if let threads = request.threads { arguments.append("-mmt\(threads)") }
-        return runStreaming(operation: .benchmark, arguments: arguments, password: nil, path: nil)
+        return runStreaming(operation: .benchmark, arguments: arguments, delivery: .none, path: nil)
     }
 
     // MARK: Single-entry streaming
@@ -314,16 +383,17 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     public func readEntry(_ request: ReadEntryRequest) -> AsyncThrowingStream<Data, any Error> {
         // `-so` writes the member to stdout. Progress must be silenced entirely, or it
         // would be interleaved into the payload.
-        var arguments = ["x", "-so", "-y", "-bsp0", "-bso0", "-bse2", "-scsUTF-8"]
+        let delivery = Self.readDelivery(request.password)
+        var arguments = ["x", "-so", "-bsp0", "-bso0", "-bse2", "-scsUTF-8"]
+        if !delivery.usesStdin { arguments.insert("-y", at: 2) }
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
-        arguments.append("-p")
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         arguments.append(request.entryPath)
 
         let executable = executableURL
         let env = environment()
-        let stdin = passwordStdin(request.password)
+        let stdin = delivery.stdinBytes
         let limit = request.maximumByteCount
         let chunk = readChunkSize
         let archivePath = request.archiveURL.path
@@ -379,13 +449,13 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     func runStreaming(
         operation: ArchiveOperation,
         arguments: [String],
-        password: String?,
+        delivery: PasswordDelivery,
         path: String?,
         afterSuccess: (@Sendable () async throws -> Void)? = nil
     ) -> ArchiveOperationStream {
         let executable = executableURL
         let env = environment()
-        let stdin = passwordStdin(password)
+        let stdin = delivery.stdinBytes
         let chunk = readChunkSize
 
         return AsyncThrowingStream { continuation in
@@ -511,12 +581,6 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         env["LANG"] = "C.UTF-8"
         env["TZ"] = timeZone.identifier
         return env
-    }
-
-    /// Passphrase bytes for the read paths, newline-terminated as `7zz` expects.
-    func passwordStdin(_ password: String?) -> Data? {
-        guard let password, !password.isEmpty else { return nil }
-        return Data((password + "\n").utf8)
     }
 
     /// The `7zz` command letter for an update mode.

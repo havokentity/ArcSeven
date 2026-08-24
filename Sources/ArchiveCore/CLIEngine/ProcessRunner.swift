@@ -86,28 +86,28 @@ public enum ProcessRunner {
             process.standardError = errPipe
             process.standardInput = inPipe
 
-            let state = RunState()
+            // Completion needs TWO independent facts: the child has exited, and both
+            // pipes have hit EOF. Emitting on either alone either truncates output or
+            // reports an exit status that is not yet set.
+            let completionGate = CompletionGate { completion in
+                continuation.yield(.finished(completion))
+                continuation.finish()
+            }
 
-            // Reader tasks. Detached because FileHandle reads block.
-            func pump(
-                _ handle: FileHandle,
-                _ wrap: @escaping @Sendable (Data) -> Event
-            ) -> Task<Void, Never> {
-                Task.detached {
-                    while true {
-                        let data = handle.availableData
-                        if data.isEmpty { break }
-                        if let byteLimit {
-                            let already = await state.addBytes(UInt64(data.count))
-                            if already > byteLimit {
-                                let keep = Int(byteLimit &- (already &- UInt64(data.count)))
-                                if keep > 0 { continuation.yield(wrap(data.prefix(keep))) }
-                                break
-                            }
-                        }
-                        continuation.yield(wrap(data))
-                    }
-                }
+            // `terminationHandler`, never `waitUntilExit()`.
+            //
+            // `waitUntilExit()` blocks the calling thread on Process's own internal
+            // bookkeeping, and calling it from a dispatch queue while that bookkeeping
+            // is trying to run deadlocks — reproducibly, once several processes are in
+            // flight at once. The handler is the async-safe notification.
+            process.terminationHandler = { finished in
+                let signalled = finished.terminationReason == .uncaughtSignal
+                completionGate.processExited(
+                    Completion(
+                        exitCode: finished.terminationStatus,
+                        terminationSignal: signalled ? finished.terminationStatus : 0
+                    )
+                )
             }
 
             do {
@@ -118,45 +118,65 @@ public enum ProcessRunner {
             }
 
             let pid = process.processIdentifier
+            let counter = ByteCounter()
+            let group = DispatchGroup()
 
-            // Feed stdin, then close it. Closing matters: `7zz` blocks on a prompt if
-            // stdin stays open, and exits 255 "Break signaled" if it is already closed
-            // when it wants input.
-            Task.detached {
+            // Blocking reads go on a DISPATCH queue, never on a Task.
+            //
+            // `Task.detached` still executes on the Swift cooperative thread pool,
+            // whose width is the core count. `FileHandle.availableData` blocks, so a
+            // handful of concurrent operations is enough to occupy every pool thread
+            // and deadlock the whole process — including the code that would have
+            // drained these pipes. Dispatch's global queues grow a thread per blocked
+            // work item, which is exactly what blocking I/O needs.
+            func pump(
+                _ handle: FileHandle,
+                _ wrap: @escaping @Sendable (Data) -> Event
+            ) {
+                DispatchQueue.global(qos: .userInitiated).async(group: group) {
+                    while true {
+                        let data = handle.availableData
+                        if data.isEmpty { break }
+                        if let byteLimit {
+                            let total = counter.add(UInt64(data.count))
+                            if total > byteLimit {
+                                let keep = Int(byteLimit &- (total &- UInt64(data.count)))
+                                if keep > 0 { continuation.yield(wrap(data.prefix(keep))) }
+                                break
+                            }
+                        }
+                        continuation.yield(wrap(data))
+                    }
+                }
+            }
+
+            pump(outPipe.fileHandleForReading, Event.standardOutput)
+            pump(errPipe.fileHandleForReading, Event.standardError)
+
+            // Feed stdin, then close it.
+            //
+            // Closing matters in both directions: `7zz` blocks forever on a prompt if
+            // the pipe stays open, and reports "Break signaled" (exit 255) if it is
+            // already closed when it wants input.
+            DispatchQueue.global(qos: .userInitiated).async {
                 let handle = inPipe.fileHandleForWriting
                 if let standardInput { try? handle.write(contentsOf: standardInput) }
                 try? handle.close()
             }
 
-            let outTask = pump(outPipe.fileHandleForReading, Event.standardOutput)
-            let errTask = pump(errPipe.fileHandleForReading, Event.standardError)
-
-            let waiter = Task.detached {
-                _ = await outTask.result
-                _ = await errTask.result
-                process.waitUntilExit()
-                let completion = Completion(
-                    exitCode: process.terminationStatus,
-                    terminationSignal: process.terminationReason == .uncaughtSignal
-                        ? process.terminationStatus
-                        : 0
-                )
-                continuation.yield(.finished(completion))
-                continuation.finish()
+            // Both pipes at EOF: no output can be lost now.
+            group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+                completionGate.pipesDrained()
             }
 
             continuation.onTermination = { reason in
-                if case .cancelled = reason {
-                    // SIGINT first so 7zz can clean up its partial archive.
-                    kill(pid, SIGINT)
-                    Task.detached {
-                        try? await Task.sleep(for: .milliseconds(750))
-                        if process.isRunning { kill(pid, SIGKILL) }
-                    }
+                guard case .cancelled = reason else { return }
+                // SIGINT first: 7zz unwinds and deletes the partial archive it was
+                // writing. Escalate only if it does not go.
+                kill(pid, SIGINT)
+                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.75) {
+                    if process.isRunning { kill(pid, SIGKILL) }
                 }
-                outTask.cancel()
-                errTask.cancel()
-                waiter.cancel()
             }
         }
     }
@@ -198,14 +218,60 @@ public enum ProcessRunner {
         )
     }
 
+    // MARK: Completion gate
+
+    /// Fires exactly once, when the child has exited *and* both pipes are drained.
+    ///
+    /// Those two events race, and their order is not fixed: a fast process can exit
+    /// before the readers have drained the last buffer, and a process that closes its
+    /// streams early can drain before it exits.
+    private final class CompletionGate: @unchecked Sendable {
+        private let lock = NSLock()
+        private var completion: Completion?
+        private var drained = false
+        private var fired = false
+        private let onComplete: @Sendable (Completion) -> Void
+
+        init(onComplete: @escaping @Sendable (Completion) -> Void) {
+            self.onComplete = onComplete
+        }
+
+        func processExited(_ completion: Completion) {
+            lock.lock()
+            self.completion = completion
+            let ready = drained && !fired
+            if ready { fired = true }
+            let value = self.completion
+            lock.unlock()
+            if ready, let value { onComplete(value) }
+        }
+
+        func pipesDrained() {
+            lock.lock()
+            drained = true
+            let ready = completion != nil && !fired
+            if ready { fired = true }
+            let value = completion
+            lock.unlock()
+            if ready, let value { onComplete(value) }
+        }
+    }
+
     // MARK: Shared counter
 
     /// Tracks bytes emitted, for `byteLimit`.
-    private actor RunState {
+    ///
+    /// A lock rather than an actor: the callers are dispatch work items, not async
+    /// contexts, and `await`-ing an actor from them would reintroduce exactly the
+    /// cooperative-pool dependency the dispatch queues exist to avoid.
+    private final class ByteCounter: @unchecked Sendable {
+        private let lock = NSLock()
         private var byteCount: UInt64 = 0
 
         /// Add to the running total and return the new value.
-        func addBytes(_ count: UInt64) -> UInt64 {
+        func add(_ count: UInt64) -> UInt64 {
+            lock.lock()
+            defer { lock.unlock() }
             byteCount &+= count
             return byteCount
         }

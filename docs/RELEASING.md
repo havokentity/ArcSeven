@@ -512,7 +512,7 @@ casks are deprecated and slated for removal from the official tap. We are
 already compliant.
 
 ```ruby
-cask "7zmac" do
+cask "arcseven" do
   version "1.0.0"
   sha256 "<sha256 printed by make-dmg.sh>"
 
@@ -544,10 +544,10 @@ end
 Submission checklist:
 
 ```sh
-brew audit --cask --online 7zmac
-brew audit --cask --new 7zmac            # first submission only
-brew style --fix 7zmac
-HOMEBREW_NO_INSTALL_FROM_API=1 brew install --cask 7zmac
+brew audit --cask --online arcseven
+brew audit --cask --new arcseven            # first submission only
+brew style --fix arcseven
+HOMEBREW_NO_INSTALL_FROM_API=1 brew install --cask arcseven
 ```
 
 All four must be clean, and the cask must work on the latest major macOS.
@@ -555,7 +555,7 @@ All four must be clean, and the cask must work on the latest major macOS.
 Subsequent releases are a one-liner:
 
 ```sh
-brew bump-cask-pr --version 1.0.1 7zmac
+brew bump-cask-pr --version 1.0.1 arcseven
 ```
 
 ---

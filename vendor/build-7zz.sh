@@ -55,8 +55,8 @@ REQUIRED_ARCHS="arm64 x86_64"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPO_ROOT="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-SRC_DIR="${SEVENZMAC_7ZIP_SRC:-$REPO_ROOT/vendor/7zip}"
-STAGING_DIR="${SEVENZMAC_STAGING_DIR:-$REPO_ROOT/vendor/bin}"
+SRC_DIR="${ARCSEVEN_7ZIP_SRC:-$REPO_ROOT/vendor/7zip}"
+STAGING_DIR="${ARCSEVEN_STAGING_DIR:-$REPO_ROOT/vendor/bin}"
 
 BUNDLE_SUBDIR="CPP/7zip/Bundles/Alone2"
 ARM64_MAKEFILE="../../cmpl_mac_arm64.mak"
@@ -121,9 +121,9 @@ OPTIONS
   --binary PATH      Binary to verify in --check mode.
                      Default: <staging-dir>/7zz
   --src DIR          Upstream 7-Zip checkout.
-                     Default: \$SEVENZMAC_7ZIP_SRC or vendor/7zip
+                     Default: \$ARCSEVEN_7ZIP_SRC or vendor/7zip
   --staging-dir DIR  Where the Xcode copy phase reads from.
-                     Default: \$SEVENZMAC_STAGING_DIR or vendor/bin
+                     Default: \$ARCSEVEN_STAGING_DIR or vendor/bin
   -j, --jobs N       Parallel make jobs. Default: sysctl hw.ncpu
   --clean            Remove b/m_arm64 and b/m_x64 before building
   --sign IDENTITY    Codesign identity for the staged binary. Default: "-" (ad-hoc)
@@ -487,7 +487,9 @@ verify_binary() {
 
   # --- it actually runs, and it is the right 7-Zip ------------------------
   local banner
-  if ! banner="$("$bin" i 2>&1 | head -n 1)"; then
+  # `7zz` prints a BLANK first line before the banner, so `head -n 1` returns "".
+  # Take the first non-empty line that actually mentions 7-Zip instead.
+  if ! banner="$("$bin" i 2>&1 | grep -m 1 '7-Zip')"; then
     die "7zz failed to execute: $bin"
   fi
   case "$banner" in

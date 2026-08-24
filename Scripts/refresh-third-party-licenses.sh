@@ -148,7 +148,7 @@ APP_LEGAL_DIR="$ROOT/Resources/Legal/7-Zip"
 
 [ -f "$VERSION_FILE" ] || die "not found: $VERSION_FILE (run this from inside the ArcSeven repo)"
 
-WORK="$(mktemp -d "${TMPDIR:-/tmp}/7zmac-licences.XXXXXX")"
+WORK="$(mktemp -d "${TMPDIR:-/tmp}/arcseven-licences.XXXXXX")"
 trap 'rm -rf "$WORK"' EXIT INT TERM
 
 # ---------------------------------------------------------------------------
@@ -352,8 +352,8 @@ resolve_binary() {
         printf '%s\n' "$BINARY_PATH"
         return 0
     fi
-    if [ -n "${SEVENZMAC_7ZZ:-}" ] && [ -f "$SEVENZMAC_7ZZ" ]; then
-        printf '%s\n' "$SEVENZMAC_7ZZ"
+    if [ -n "${ARCSEVEN_7ZZ:-}" ] && [ -f "$ARCSEVEN_7ZZ" ]; then
+        printf '%s\n' "$ARCSEVEN_7ZZ"
         return 0
     fi
     # $BINARY_CANDIDATES is newline-separated and contains no spaces, so the
@@ -414,7 +414,7 @@ if BINARY="$(resolve_binary)"; then
     fi
 else
     if [ "$REQUIRE_BINARY" = true ]; then
-        die "no 7zz binary found — pass --binary PATH, or set SEVENZMAC_7ZZ"
+        die "no 7zz binary found — pass --binary PATH, or set ARCSEVEN_7ZZ"
     fi
     warn "no 7zz binary found; leaving \"Binary SHA-256\" untouched"
     info "build or download one, then re-run with --binary PATH"

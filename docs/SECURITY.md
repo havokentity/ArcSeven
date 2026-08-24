@@ -45,20 +45,33 @@ browsing applies its own depth limit.
 
 ### 4. Passphrase exposure in the process table
 
-This is a real, accepted limitation of the current engine, documented rather than
-hidden.
+Verified empirically against the vendored 7-Zip 26.02 binary. The behaviour is not
+what the switch documentation implies, and the details matter:
 
-`7zz` accepts a passphrase on **stdin** for reading operations (`x`, `e`, `t`, `l`),
-and ArcSeven uses that path, so passphrases for extraction never reach the process
-table. It does **not** accept stdin for the creation path (`a`): the passphrase must
-be on argv as `-p<password>`, where any local process running `ps` can see it for
-the lifetime of the child.
+- A **bare `-p`** does *not* mean "read the password from stdin". It means an
+  **empty** password, and it suppresses the prompt. Using it against an encrypted
+  archive fails with "Cannot open encrypted archive. Wrong password?".
+- Omitting **both `-y` and `-p`** makes `7zz` print `Enter password:` and read the
+  answer from **stdin**. A pipe is sufficient; no controlling terminal is required
+  (confirmed with the child in its own session via `setsid`). **This is the path
+  ArcSeven uses for every read operation** — list, test, extract, and single-entry
+  streaming. The passphrase never reaches argv, so it is never visible in `ps`.
+- The **creation** path has no such prompt. `7zz a` with no `-p` does **not** ask:
+  it writes an **unencrypted** archive and exits **0**. The passphrase must be
+  passed as `-p<password>` on argv, where any local process can observe it for the
+  lifetime of the child.
 
-**Consequence.** On a multi-user machine, another logged-in user can observe a
-passphrase while an encrypted archive is being *created*. There is no way to avoid
-this with the subprocess engine; it is one of the motivations for the planned
-in-process XPC engine, which keeps passphrases in memory. `EngineCapabilities`
-exposes this as `keepsPasswordsInProcess`, and the UI is expected to surface it.
+**Residual exposure.** On a multi-user machine, another logged-in user can observe a
+passphrase while an encrypted archive is being **created**. Reading an encrypted
+archive is not affected. There is no way to close this gap with the subprocess
+engine, and it is one of the motivations for the planned in-process XPC engine.
+`EngineCapabilities.keepsPasswordsInProcess` reports `false` for the CLI engine and
+the UI is expected to surface it.
+
+**Consequence for `-y`.** Because the prompt only appears when `-y` is absent, read
+operations carrying a password omit `-y`. Every such invocation therefore passes an
+explicit overwrite mode (`-ao*`) so that no *other* prompt can block the child. See
+`SevenZipCLIEngine.PasswordDelivery`.
 
 ### 5. Silent loss of encryption
 
@@ -70,6 +83,11 @@ worst failure this component can have.
 which re-lists the archive and throws `encryptionVerificationFailed` unless the
 result is genuinely encrypted. This check is not optional and must never be removed
 as an optimisation.
+
+This is not theoretical. Piping a passphrase to `7zz a` on stdin — the obvious thing
+to try, and what the read paths do — produces an **unencrypted archive with exit
+code 0**, silently. The guard caught exactly that during development
+(`LiveEngineTests.encryptedRoundTrip`).
 
 ### 6. Quarantine propagation
 

@@ -90,7 +90,7 @@ info "signature and hardened runtime OK"
 
 # ------------------------------------------------------------- staging ------
 step "Staging the image contents"
-STAGE="$(mktemp -d -t sevenzmac-dmg)"
+STAGE="$(mktemp -d -t arcseven-dmg)"
 cleanup() { rm -rf "$STAGE"; }
 trap cleanup EXIT
 

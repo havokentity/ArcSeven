@@ -111,7 +111,7 @@ Every one of these is **additive** — none changes a 1:1 behaviour.
 | **macOS self-extracting `.command`** | In addition to 7-Zip's Windows `7z.sfx` output, which is still useful to produce from a Mac | M3 |
 | **Signed, notarized, stapled, auto-updating** | Developer ID signature, hardened runtime, notarization + stapling, Sparkle 2, Homebrew Cask | M1+ |
 | **Full VoiceOver and full-keyboard-access support** on the file list | Because a dense virtual table is exactly where every archiver drops accessibility | M1+ |
-| **CLI companion** | `7zmac compress` / `extract` / `convert`, sharing the GUI's presets, installable from the menu | M6 |
+| **CLI companion** | `arcseven compress` / `extract` / `convert`, sharing the GUI's presets, installable from the menu | M6 |
 
 ---
 

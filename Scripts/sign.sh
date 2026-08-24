@@ -154,7 +154,7 @@ fi
 
 # --------------------------------------------------- 1. nested Mach-O files ---
 step "1/4  Nested Mach-O files (helpers, dylibs, embedded tools)"
-MACHO_LIST="$(mktemp -t sevenzmac-macho)"
+MACHO_LIST="$(mktemp -t arcseven-macho)"
 trap 'rm -f "$MACHO_LIST" "${MACHO_LIST}.sorted" "${BUNDLE_LIST:-}" "${BUNDLE_LIST:-}.sorted" 2>/dev/null || true' EXIT
 : > "$MACHO_LIST"
 while IFS= read -r f; do
@@ -179,7 +179,7 @@ fi
 
 # --------------------------------------- 2. nested bundles, deepest first -----
 step "2/4  Nested bundles (XPC services, frameworks, nested apps)"
-BUNDLE_LIST="$(mktemp -t sevenzmac-bundles)"
+BUNDLE_LIST="$(mktemp -t arcseven-bundles)"
 find "$APP" -mindepth 1 \
      \( -name '*.xpc' -o -name '*.framework' -o -name '*.app' -o -name '*.bundle' -o -name '*.mdimporter' \) \
      -type d -print > "$BUNDLE_LIST" || true

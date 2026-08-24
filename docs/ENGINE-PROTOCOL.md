@@ -1678,3 +1678,67 @@ Rows marked ⛔ block the feature named in the last column until they pass.
 | 38 | `-spf` / `-spf2` path-mode mapping on extract | VERIFIED for `a`; **unverified for `x`** | `x -spf` on an archive with absolute paths | ⛔ Extract "Absolute pathnames" |
 | 39 | Helper spawns cleanly from a signed, hardened, **notarized** bundle | not attempted | Phase 0 spike: extract from an external volume to a user-chosen destination | ⛔ everything |
 | 40 | Helper does **not** die with SIGTRAP (exit 133) | — | run the bundled helper from inside the signed bundle | ⛔ everything |
+
+---
+
+## Appendix A — Corrections from live verification (7-Zip 26.02)
+
+The body of this document was written from research against 7-Zip **18.05**, with an
+explicit instruction to re-verify against the bundled build. That verification has now
+been done against the vendored **26.02** universal binary. Where the two disagree,
+**this appendix wins**, and the code follows this appendix.
+
+### A.1 Passwords are not delivered the way §6 describes
+
+| Invocation | Result on 26.02 |
+| --- | --- |
+| `-p` (bare) + passphrase on stdin | **Fails.** Bare `-p` means an *empty* password and suppresses the prompt. Exit 2, "Cannot open encrypted archive. Wrong password?" |
+| `-p<pw>` on argv | Works. Visible in `ps`. |
+| **No `-y`, no `-p`**, passphrase on stdin | **Works.** `7zz` prints `Enter password:` and reads stdin. No TTY needed — verified with the child in its own session via `setsid`. |
+| `a` (create), no `-p`, passphrase on stdin | **Silently produces an UNENCRYPTED archive, exit 0.** There is no prompt on the creation path. |
+
+**Consequences, implemented in `SevenZipCLIEngine.PasswordDelivery`:**
+
+1. Read operations (`l`, `t`, `x`, `e`, `d`, `rn`, `h`) carrying a password omit both
+   `-y` and `-p`, and write `<passphrase>\n` to stdin. The passphrase never reaches argv.
+2. Because `-y` is absent on that path, every such invocation must pass an explicit
+   `-ao*` overwrite mode so no other prompt can block the child.
+3. Creation must use `-p<pw>` on argv, and the result **must** be verified with
+   `verifyEncryption(of:password:)`.
+
+### A.2 `-mem=` is ZIP-only
+
+`-mem=` sets the ZIP cipher. The `.7z` handler rejects it outright:
+
+```
+$ 7zz a -t7z -pX -mem=aes256 out.7z in.txt
+System ERROR: E_INVALIDARG : One or more arguments are invalid
+```
+
+`.7z` supports AES-256 and nothing else, so the cipher is implicit. Emit `-mem=` only
+for `.zip`. Header encryption (`-mhe=on`) remains `.7z`-only.
+
+### A.3 The version banner is preceded by a blank line
+
+`7zz i` and `7zz` with no arguments both emit an empty first line before
+`7-Zip (z) 26.02 (arm64) : ...`. Any check using `head -n 1` gets `""`. Match on the
+first line containing `7-Zip` instead. (`vendor/build-7zz.sh` had this bug.)
+
+### A.4 Host-side concurrency hazards
+
+Not `7zz` behaviour, but discovered driving it and equally load-bearing:
+
+- **Blocking pipe reads must not run on the Swift cooperative thread pool.**
+  `Task.detached` still uses that pool, and `FileHandle.availableData` blocks. A few
+  concurrent operations exhaust the pool and deadlock the process. `ProcessRunner`
+  uses dispatch queues, which grow a thread per blocked work item.
+- **Never call `Process.waitUntilExit()` from a queue.** It deadlocks reproducibly
+  once several processes are in flight. Use `terminationHandler`, and gate completion
+  on *both* the exit notification and pipe EOF, since those two race in either order.
+
+### A.5 Re-verification
+
+`Tests/ArchiveCoreTests/LiveEngineTests.swift` encodes all of the above against the
+real binary. It skips itself when `vendor/bin/7zz` is absent, so a bare checkout still
+passes `swift test`. **Re-run it on every upstream version bump** — that is the whole
+reason it exists.

@@ -338,7 +338,7 @@ jobs:
           notarised and stapled; universal (Apple silicon and Intel).
 
           **Install:** open the DMG and drag ArcSeven to Applications, or
-          \`brew install --cask 7zmac\`.
+          \`brew install --cask arcseven\`.
 
           Verify what you downloaded against \`SHA256SUMS.txt\`.
 

@@ -70,7 +70,7 @@ info "key file:  $AC_API_KEY_PATH"
 
 NOTARY_AUTH=(--key "$AC_API_KEY_PATH" --key-id "$AC_API_KEY_ID" --issuer "$AC_API_ISSUER_ID")
 
-WORKDIR="$(mktemp -d -t sevenzmac-notarize)"
+WORKDIR="$(mktemp -d -t arcseven-notarize)"
 cleanup() { rm -rf "$WORKDIR"; }
 trap cleanup EXIT
 
