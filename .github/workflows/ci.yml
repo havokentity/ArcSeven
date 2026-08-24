@@ -1,0 +1,181 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Rajesh D'Monte
+#
+# Continuous integration for ArcSeven.
+#
+# Everything here runs with NO secrets and NO signing identity, deliberately. Pull
+# requests from forks never receive repository secrets, so a pipeline that needs a
+# Developer ID certificate to go green is a pipeline that is permanently red for outside
+# contributors. Signing, notarisation and DMG assembly live in release.yml, which only
+# ever runs on a tag pushed to this repository.
+#
+# That constraint is the reason ArchiveCore and FMKit are AppKit-free and driven by
+# Package.swift: `swift build` and `swift test` need neither Xcode's signing machinery nor
+# the vendored 7zz binary, so the parsers, the sort comparator, the exit-code mapper and
+# the memory estimator - the parts that actually break - are covered on every push.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "**/*.md"
+      - LICENSE
+      - NOTICE
+      - THIRD_PARTY_LICENSES/**
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+
+  # =======================================================================================
+  # SwiftPM: the pure-logic modules
+  # =======================================================================================
+  test:
+    name: Build and test
+    # Pinned, never macos-latest. A runner-image rollout that moves `latest` to the next
+    # major would silently change the SDK and the effective deployment target.
+    runs-on: macos-26
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # vendor/7zip is a large upstream submodule and nothing in the SwiftPM build
+          # touches it. Only release.yml needs it checked out.
+          submodules: false
+
+      - name: Pin Xcode
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$XCODE" ]; then
+            sudo xcode-select -s "$XCODE/Contents/Developer"
+          fi
+          xcodebuild -version
+          swift --version
+
+      # Nothing external is fetched - the package has zero dependencies - so this caches
+      # only compiled module artefacts. That is still most of the wall clock on a warm run.
+      - name: Cache SwiftPM build directory
+        uses: actions/cache@v4
+        with:
+          path: .build
+          key: spm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}-${{ github.sha }}
+          restore-keys: |
+            spm-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Package.swift') }}-
+            spm-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: swift build
+        run: swift build --build-tests -v
+
+      - name: swift test
+        run: swift test --skip-build --parallel
+
+  # =======================================================================================
+  # SwiftLint
+  # =======================================================================================
+  lint:
+    name: SwiftLint
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      # Bottles only; keeps the step around half a minute on a cold cache.
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-${{ runner.os }}-${{ runner.arch }}-swiftlint-xcodegen
+          restore-keys: brew-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install SwiftLint
+        run: |
+          set -euo pipefail
+          brew install swiftlint
+          swiftlint version
+
+      # --strict promotes every warning to an error. .swiftlint.yml is written on the
+      # assumption that this is how it is enforced: the thresholds in it are the ones we
+      # are prepared to hold the line at, not aspirations.
+      - name: swiftlint
+        run: swiftlint lint --strict --reporter github-actions-logging
+
+  # =======================================================================================
+  # XcodeGen spec
+  # =======================================================================================
+  # ArcSeven.xcodeproj is generated and git-ignored, so a typo in project.yml would
+  # otherwise stay invisible until release day. This job regenerates the project and
+  # checks that the Info.plists and entitlements it emits are well-formed property lists.
+  # It does not build the app: that needs the vendored 7zz and a signing identity, and
+  # neither exists on a fork PR.
+  project-spec:
+    name: XcodeGen spec
+    runs-on: macos-26
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - name: Cache Homebrew downloads
+        uses: actions/cache@v4
+        with:
+          path: ~/Library/Caches/Homebrew/downloads
+          key: brew-${{ runner.os }}-${{ runner.arch }}-swiftlint-xcodegen
+          restore-keys: brew-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate project
+        run: xcodegen generate --spec project.yml --project .
+
+      - name: Validate generated property lists
+        run: |
+          set -euo pipefail
+          for plist in \
+            Sources/App/Resources/Info.plist \
+            Sources/App/Resources/ArcSeven.entitlements \
+            Extensions/QuickLookPreview/Info.plist \
+            Extensions/QuickLookPreview/QuickLookPreview.entitlements \
+            Extensions/QuickActions/Info.plist \
+            Extensions/QuickActions/QuickActions.entitlements
+          do
+            echo "--- $plist"
+            plutil -lint "$plist"
+          done
+
+          # The identity keys are load-bearing: the bundle id root, the display name and
+          # the Services port name all appear in signing, in the Homebrew cask and in the
+          # Services menu, and a silent change to any of them ships a broken build.
+          test "$(plutil -extract CFBundleDisplayName raw Sources/App/Resources/Info.plist)" = "ArcSeven"
+          test "$(plutil -extract CFBundleName raw Sources/App/Resources/Info.plist)" = "ArcSeven"
+
+          # We export no UTI. Exporting one would mean claiming authorship of a format we
+          # did not invent - org.7-zip.7-zip-archive belongs to Igor Pavlov - and would
+          # make LaunchServices resolution order-dependent for everyone who installs us.
+          if plutil -extract UTExportedTypeDeclarations raw Sources/App/Resources/Info.plist >/dev/null 2>&1; then
+            echo "::error::UTExportedTypeDeclarations must stay empty; import third-party types instead."
+            exit 1
+          fi
+
+      - name: List targets
+        run: xcodebuild -list -project ArcSeven.xcodeproj

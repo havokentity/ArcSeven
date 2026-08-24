@@ -1,0 +1,305 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Rajesh D'Monte
+#
+# SwiftLint configuration for ArcSeven.
+#
+#   swiftlint                    # lint, warnings are warnings
+#   swiftlint --strict           # what CI runs: every warning is an error
+#   swiftlint --fix              # apply the correctable rules
+#
+# Nothing is disabled. This is a brand-new Swift 6 codebase with no legacy to grandfather,
+# so the cost of a strict baseline is paid once, now, instead of forever.
+#
+# Three things below are project rules rather than style rules, and they are the ones that
+# matter most - see custom_rules at the bottom:
+#   * every first-party file carries the SPDX header;
+#   * no 7-Zip or unRAR source code is ever pasted into this repo;
+#   * nothing in the codebase moves towards writing RAR, and no user-facing string treats
+#     "7-Zip" as ours.
+
+# ---------------------------------------------------------------------------------------
+# Scope
+# ---------------------------------------------------------------------------------------
+included:
+  - Sources
+  - Tests
+  - Extensions
+
+excluded:
+  - .build
+  - DerivedData
+  - vendor                 # upstream 7-Zip, unmodified: never ours to lint
+  - Tests/Fixtures         # golden corpus, not source
+  - Sources/App/Resources  # generated Info.plist / entitlements land here
+  - "**/*.generated.swift"
+
+reporter: xcode
+
+# ---------------------------------------------------------------------------------------
+# Opt-in rules
+# ---------------------------------------------------------------------------------------
+# Curated for correctness and readability. Deliberately omitted: the heavy formatting rules
+# (attributes, multiline_arguments, multiline_parameters, indentation_width, implicit_return)
+# which generate churn without catching bugs.
+opt_in_rules:
+  # Correctness / API misuse
+  - array_init
+  - contains_over_filter_count
+  - contains_over_filter_is_empty
+  - contains_over_first_not_nil
+  - contains_over_range_nil_comparison
+  - discarded_notification_center_observer
+  - discouraged_assert
+  - discouraged_none_name
+  - discouraged_optional_boolean
+  - empty_collection_literal
+  - empty_count
+  - empty_string
+  - fallthrough
+  - fatal_error_message
+  - first_where
+  - flatmap_over_map_reduce
+  - force_unwrapping
+  - identical_operands
+  - last_where
+  - legacy_multiple
+  - optional_enum_case_matching
+  - overridden_super_call
+  - override_in_extension
+  - pattern_matching_keywords
+  - prefer_zero_over_explicit_init
+  - prohibited_super_call
+  - redundant_nil_coalescing
+  - redundant_self_in_closure
+  - return_value_from_void_function
+  - self_binding
+  - shorthand_optional_binding
+  - sorted_first_last
+  - static_operator
+  - toggle_bool
+  - unavailable_function
+  - unowned_variable_capture
+  - untyped_error_in_catch
+  - yoda_condition
+
+  # AppKit / concurrency hygiene
+  - private_action
+  - private_outlet
+  - private_subject
+  - weak_delegate
+
+  # Structure
+  - closure_body_length
+  - convenience_type
+  - enum_case_associated_values_count
+  - explicit_init
+  - joined_default_parameter
+  - local_doc_comment
+  - lower_acl_than_parent
+  - modifier_order
+  - prefer_self_in_static_references
+  - prefer_self_type_over_type_of_self
+  - redundant_type_annotation
+  - strict_fileprivate
+  - unneeded_parentheses_in_closure_argument
+
+  # Formatting that genuinely reads better
+  - closure_end_indentation
+  - closure_spacing
+  - collection_alignment
+  - comma_inheritance
+  - literal_expression_end_indentation
+  - number_separator
+  - operator_usage_whitespace
+  - period_spacing
+  - vertical_parameter_alignment_on_call
+  - vertical_whitespace_closing_braces
+  - vertical_whitespace_opening_braces
+
+  # Tests
+  - single_test_class
+  - test_case_accessibility
+  - xct_specific_matcher
+
+# Only reported by `swiftlint analyze --compiler-log-path ...`, which needs a full build
+# log. Plain `swiftlint lint` - what CI runs - ignores these, so they cost nothing there
+# and pay off when run locally against a real build.
+analyzer_rules:
+  - capture_variable
+  - typesafe_array_init
+  - unused_declaration
+  - unused_import
+
+# ---------------------------------------------------------------------------------------
+# Rule configuration
+# ---------------------------------------------------------------------------------------
+line_length:
+  warning: 120
+  error: 160
+  ignores_urls: true
+  ignores_comments: false
+  ignores_interpolated_strings: true
+  ignores_function_declarations: false
+
+file_length:
+  warning: 500
+  error: 900
+  ignore_comment_only_lines: true
+
+type_body_length:
+  warning: 300
+  error: 450
+
+function_body_length:
+  warning: 60
+  error: 120
+
+closure_body_length:
+  warning: 40
+  error: 80
+
+# Generous on purpose: SLTParser is a state machine, SortEngine is a three-key cascade and
+# the menu builder is one long switch. Those are honest shapes, not tangles.
+cyclomatic_complexity:
+  warning: 12
+  error: 20
+  ignores_case_statements: true
+
+function_parameter_count:
+  warning: 6
+  error: 8
+
+nesting:
+  type_level: 2
+  function_level: 3
+
+large_tuple:
+  warning: 3
+  error: 4
+
+identifier_name:
+  min_length:
+    warning: 3
+    error: 2
+  max_length:
+    warning: 50
+    error: 60
+  excluded:
+    - id
+    - up
+    - to
+    - at
+    - by
+    - dx
+    - dy
+    - fd
+    - rc
+    - hi
+    - lo
+    - ok
+    - os
+    - x
+    - y
+    - i
+    - j
+    - n
+
+type_name:
+  min_length: 3
+  max_length:
+    warning: 45
+    error: 60
+
+trailing_comma:
+  mandatory_comma: true
+
+vertical_whitespace:
+  max_empty_lines: 1
+
+number_separator:
+  minimum_length: 5
+
+# TODOs stay visible. If something is genuinely deferred it belongs in an issue and in
+# docs/DIVERGENCES.md, not in a comment nobody reads again.
+todo:
+  severity: warning
+
+# Every first-party Swift file opens with the SPDX identifier and the copyright line.
+# `(?s).*` at the end lets the file add its own explanatory header below those two lines.
+file_header:
+  required_pattern: '(?s)\A\/\/ SPDX-License-Identifier: GPL-3\.0-or-later\n\/\/ Copyright \(C\) \d{4} .+'
+
+# ---------------------------------------------------------------------------------------
+# Project rules
+# ---------------------------------------------------------------------------------------
+custom_rules:
+
+  no_upstream_archiver_source:
+    name: "Upstream 7-Zip / unRAR source in the repo"
+    message: >-
+      This looks like 7-Zip or unRAR source pasted into the repo. Never do that: the unRAR
+      restriction is a GPL-incompatible further restriction under GPLv3 s7, and the LGPL
+      code has to stay in vendor/7zip as an unmodified subprocess. Describe the behaviour,
+      cite file and line, and reimplement it clean-room.
+    regex: '(?i)copyright\s*(\(c\)|©)?\s*[-0-9\s]{4,12}(igor\s+pavlov|alexander\s+roshal|win\.?rar\s+gmbh|rarlab)'
+    severity: error
+
+  no_rar_creation:
+    name: "RAR creation path"
+    message: >-
+      ArcSeven reads RAR and never writes it. The Windows original cannot create RAR either,
+      and the unRAR licence forbids using that code to build a compressor. If this is a
+      false positive on a read path, rename the symbol.
+    regex: '(?i)(\b(create|make|write|compress|encode|pack|add)[a-z0-9_]*rar|"-t\s*rar")'
+    match_kinds:
+      - identifier
+      - string
+    severity: error
+
+  trademark_possessive_seven_zip:
+    name: "Possessive or official-sounding reference to 7-Zip"
+    message: >-
+      References to 7-Zip must be nominative and descriptive - "compatible with 7-Zip",
+      "a reimplementation of the 7-Zip File Manager". Never possessive, never "official",
+      never implying affiliation or endorsement.
+    regex: '7-?Zip(''|’)s|official\s+7-?Zip|7-?Zip\s+for\s+(Mac|macOS)|powered\s+by\s+7-?Zip'
+    severity: error
+
+  no_hardcoded_engine_path:
+    name: "Hard-coded 7zz path"
+    message: >-
+      Resolve the engine from the bundle - Bundle.main.url(forAuxiliaryExecutable:) or
+      Contents/Helpers/7zz - never from PATH or a Homebrew prefix. A 7zz we did not sign
+      and did not version-pin produces output we have not parsed against.
+    regex: '"(/usr/local/bin|/opt/homebrew/bin|/usr/bin|/opt/local/bin)/7zz?"'
+    severity: error
+
+  no_print:
+    name: "print() instead of Logger"
+    message: >-
+      Use os.Logger. print() writes to a stdout nobody reads in a shipped .app, and it is
+      not redacted, not categorised and not visible in Console.
+    regex: '\bprint\('
+    match_kinds:
+      - identifier
+    excluded: ".*/Tests/.*"
+    severity: warning
+
+  no_direct_user_defaults:
+    name: "Direct UserDefaults access"
+    message: >-
+      Go through Support/Defaults.swift. It is the single map from 7-Zip's
+      HKCU\Software\7-Zip\FM key names to ours, and bypassing it is how the two drift.
+    regex: 'UserDefaults\.standard'
+    excluded: ".*/(Defaults|DefaultsTests)\\.swift"
+    severity: warning
+
+  no_synchronous_engine_call_on_main:
+    name: "Blocking wait on the main actor"
+    message: >-
+      waitUntilExit() / .sync on the main actor freezes the UI for the entire length of a
+      compress or extract. Drive the engine with async/await and let the progress window
+      update.
+    regex: '\.waitUntilExit\(\)'
+    excluded: ".*/Tests/.*"
+    severity: warning

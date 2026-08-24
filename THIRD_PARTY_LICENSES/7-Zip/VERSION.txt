@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Rajesh D'Monte
+#
+# Provenance record for the third-party 7-Zip console binary bundled with ArcSeven.
+#
+# ArcSeven does NOT link 7-Zip code.  The binary named here is an unmodified
+# upstream build, shipped beside ArcSeven and driven as a separate process.  This
+# record exists so that any recipient can verify, byte for byte, that the source
+# code offered under GNU LGPL v2.1 section 4 (see NOTICE, section 1.2) is the
+# source for the exact binary shipped.
+#
+# Format:  machine-readable "Key: value", one field per line; '#' begins a
+# comment; blank lines are ignored; values start at column 24.
+#
+# The SHA-256 fields are generated -- do not hand-edit them.  Regenerate the
+# whole record with:
+#
+#     Scripts/refresh-third-party-licenses.sh
+#
+# That script also re-fetches https://www.7-zip.org/license.txt and fails loudly
+# if the upstream license text has changed since this record was written.
+
+Component:             7-Zip console program ("7zz"), macOS build
+Upstream version:      26.02
+Upstream released:     2026-06-25
+Upstream project:      https://www.7-zip.org
+Upstream repository:   https://github.com/ip7z/7zip
+Upstream tag:          26.02
+
+Binary tarball:        7z2602-mac.tar.xz
+Binary URL:            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-mac.tar.xz
+Binary path in app:    Contents/Helpers/7zz
+Binary architectures:  arm64 x86_64
+Binary SHA-256:        FILLED BY Scripts/refresh-third-party-licenses.sh
+
+Source tarball:        7z2602-src.tar.xz
+Source URL:            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-src.tar.xz
+Source SHA-256:        FILLED BY Scripts/refresh-third-party-licenses.sh
+
+License file:          THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt
+License URL:           https://www.7-zip.org/license.txt
+License SHA-256:       3a184aa13dc8ad30734e28ff901b478ccbcb5b41be52427a5e7609c8fd9e5ddb
+License SPDX:          LGPL-2.1-or-later AND BSD-3-Clause AND BSD-2-Clause AND LicenseRef-unRAR-restriction
+
+Linkage:               NONE - separate executable, driven over argv/stdout/exit codes
+Modifications:         NONE - bundled verbatim as a separate executable
+Last verified:         2026-08-24

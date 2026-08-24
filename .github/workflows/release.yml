@@ -1,0 +1,408 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Rajesh D'Monte
+#
+# Release pipeline for ArcSeven: tag -> universal build -> sign -> DMG -> notarise -> staple
+# -> verify -> publish.
+#
+# ---------------------------------------------------------------------------------------
+# REQUIRED REPOSITORY SECRETS
+# ---------------------------------------------------------------------------------------
+# Settings -> Secrets and variables -> Actions. None of these are ever visible to a fork
+# pull request, which is exactly why ci.yml does no signing.
+#
+#   BUILD_CERTIFICATE_BASE64   Developer ID Application certificate exported as .p12 and
+#                              base64-encoded:  base64 -i cert.p12 | pbcopy
+#                              The identity must be
+#                              "Developer ID Application: Rajesh DMonte (HAMH7N3PJR)".
+#   P12_PASSWORD               Password set when exporting that .p12.
+#   KEYCHAIN_PASSWORD          Any random string. Password for the throwaway keychain
+#                              created on the runner and deleted in the cleanup step.
+#   APPLE_TEAM_ID              HAMH7N3PJR.
+#
+#   NOTARY_KEY_ID              App Store Connect API Key ID (the XXXXXXXXXX in
+#                              AuthKey_XXXXXXXXXX.p8).
+#   NOTARY_ISSUER_ID           App Store Connect Issuer UUID.
+#   NOTARY_KEY_P8_BASE64       AuthKey_XXXXXXXXXX.p8, base64-encoded.
+#
+#     An App Store Connect API key is used rather than Apple-ID + app-specific-password
+#     because it is scoped, revocable and does not break when the account is prompted for
+#     two-factor re-authentication.
+#
+#   SPARKLE_ED_PRIVATE_KEY     Sparkle EdDSA private key, from Sparkle's generate_keys.
+#                              Optional: the appcast step is skipped when it is absent, so
+#                              this pipeline works before Sparkle is wired up. DSA-only
+#                              updates are no longer supported by Sparkle; EdDSA or
+#                              nothing.
+#
+# ---------------------------------------------------------------------------------------
+# SCRIPTS CONTRACT
+# ---------------------------------------------------------------------------------------
+# All of the real logic lives in Scripts/, so that a release can be reproduced locally,
+# byte for byte, without GitHub. This workflow is only the orchestration and the secret
+# plumbing. Each script is expected to `set -euo pipefail` and to exit non-zero on any
+# failure it detects itself.
+#
+#   Scripts/bootstrap.sh
+#       Initialises submodules, runs xcodegen, and builds the universal 7zz from the
+#       pinned vendor/7zip checkout into vendor/bin/7zz.
+#
+#   Scripts/sign.sh <app-bundle>
+#       Signs inside-out - Contents/Helpers/7zz first, then frameworks and their nested
+#       XPC services, then the appexes with their own entitlements, then the .app last -
+#       with --options runtime --timestamp. Never `codesign --deep` to sign; --deep
+#       applies the wrong entitlements to nested code.
+#       env: SIGN_IDENTITY
+#
+#   Scripts/notarize.sh <path-to-app-or-dmg>
+#       notarytool submit --wait, then stapler staple, then stapler validate. On failure
+#       it should dump `notarytool log` so the per-binary reason is in the job output.
+#       env: NOTARY_KEY_PATH, NOTARY_KEY_ID, NOTARY_ISSUER_ID
+#
+#   Scripts/make-dmg.sh <app-bundle> <output.dmg>
+#       Builds the DMG with volume name "ArcSeven" and an /Applications symlink, then signs
+#       the DMG itself.
+#       env: SIGN_IDENTITY
+#
+#   Scripts/verify-release.sh <app-bundle> <dmg>
+#       The gate before anything is published: codesign --verify --deep --strict,
+#       spctl -a -t exec (must report "source=Notarized Developer ID"), stapler validate
+#       on both, lipo -archs on the app binary and on Contents/Helpers/7zz (both must be
+#       arm64 + x86_64), and a check that the bundled 7zz SHA-256 matches
+#       THIRD_PARTY_LICENSES/7-Zip/VERSION.txt.
+#
+#   Scripts/make-source-tarball.sh <output-dir>
+#       Produces dist/7zip-<version>-src.tar.xz from the pinned vendor/7zip submodule
+#       via `git archive`, so the tarball is the exact tree the shipped 7zz was built
+#       from, plus its .sha256. SEE THE COMPLIANCE NOTE ON THE PUBLISH STEP BELOW - this
+#       artefact is not optional.
+#
+#   Scripts/appcast.sh <dist-dir>
+#       Sparkle sign_update + generate_appcast. Skipped when SPARKLE_ED_PRIVATE_KEY is
+#       unset.
+#       env: SPARKLE_ED_PRIVATE_KEY
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build, sign, notarise, publish
+    runs-on: macos-26
+    timeout-minutes: 90
+    # A fork that pushes a v* tag has no secrets and would fail halfway through, leaving a
+    # half-published release behind. Do not even start.
+    if: github.repository == 'havokentity/ArcSeven'
+
+    env:
+      APP_NAME: ArcSeven
+      PRODUCT_NAME: ArcSeven
+      BUNDLE_ID: com.havokentity.ArcSeven
+
+    steps:
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # vendor/7zip is needed twice over: to build the universal 7zz, and to produce
+          # the corresponding source tarball attached to the release.
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Pin Xcode
+        run: |
+          set -euo pipefail
+          XCODE=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -n 1 || true)
+          if [ -n "$XCODE" ]; then
+            sudo xcode-select -s "$XCODE/Contents/Developer"
+          fi
+          xcodebuild -version
+          swift --version
+
+      - name: Derive version from tag
+        id: version
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME}"
+          VERSION="${TAG#v}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::Tag '$TAG' is not vMAJOR.MINOR.PATCH[-prerelease]."
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "build=${GITHUB_RUN_NUMBER}"
+            echo "dmg=${PRODUCT_NAME}-${VERSION}.dmg"
+          } >> "$GITHUB_OUTPUT"
+          # A hyphen means a prerelease identifier per semver, so mark the GitHub release
+          # accordingly and keep it out of the Homebrew cask livecheck.
+          if printf '%s' "$VERSION" | grep -q -- '-'; then
+            echo "prerelease=--prerelease" >> "$GITHUB_OUTPUT"
+          else
+            echo "prerelease=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Install build tools
+        run: |
+          set -euo pipefail
+          brew install xcodegen create-dmg
+          xcodegen --version
+
+      # ---------------------------------------------------------------------------------
+      # Toolchain-independent sanity gate. If the pure-logic modules are broken there is
+      # no point spending twenty minutes on a notarisation round trip.
+      # ---------------------------------------------------------------------------------
+      - name: Test the pure-logic modules
+        run: swift test -v
+
+      - name: Bootstrap - generate project, build universal 7zz
+        run: |
+          set -euo pipefail
+          chmod +x Scripts/*.sh
+          Scripts/bootstrap.sh
+
+      # ---------------------------------------------------------------------------------
+      # Signing identity
+      # ---------------------------------------------------------------------------------
+      - name: Import signing certificate
+        env:
+          CERT_B64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/certificate.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+
+          printf '%s' "$CERT_B64" | base64 --decode -o "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN"
+
+          # Without this, codesign blocks on a keychain authorisation dialog that no one
+          # is there to click and the job sits until it times out. It is the single most
+          # commonly omitted line in a macOS CI signing setup.
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" >/dev/null
+
+          security list-keychain -d user -s "$KEYCHAIN"
+
+          rm -f "$CERT_PATH"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+
+      # ---------------------------------------------------------------------------------
+      # Build
+      # ---------------------------------------------------------------------------------
+      # CODE_SIGNING_ALLOWED=NO on purpose: Xcode produces an unsigned bundle and
+      # Scripts/sign.sh then signs the whole tree inside-out in one place. Letting Xcode
+      # sign each nested binary at copy time is how helpers end up signed in the wrong
+      # order, or with the app's entitlements instead of their own.
+      - name: Build universal Release bundle
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project ArcSeven.xcodeproj \
+            -scheme ArcSeven \
+            -configuration Release \
+            -destination 'generic/platform=macOS' \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            ARCHS="arm64 x86_64" \
+            ONLY_ACTIVE_ARCH=NO \
+            MARKETING_VERSION="${{ steps.version.outputs.version }}" \
+            CURRENT_PROJECT_VERSION="${{ steps.version.outputs.build }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+          mkdir -p staging dist
+          rm -rf "staging/${APP_NAME}.app"
+          cp -R "$RUNNER_TEMP/DerivedData/Build/Products/Release/${APP_NAME}.app" staging/
+
+          # Keep the symbols: notarisation strips nothing, but crash reports from users
+          # are unsymbolicated without these and they are gone once the runner is torn down.
+          mkdir -p dist/dSYMs
+          find "$RUNNER_TEMP/DerivedData/Build/Products/Release" -maxdepth 1 -name '*.dSYM' \
+            -exec cp -R {} dist/dSYMs/ \;
+
+      - name: Sign
+        env:
+          SIGN_IDENTITY: "Developer ID Application: Rajesh DMonte (${{ secrets.APPLE_TEAM_ID }})"
+        run: Scripts/sign.sh "staging/${APP_NAME}.app"
+
+      # ---------------------------------------------------------------------------------
+      # Notarisation
+      # ---------------------------------------------------------------------------------
+      # The .app and the .dmg are notarised and stapled separately, so the ticket survives
+      # the app being dragged out of the disk image. Stapling is what makes a first launch
+      # work offline.
+      - name: Write notary API key
+        env:
+          NOTARY_KEY_P8_BASE64: ${{ secrets.NOTARY_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 --decode -o "$RUNNER_TEMP/notary.p8"
+          chmod 600 "$RUNNER_TEMP/notary.p8"
+
+      - name: Notarise and staple the app
+        env:
+          NOTARY_KEY_PATH: ${{ runner.temp }}/notary.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: Scripts/notarize.sh "staging/${APP_NAME}.app"
+
+      - name: Build DMG
+        env:
+          SIGN_IDENTITY: "Developer ID Application: Rajesh DMonte (${{ secrets.APPLE_TEAM_ID }})"
+        run: Scripts/make-dmg.sh "staging/${APP_NAME}.app" "dist/${{ steps.version.outputs.dmg }}"
+
+      - name: Notarise and staple the DMG
+        env:
+          NOTARY_KEY_PATH: ${{ runner.temp }}/notary.p8
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: Scripts/notarize.sh "dist/${{ steps.version.outputs.dmg }}"
+
+      # ---------------------------------------------------------------------------------
+      # Verification gate - nothing is published until this passes
+      # ---------------------------------------------------------------------------------
+      - name: Verify signature, notarisation and architectures
+        run: Scripts/verify-release.sh "staging/${APP_NAME}.app" "dist/${{ steps.version.outputs.dmg }}"
+
+      # ---------------------------------------------------------------------------------
+      # LICENSE COMPLIANCE - not optional, not a nice-to-have
+      # ---------------------------------------------------------------------------------
+      # The DMG contains a 7zz built from LGPL-2.1-or-later code. LGPL-2.1 section 4
+      # requires that the complete corresponding machine-readable source accompany the
+      # object code, and says that "if distribution of object code is made by offering
+      # access to copy from a designated place, then offering equivalent access to copy
+      # the source code from the same place satisfies the requirement".
+      #
+      # Attaching the exact source tarball to the SAME GitHub Release as the DMG is that
+      # equivalent access, and it fully discharges the obligation - no three-year written
+      # offer, no mailing media. A hyperlink to 7-zip.org would NOT do: "the same place"
+      # means our distribution point, and upstream is free to move or delete its files.
+      #
+      # If this step fails, the release must not be published.
+      - name: Build the 7-Zip corresponding-source tarball
+        run: |
+          set -euo pipefail
+          Scripts/make-source-tarball.sh dist
+          ls -1 dist/7zip-*-src.tar.xz >/dev/null
+
+      - name: Checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          shasum -a 256 *.dmg *.tar.xz | tee SHA256SUMS.txt
+
+      # ---------------------------------------------------------------------------------
+      # Sparkle appcast (skipped until the EdDSA key exists)
+      # ---------------------------------------------------------------------------------
+      # Guarded inside the step rather than with `if:` - the secrets context is not
+      # available to a step-level condition.
+      - name: Sign update and generate appcast
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SPARKLE_ED_PRIVATE_KEY:-}" ]; then
+            echo "SPARKLE_ED_PRIVATE_KEY is not set - skipping Sparkle appcast generation."
+            exit 0
+          fi
+          Scripts/appcast.sh dist
+
+      # ---------------------------------------------------------------------------------
+      # Publish
+      # ---------------------------------------------------------------------------------
+      - name: Compose release notes
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.version.outputs.version }}"
+          SRC_TARBALL=$(basename "$(ls -1 dist/7zip-*-src.tar.xz | head -n 1)")
+          cat > dist/RELEASE_NOTES.md <<EOF
+          ## ArcSeven $VERSION
+
+          A macOS reimplementation of the 7-Zip File Manager. Developer ID signed,
+          notarised and stapled; universal (Apple silicon and Intel).
+
+          **Install:** open the DMG and drag ArcSeven to Applications, or
+          \`brew install --cask 7zmac\`.
+
+          Verify what you downloaded against \`SHA256SUMS.txt\`.
+
+          ### Licensing
+
+          ArcSeven is free software under the GNU General Public License, version 3 or later,
+          and comes with ABSOLUTELY NO WARRANTY. Source: this repository, at tag
+          \`${{ steps.version.outputs.tag }}\`.
+
+          The application bundles an unmodified copy of the 7-Zip console binary
+          (\`7zz\`) in \`Contents/Helpers/\` and drives it as a subprocess. 7-Zip is
+          licensed under the GNU LGPL, version 2.1 or later, with parts under
+          BSD-3-Clause and BSD-2-Clause, and the RAR decoding code carries the unRAR
+          restriction: that code may not be used to reverse-engineer the RAR compression
+          algorithm or to create a RAR compressor. ArcSeven therefore reads RAR archives and
+          never writes them.
+
+          \`$SRC_TARBALL\` attached to this release is the complete corresponding source
+          for the bundled \`7zz\`, offered from the same place as the binary as LGPL-2.1
+          section 4 requires. See \`THIRD_PARTY_LICENSES/\` for the full texts and for the
+          SHA-256 of the shipped binary.
+
+          ArcSeven is not affiliated with, authorised by, or endorsed by 7-Zip or Igor
+          Pavlov. 7-Zip is used here only to describe compatibility.
+          EOF
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          DMG="dist/${{ steps.version.outputs.dmg }}"
+          SRC_TARBALL=$(ls -1 dist/7zip-*-src.tar.xz | head -n 1)
+
+          # Both assets go up in the same call, so a partially populated release - the one
+          # state that would put us out of compliance - is not reachable.
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "ArcSeven ${{ steps.version.outputs.version }}" \
+            --notes-file dist/RELEASE_NOTES.md \
+            --verify-tag \
+            ${{ steps.version.outputs.prerelease }} \
+            "$DMG" \
+            "$SRC_TARBALL" \
+            "dist/SHA256SUMS.txt"
+
+          if [ -f dist/appcast.xml ]; then
+            gh release upload "${{ steps.version.outputs.tag }}" dist/appcast.xml --clobber
+          fi
+
+      - name: Upload debug symbols as a workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dSYMs-${{ steps.version.outputs.version }}
+          path: dist/dSYMs
+          retention-days: 90
+          if-no-files-found: warn
+
+      # ---------------------------------------------------------------------------------
+      # Always clean up the credentials, including after a failure
+      # ---------------------------------------------------------------------------------
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          set +e
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db"
+          rm -f "$RUNNER_TEMP"/*.p8 "$RUNNER_TEMP"/*.p12
+          exit 0

@@ -1,0 +1,210 @@
+ArcSeven
+Copyright (C) 2026 Rajesh D'Monte
+
+ArcSeven is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.  SPDX-License-Identifier: GPL-3.0-or-later
+
+ArcSeven is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
+A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+You should have received a copy of the GNU General Public License along with
+this program; the complete text is in the file LICENSE at the root of this
+distribution.  If not, see <https://www.gnu.org/licenses/>.
+
+The complete corresponding source code for ArcSeven is published at
+<https://github.com/havokentity/ArcSeven>, and every tagged release carries the
+source for exactly the binaries shipped in that release.
+
+This NOTICE records the attribution and license obligations that attach to the
+third-party software distributed alongside ArcSeven.  It is part of the
+"documentation" for the purposes of the unRAR license restriction reproduced in
+section 2 below, and it is reproduced verbatim inside the application bundle
+(Help > Acknowledgements) and in README.md.
+
+================================================================================
+1.  BUNDLED THIRD-PARTY SOFTWARE:  7-Zip  ("7zz")
+================================================================================
+
+7-Zip Copyright (C) 1999-2025 Igor Pavlov.
+Project home:  https://www.7-zip.org
+
+This distribution includes the 7-Zip console program, "7zz", as a separate,
+unmodified, upstream-built executable located at
+
+    ArcSeven.app/Contents/Helpers/7zz
+
+ArcSeven invokes 7zz as an independent process and communicates with it only over
+its documented command-line surface: argv, standard input/output/error, and
+process exit codes.  ArcSeven does not link against, statically or dynamically
+embed, or modify any 7-Zip code.  7zz and ArcSeven are separate programs that are
+merely distributed together; the distribution is an "aggregate" within the
+meaning of GNU GPL version 3 section 5 and GNU LGPL version 2.1 section 2.
+
+The exact upstream version, the source archive it was built from, and the
+SHA-256 checksums of both are recorded in
+THIRD_PARTY_LICENSES/7-Zip/VERSION.txt.
+
+Required attribution, per the 7-Zip FAQ <https://www.7-zip.org/faq.html>:
+
+    1.  This product uses parts of the 7-Zip program.
+    2.  7-Zip is licensed under the GNU LGPL license.
+    3.  The 7-Zip source code can be found at https://www.7-zip.org
+
+--------------------------------------------------------------------------------
+1.1  Which license covers which part of 7-Zip
+--------------------------------------------------------------------------------
+
+7-Zip's own license.txt states:  "Redistributions in binary form must reproduce
+related license information from this file."  A byte-for-byte copy of that file
+is distributed at
+
+    THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt
+
+and, inside the application bundle, at
+
+    ArcSeven.app/Contents/Resources/Legal/7-Zip/LICENSE.txt
+
+The map below summarises that file for convenience.  It does not replace it,
+and the file itself is authoritative.
+
+  *  GNU LGPL, version 2.1 or later      (SPDX:  LGPL-2.1-or-later)
+
+     The main license for most of the code in 7-Zip's archive engine, and the
+     license for all other 7-Zip files -- which is to say, for the whole of the
+     7zz console program bundled here, apart from the specific components
+     listed below.
+         Copyright (C) 1999-2025 Igor Pavlov.
+     Full license text:  THIRD_PARTY_LICENSES/7-Zip/LGPL-2.1.txt
+
+  *  GNU LGPL, version 2.1 or later, WITH the "unRAR license restriction"
+     (SPDX:  LGPL-2.1-or-later AND LicenseRef-unRAR-restriction)
+
+     The RAR decompression engine, and that engine only.  It was developed
+     using source code of the unRAR program; all copyrights to the original
+     unRAR code are owned by Alexander Roshal.  The restriction is reproduced
+     verbatim in section 2 below, as that license requires.
+
+  *  BSD 3-clause License                (SPDX:  BSD-3-Clause)
+
+     1) The LZFSE data decompression code, derived from the code in the "LZFSE
+        compression library" developed by Apple Inc., which also uses the
+        BSD 3-clause License.
+     2) The ZSTD data decompression code, developed using the original zstd
+        decoder code -- developed by Facebook, Inc., which also uses the
+        BSD 3-clause License -- as reference code.
+         Copyright (c) 2015-2016, Apple Inc. All rights reserved.
+         Copyright (c) Facebook, Inc. All rights reserved.
+         Copyright (c) 2023-2025 Igor Pavlov.
+     The full text, including the required warranty disclaimer and the
+     no-endorsement clause, is in THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt.
+
+  *  BSD 2-clause License                (SPDX:  BSD-2-Clause)
+
+     The XXH64 code, derived from the original XXH64 code developed by
+     Yann Collet.
+         Copyright (c) 2012-2021 Yann Collet.
+         Copyright (c) 2023-2025 Igor Pavlov.
+     The full text, including the required warranty disclaimer, is in
+     THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt.
+
+Neither the name of any copyright holder above, nor the names of their
+contributors, is used to endorse or promote ArcSeven.
+
+--------------------------------------------------------------------------------
+1.2  Source code for the bundled 7zz binary  (GNU LGPL v2.1, section 4)
+--------------------------------------------------------------------------------
+
+GNU LGPL version 2.1, section 4, second paragraph:
+
+    If distribution of object code is made by offering access to copy
+    from a designated place, then offering equivalent access to copy the
+    source code from the same place satisfies the requirement to
+    distribute the source code, even though third parties are not
+    compelled to copy the source along with the object code.
+
+Accordingly:  the complete corresponding machine-readable source code for the
+exact 7zz binary distributed with this release of ArcSeven is offered from the
+same place as the binary itself -- it is attached as an asset to the very same
+GitHub Release that carries the ArcSeven disk image:
+
+    https://github.com/havokentity/ArcSeven/releases
+
+Every ArcSeven release page carries the upstream 7-Zip source archive
+(7z<version>-src.tar.xz) alongside the ArcSeven .dmg, mirrored bit-for-bit from
+the upstream release.  The filename, the download URL and the SHA-256 of both
+that archive and the shipped binary are recorded in
+THIRD_PARTY_LICENSES/7-Zip/VERSION.txt, so any recipient can verify that the
+source offered matches the binary shipped.
+
+No time-limited written offer is relied upon:  access to the source is offered
+from the same place, at the same time, and for as long as the binary itself is
+offered.  Anyone who receives a ArcSeven disk image by some other route may obtain
+the identical source archive from that release page, or from the upstream
+project at <https://www.7-zip.org> and <https://github.com/ip7z/7zip>.
+
+================================================================================
+2.  unRAR LICENSE RESTRICTION
+================================================================================
+
+The decompression engine for RAR archives was developed using source code of
+unRAR program.  All copyrights to original unRAR code are owned by Alexander
+Roshal.
+
+The license for original unRAR code has the following restriction, reproduced
+here verbatim:
+
+    The unRAR sources cannot be used to re-create the RAR compression algorithm,
+    which is proprietary. Distribution of modified unRAR sources in separate form
+    or as a part of other software is permitted, provided that it is clearly
+    stated in the documentation and source comments that the code may
+    not be used to develop a RAR (WinRAR) compatible archiver.
+
+This statement is made clearly, in this documentation, as that license requires:
+THE CODE MAY NOT BE USED TO DEVELOP A RAR (WinRAR) COMPATIBLE ARCHIVER.  The
+corresponding statement in the source comments is carried by the upstream 7-Zip
+source archive offered in section 1.2, which is shipped unmodified.
+
+Consequences for ArcSeven, stated plainly:
+
+  *  ArcSeven reads RAR archives.  It cannot create them, and offers no user
+     interface, menu item, command-line flag, or preference for creating them.
+  *  ArcSeven contains no RAR compression code and no RAR decompression code.  RAR
+     handling happens exclusively inside the separate, unmodified 7zz process.
+  *  No unRAR-derived code, and no 7-Zip source code of any kind, is copied into
+     the ArcSeven repository.  This is enforced as a contribution rule.
+  *  ArcSeven is not a RAR archiver and is not derived from the unRAR sources.
+
+================================================================================
+3.  TRADEMARKS
+================================================================================
+
+ArcSeven is an independent project.  It is not affiliated with, endorsed by,
+sponsored by, or supported by the 7-Zip project, Igor Pavlov, win.rar GmbH,
+Alexander Roshal, Apple Inc., Meta Platforms, Inc., or any other party named in
+this file.
+
+"7-Zip" is used in this documentation and in the application solely to describe
+compatibility and provenance -- that ArcSeven reads and writes the same archive
+formats, and that it bundles the upstream 7-Zip console program.  It is never
+used as, or as part of, the name of this product, and never in a way that
+suggests an official or endorsed relationship.  "7-Zip" is a trademark of its
+respective owner; "RAR" and "WinRAR" are trademarks of win.rar GmbH; "macOS",
+"Mac" and "Finder" are trademarks of Apple Inc.
+
+No 7-Zip artwork, icon, or other visual identity is used or imitated by ArcSeven.
+All ArcSeven artwork is original.
+
+================================================================================
+4.  OTHER THIRD-PARTY COMPONENTS
+================================================================================
+
+A complete index of every third-party component distributed with ArcSeven -- its
+version, its license, the path to the full license text, its role, and whether
+it is linked into ArcSeven or merely bundled beside it -- is maintained at
+
+    THIRD_PARTY_LICENSES/README.md
+
+That index is the authoritative inventory.  If a component is not listed there,
+it is not distributed with ArcSeven.

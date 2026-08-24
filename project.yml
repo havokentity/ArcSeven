@@ -1,0 +1,753 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (C) 2026 Rajesh D'Monte
+#
+# XcodeGen spec for ArcSeven.
+#
+#   xcodegen generate        # or: Scripts/bootstrap.sh
+#
+# ArcSeven.xcodeproj is a build artefact and is git-ignored. This file is the source of
+# truth for target membership, build settings, Info.plist contents and entitlements, so
+# project-level merge conflicts stop existing.
+#
+# Naming, for the record: the product is called "ArcSeven" everywhere a human reads it
+# (CFBundleName / CFBundleDisplayName / DMG volume). The Xcode target, the Swift module
+# and the on-disk bundle are "ArcSeven", because a Swift module name may not begin with
+# a digit. Bundle identifier root is com.havokentity.ArcSeven.
+#
+# Trademark posture: every user-visible string that names 7-Zip must be nominative or
+# descriptive ("compatible with", "reimplementation of"). Never possessive, never
+# "official". ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov. That rule
+# is why the Services submenu below is titled "ArcSeven" and not "7-Zip".
+
+name: ArcSeven
+
+options:
+  minimumXcodeGenVersion: "2.42.0"
+  bundleIdPrefix: com.havokentity
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+  groupSortPosition: top
+  defaultConfig: Debug
+
+attributes:
+  ORGANIZATIONNAME: Rajesh D'Monte
+
+configs:
+  Debug: debug
+  Release: release
+
+fileGroups:
+  - LICENSE
+  - docs
+  - Scripts
+  - THIRD_PARTY_LICENSES
+  - .swiftlint.yml
+  - project.yml
+  - Package.swift
+
+# ---------------------------------------------------------------------------------------
+# Project-wide build settings
+# ---------------------------------------------------------------------------------------
+settings:
+  base:
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SDKROOT: macosx
+
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+    # Mirrors `strictSettings` in Package.swift so the two build systems agree about what
+    # a legal source file is. Existentials must be spelled `any Protocol`.
+    OTHER_SWIFT_FLAGS: "$(inherited) -enable-upcoming-feature ExistentialAny"
+
+    # Universal from the start. Release builds must never be thin: the DMG is one download
+    # for both architectures, and the vendored 7zz is lipo'd the same way.
+    ARCHS: "$(ARCHS_STANDARD)"
+
+    # Signing: the Xcode build produces an UNSIGNED bundle, then Scripts/sign.sh signs the
+    # whole tree inside-out (helpers, then frameworks, then appexes, then the app) with
+    # --options runtime --timestamp. Doing it in one place is the only way to keep the
+    # ordering right, and it means a contributor with no Developer ID can still build.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: HAMH7N3PJR
+    ENABLE_HARDENED_RUNTIME: YES
+    OTHER_CODE_SIGN_FLAGS: "$(inherited) --timestamp"
+
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+    ALWAYS_SEARCH_USER_PATHS: NO
+    CLANG_ENABLE_OBJC_WEAK: YES
+    COMBINE_HIDPI_IMAGES: YES
+    DEAD_CODE_STRIPPING: YES
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    GCC_NO_COMMON_BLOCKS: YES
+    LOCALIZATION_PREFERS_STRING_CATALOGS: YES
+    SWIFT_EMIT_LOC_STRINGS: YES
+    RUN_DOCUMENTATION_COMPILER: NO
+
+    # Warnings we actually want to see in a file manager that does a lot of integer and
+    # path arithmetic.
+    CLANG_WARN_DOCUMENTATION_COMMENTS: YES
+    GCC_WARN_ABOUT_MISSING_NEWLINE: YES
+    GCC_WARN_SHADOW: YES
+    GCC_WARN_64_TO_32_BIT_CONVERSION: YES
+
+  configs:
+    Debug:
+      ONLY_ACTIVE_ARCH: YES
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
+      GCC_OPTIMIZATION_LEVEL: "0"
+      ENABLE_TESTABILITY: YES
+    Release:
+      ONLY_ACTIVE_ARCH: NO
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+      SWIFT_COMPILATION_MODE: wholemodule
+      ENABLE_TESTABILITY: NO
+      VALIDATE_PRODUCT: YES
+      # Release symbols are archived next to the DMG so notarisation crash reports
+      # symbolicate. Scripts/make-dmg.sh collects the .dSYM bundles.
+      DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
+
+# ---------------------------------------------------------------------------------------
+# Targets
+# ---------------------------------------------------------------------------------------
+targets:
+
+  # =====================================================================================
+  # The app
+  # =====================================================================================
+  ArcSeven:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+
+    settings:
+      base:
+        PRODUCT_NAME: ArcSeven
+        PRODUCT_BUNDLE_IDENTIFIER: com.havokentity.ArcSeven
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        # The app is deliberately NOT sandboxed. A two-pane file manager that spawns a
+        # helper, follows symlinks across volumes, writes xattrs and hands file promises
+        # to Finder cannot function inside a container, and the sandbox-inheritance rules
+        # would strip the helper of every dynamically acquired PowerBox grant. See
+        # docs/ARCHITECTURE.md. Distribution is Developer ID + notarised, not Mac App
+        # Store - GPL-3.0 is incompatible with Apple's Licensed Application EULA anyway.
+        # com.apple.security.app-sandbox lives in the entitlements block below and
+        # nowhere else: setting ENABLE_APP_SANDBOX as well makes Xcode merge two
+        # sources for one key, and any disagreement fails at signing time.
+
+    sources:
+      # AppKit layer
+      - path: Sources/App
+        excludes:
+          - "Resources/Info.plist"
+          - "Resources/ArcSeven.entitlements"
+      - path: Sources/FMUI
+      - path: Sources/Dialogs
+      - path: Sources/SettingsUI
+      - path: Sources/Support
+      # Pure-logic layer. Compiled directly into the app rather than linked as a package
+      # product, so there is exactly one copy of these files on disk and `swift test`
+      # exercises the same sources the app ships. See Package.swift.
+      - path: Sources/ArchiveCore
+      - path: Sources/FMKit
+
+      # -- Copy Files: the vendored 7-Zip console binary --------------------------------
+      # Lands at ArcSeven.app/Contents/Helpers/7zz.
+      #
+      # Built by vendor/build-7zz.sh (invoked from Scripts/bootstrap.sh) out of the
+      # pinned, UNMODIFIED vendor/7zip submodule: an arm64 make, an x86_64 make, then
+      # `lipo -create`. It is a separate executable driven as a subprocess and is never
+      # linked into this process - with the RAR handlers present, linking would import
+      # the unRAR restriction, which is a GPL-incompatible "further restriction" under
+      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the SHA-256.
+      #
+      # `optional: true` so a fresh clone can generate the project before bootstrapping.
+      - path: vendor/bin/7zz
+        optional: true
+        buildPhase:
+          copyFiles:
+            destination: wrapper
+            subpath: Helpers
+
+      # -- Copy Files: legal notices inside the bundle -----------------------------------
+      # GPLv3 s5(d) wants Appropriate Legal Notices reachable from the UI, LGPL-2.1 s6
+      # and the 7-Zip license.txt want their text reproduced with any binary
+      # redistribution. Shipping them inside Contents/Resources/Legal/ is what the About
+      # box and the Acknowledgements pane read from.
+      - path: LICENSE
+        buildPhase:
+          copyFiles:
+            destination: resources
+            subpath: Legal
+      - path: NOTICE
+        optional: true
+        buildPhase:
+          copyFiles:
+            destination: resources
+            subpath: Legal
+      - path: THIRD_PARTY_LICENSES
+        optional: true
+        buildPhase:
+          copyFiles:
+            destination: resources
+            subpath: Legal
+
+    dependencies:
+      - target: QuickLookPreview
+        embed: true
+        codeSign: false
+      - target: QuickActions
+        embed: true
+        codeSign: false
+
+    entitlements:
+      path: Sources/App/Resources/ArcSeven.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        # Shared with the two appexes: preferences, the authenticated request queue and
+        # the extraction staging directory. Team-prefixed, as macOS requires.
+        com.apple.security.application-groups:
+          - HAMH7N3PJR.group.com.havokentity.ArcSeven
+        # Deliberately absent: every com.apple.security.cs.* key. Spawning a co-signed
+        # helper needs none of them - library validation governs loaded code, not exec'd
+        # processes, and 7zz carries our own Team ID. Verified against shipping Keka,
+        # whose entitlements contain zero cs.* keys.
+
+    info:
+      path: Sources/App/Resources/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleName: ArcSeven
+        CFBundleDisplayName: ArcSeven
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleIconName: AppIcon
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSApplicationCategoryType: public.app-category.utilities
+        NSPrincipalClass: NSApplication
+        NSHighResolutionCapable: true
+        NSSupportsAutomaticTermination: false
+        # False on purpose: a running compress or extract must never be killed silently.
+        NSSupportsSuddenTermination: false
+        NSHumanReadableCopyright: >-
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later, with
+          ABSOLUTELY NO WARRANTY. Bundles an unmodified copy of the 7-Zip console binary
+          (LGPL-2.1-or-later, BSD-3-Clause, BSD-2-Clause, plus the unRAR restriction).
+          ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov.
+
+        # ---- TCC: the app is not sandboxed, so these strings are the consent prompts ----
+        NSDesktopFolderUsageDescription: >-
+          ArcSeven needs access to your Desktop so it can list, compress and extract files
+          stored there.
+        NSDocumentsFolderUsageDescription: >-
+          ArcSeven needs access to your Documents folder so it can list, compress and
+          extract files stored there.
+        NSDownloadsFolderUsageDescription: >-
+          ArcSeven needs access to your Downloads folder so it can open archives you have
+          downloaded and extract them in place.
+        NSRemovableVolumesUsageDescription: >-
+          ArcSeven needs access to removable volumes so it can browse and extract archives
+          stored on external disks.
+        NSNetworkVolumesUsageDescription: >-
+          ArcSeven needs access to network volumes so it can browse and extract archives
+          stored on file servers.
+
+        # ---- Services -------------------------------------------------------------------
+        # The Finder-context equivalent of 7-Zip's Explorer shell submenu. The submenu is
+        # named "ArcSeven" and the verbs are descriptive, per the trademark rule at the top
+        # of this file. Handled by Sources/App/ServicesProvider.swift via
+        # NSApplication.shared.servicesProvider.
+        #
+        # NSSendTypes + NSRequiredContext(FilePath) is the combination verified to work
+        # on current macOS; per-verb filtering (is this actually an archive?) happens in
+        # the provider, because half the formats 7zz opens have no non-dynamic UTI.
+        NSServices:
+          - NSMenuItem:
+              default: ArcSeven/Open Archive
+            NSMessage: openArchiveService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSKeyEquivalent:
+              default: ^$O
+          - NSMenuItem:
+              default: ArcSeven/Extract Here
+            NSMessage: extractHereService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSKeyEquivalent:
+              default: ^$X
+          - NSMenuItem:
+              default: ArcSeven/Extract to Subfolder
+            NSMessage: extractToSubfolderService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
+              default: ArcSeven/Extract Files...
+            NSMessage: extractFilesService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
+              default: ArcSeven/Add to Archive...
+            NSMessage: addToArchiveService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+            NSKeyEquivalent:
+              default: ^$A
+          - NSMenuItem:
+              default: ArcSeven/Add to 7z Archive
+            NSMessage: addTo7zService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
+              default: ArcSeven/Add to Zip Archive
+            NSMessage: addToZipService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
+              default: ArcSeven/Test Archive
+            NSMessage: testArchiveService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
+              default: ArcSeven/Checksum
+            NSMessage: checksumService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+
+        # ---- Document types ---------------------------------------------------------------
+        # Tier A entries below reference UTIs that macOS declares itself, in
+        # /System/Library/CoreServices/CoreTypes.bundle. They are referenced only, never
+        # redeclared: two apps exporting the same identifier with different conformance
+        # makes LaunchServices resolution order-dependent and users get flapping icons.
+        #
+        # Tier B entries reference UTIs that macOS does NOT declare - they only resolve on
+        # a machine where some third-party archiver installed them. Those are declared in
+        # UTImportedTypeDeclarations further down. com.rarlab.rar-archive is the one that
+        # surprises people: it is a de-facto standard, not a system type.
+        #
+        # LSHandlerRank is Alternate for everything. We export no format and own no
+        # format, so claiming Default would mean fighting Archive Utility, Installer and
+        # DiskImageMounter for their own file types on first launch.
+        #
+        # CFBundleTypeRole is Editor only for the seven formats 7zz can actually create
+        # (7z, zip, tar, gzip, bzip2, xz, wim). Everything else is Viewer - and RAR is
+        # Viewer permanently: 7-Zip cannot create RAR either, and the unRAR restriction
+        # forbids using that code to write a RAR compressor.
+        CFBundleDocumentTypes:
+          # ---- Tier A: system-declared -----------------------------------------------
+          - CFBundleTypeName: 7z Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-7z.icns
+            LSItemContentTypes: [org.7-zip.7-zip-archive]
+          - CFBundleTypeName: Zip Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-zip.icns
+            LSItemContentTypes: [public.zip-archive]
+          - CFBundleTypeName: Tar Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-tar.icns
+            LSItemContentTypes: [public.tar-archive]
+          - CFBundleTypeName: Gzip Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-gz.icns
+            LSItemContentTypes:
+              - org.gnu.gnu-zip-archive
+              - org.gnu.gnu-zip-tar-archive
+          - CFBundleTypeName: Bzip2 Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-bz2.icns
+            LSItemContentTypes:
+              - public.bzip2-archive
+              - public.tar-bzip2-archive
+          - CFBundleTypeName: XZ Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-xz.icns
+            LSItemContentTypes:
+              - org.tukaani.xz-archive
+              - org.tukaani.tar-xz-archive
+          - CFBundleTypeName: Compress Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [public.z-archive]
+          - CFBundleTypeName: CPIO Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes:
+              - public.cpio-archive
+              - com.apple.bom-compressed-cpio
+          - CFBundleTypeName: Cabinet Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-cab.icns
+            LSItemContentTypes: [com.microsoft.cab]
+          - CFBundleTypeName: Java Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-zip.icns
+            LSItemContentTypes:
+              - com.sun.java-archive
+              - com.sun.web-application-archive
+          - CFBundleTypeName: XAR Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.apple.xar-archive]
+          - CFBundleTypeName: Installer Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.apple.installer-package-archive]
+          - CFBundleTypeName: StuffIt Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.allume.stuffit-archive]
+
+          # ---- Tier B: imported below, not system-declared ----------------------------
+          - CFBundleTypeName: RAR Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-rar.icns
+            LSItemContentTypes: [com.rarlab.rar-archive]
+          - CFBundleTypeName: LHA Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes:
+              - lha
+              - public.archive.lha
+          - CFBundleTypeName: Disk Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes:
+              - public.iso-image
+              - com.apple.disk-image-udif
+          - CFBundleTypeName: Windows Installer Package
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.microsoft.msi-installer]
+          - CFBundleTypeName: SquashFS Image
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.plougher.squashfs-archive]
+          - CFBundleTypeName: Windows Imaging Format Archive
+            CFBundleTypeRole: Editor
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.microsoft.wim-archive]
+          - CFBundleTypeName: Zstandard Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes:
+              - com.facebook.zstandard-archive
+              - com.facebook.zstandard-tar-archive
+          - CFBundleTypeName: LZ4 Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [public.lz4-archive]
+          - CFBundleTypeName: Brotli Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [com.google.brotli-archive]
+          - CFBundleTypeName: LZMA Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-generic.icns
+            LSItemContentTypes: [org.tukaani.lzma-archive]
+          - CFBundleTypeName: ZIPX Archive
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: Alternate
+            CFBundleTypeIconFile: doc-zip.icns
+            LSItemContentTypes: [com.winzip.zipx-archive]
+
+          # ---- Catch-all -----------------------------------------------------------------
+          # 7zz opens far more than the list above, and roughly a third of those formats
+          # (.arj, .rpm, .deb, .vhd, .vhdx, .chm, .swm, raw filesystem images) have no
+          # declared UTI at all on a stock Mac - LaunchServices synthesises a throwaway
+          # dyn.* identifier from the extension, which cannot be matched here and cannot
+          # carry an icon. Declaring identifiers for those is Tier C work, tracked
+          # separately; until then this entry keeps "Open With > ArcSeven" available for any
+          # file whatsoever, which is how the Windows original behaves too.
+          - CFBundleTypeName: Any File
+            CFBundleTypeRole: Viewer
+            LSHandlerRank: None
+            LSItemContentTypes: [public.data]
+
+        # ---- Exported types ---------------------------------------------------------------
+        # None, and this is deliberate. UTExportedTypeDeclarations means "I am the
+        # authority that defines this format". We define none of them. In particular
+        # org.7-zip.7-zip-archive belongs to Igor Pavlov and is already system-declared -
+        # it is imported below defensively, never exported.
+
+        # ---- Imported types ---------------------------------------------------------------
+        # Every entry here was verified absent from CoreTypes.bundle: without these
+        # declarations the extensions resolve to dyn.* identifiers on a clean install and
+        # the document types above never match.
+        #
+        # Conformance rule: public.data AND public.archive for containers, so the file is
+        # both a real file and answers archive-wide queries. Disk images conform to
+        # public.disk-image instead of public.archive, matching how the system models
+        # public.iso-image.
+        UTImportedTypeDeclarations:
+          - UTTypeIdentifier: com.rarlab.rar-archive
+            UTTypeDescription: RAR Archive
+            UTTypeIconFile: doc-rar.icns
+            UTTypeReferenceURL: https://www.rarlab.com/
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [rar, rev]
+              public.mime-type: [application/x-rar-compressed, application/vnd.rar]
+          - UTTypeIdentifier: public.iso-image
+            UTTypeDescription: ISO Disk Image
+            UTTypeConformsTo: [public.data, public.disk-image]
+            UTTypeTagSpecification:
+              public.filename-extension: [iso]
+              public.mime-type: [application/x-iso9660-image]
+          - UTTypeIdentifier: com.apple.disk-image-udif
+            UTTypeDescription: Apple Disk Image
+            UTTypeConformsTo: [public.data, public.disk-image]
+            UTTypeTagSpecification:
+              public.filename-extension: [dmg, udif]
+              public.mime-type: [application/x-apple-diskimage]
+          - UTTypeIdentifier: com.microsoft.msi-installer
+            UTTypeDescription: Windows Installer Package
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [msi]
+              public.mime-type: [application/x-msi]
+          - UTTypeIdentifier: com.plougher.squashfs-archive
+            UTTypeDescription: SquashFS Image
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [squashfs, sfs, sqsh]
+              public.mime-type: [application/x-squashfs]
+          - UTTypeIdentifier: com.microsoft.wim-archive
+            UTTypeDescription: Windows Imaging Format Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [wim]
+              public.mime-type: [application/x-ms-wim]
+          - UTTypeIdentifier: com.facebook.zstandard-archive
+            UTTypeDescription: Zstandard Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [zst]
+              public.mime-type: [application/zstd]
+          - UTTypeIdentifier: com.facebook.zstandard-tar-archive
+            UTTypeDescription: Zstandard Compressed Tar Archive
+            UTTypeConformsTo: [com.facebook.zstandard-archive, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [tzst]
+          - UTTypeIdentifier: public.lz4-archive
+            UTTypeDescription: LZ4 Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [lz4]
+              public.mime-type: [application/x-lz4]
+          - UTTypeIdentifier: com.google.brotli-archive
+            UTTypeDescription: Brotli Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [br]
+              public.mime-type: [application/x-brotli]
+          - UTTypeIdentifier: org.tukaani.lzma-archive
+            UTTypeDescription: LZMA Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [lzma]
+              public.mime-type: [application/x-lzma]
+          - UTTypeIdentifier: public.archive.lha
+            UTTypeDescription: LHA Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [lzh, lha]
+              public.mime-type: [application/x-lzh-compressed]
+          - UTTypeIdentifier: com.winzip.zipx-archive
+            UTTypeDescription: ZIPX Archive
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [zipx]
+              public.mime-type: [application/x-zipx]
+          # Declared even though macOS already declares it, exactly as Keka does:
+          # harmless, and it keeps the app's own icon attached to .7z on any machine
+          # where a future OS drops the type.
+          - UTTypeIdentifier: org.7-zip.7-zip-archive
+            UTTypeDescription: 7z Archive
+            UTTypeIconFile: doc-7z.icns
+            UTTypeReferenceURL: https://www.7-zip.org/
+            UTTypeConformsTo: [public.data, public.archive]
+            UTTypeTagSpecification:
+              public.filename-extension: [7z]
+              public.mime-type: [application/x-7z-compressed]
+
+  # =====================================================================================
+  # Quick Look preview extension - declared, minimal
+  # =====================================================================================
+  # Renders the archive LISTING in Finder's preview pane. Sandboxed, and it must stay a
+  # header-only parser: it never spawns 7zz, never extracts, and closes the file before
+  # rendering. Quick Look previews run in a short-lived, memory-capped host, so anything
+  # that decompresses is a hang waiting to happen.
+  QuickLookPreview:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    settings:
+      base:
+        PRODUCT_NAME: QuickLookPreview
+        PRODUCT_BUNDLE_IDENTIFIER: com.havokentity.ArcSeven.QuickLookPreview
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
+    sources:
+      - path: Extensions/QuickLookPreview
+        excludes:
+          - "Info.plist"
+          - "QuickLookPreview.entitlements"
+    entitlements:
+      path: Extensions/QuickLookPreview/QuickLookPreview.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true
+        com.apple.security.application-groups:
+          - HAMH7N3PJR.group.com.havokentity.ArcSeven
+    info:
+      path: Extensions/QuickLookPreview/Info.plist
+      properties:
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleDisplayName: ArcSeven Quick Look
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: XPC!
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableCopyright: >-
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.quicklook.preview
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
+          NSExtensionAttributes:
+            QLSupportsSearchableItems: false
+            # Only the formats whose directory can be read from a bounded header parse.
+            # Solid 7z is included because the header is at a known offset and is itself
+            # a stream we can decode without touching the payload.
+            QLSupportedContentTypes:
+              - org.7-zip.7-zip-archive
+              - public.zip-archive
+              - public.tar-archive
+              - org.gnu.gnu-zip-tar-archive
+              - public.tar-bzip2-archive
+              - org.tukaani.tar-xz-archive
+              - com.rarlab.rar-archive
+              - com.microsoft.cab
+              - com.sun.java-archive
+              - com.winzip.zipx-archive
+
+  # =====================================================================================
+  # Quick Actions extension - declared, minimal
+  # =====================================================================================
+  # App Intents extension backing the Finder Quick Actions, Shortcuts, Spotlight and Siri
+  # surfaces: ExtractArchive, CompressFiles, TestArchive, ListArchiveContents. Real work
+  # is handed to the app over the shared app group, never performed in the extension -
+  # an appex has no business spawning a long-running 7zz.
+  QuickActions:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    settings:
+      base:
+        PRODUCT_NAME: QuickActions
+        PRODUCT_BUNDLE_IDENTIFIER: com.havokentity.ArcSeven.QuickActions
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
+    sources:
+      - path: Extensions/QuickActions
+        excludes:
+          - "Info.plist"
+          - "QuickActions.entitlements"
+    entitlements:
+      path: Extensions/QuickActions/QuickActions.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.application-groups:
+          - HAMH7N3PJR.group.com.havokentity.ArcSeven
+    info:
+      path: Extensions/QuickActions/Info.plist
+      properties:
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleDisplayName: ArcSeven Quick Actions
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: XPC!
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableCopyright: >-
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.appintents-extension
+
+# ---------------------------------------------------------------------------------------
+# Schemes
+# ---------------------------------------------------------------------------------------
+# Unit tests are not attached here on purpose: ArchiveCore and FMKit are AppKit-free and
+# are tested by `swift test` against Package.swift, which needs neither Xcode nor a
+# signing identity and therefore works on pull requests from forks.
+schemes:
+  ArcSeven:
+    build:
+      targets:
+        ArcSeven: all
+        QuickLookPreview: all
+        QuickActions: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
