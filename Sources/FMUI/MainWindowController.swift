@@ -207,7 +207,27 @@ public final class MainWindowController: NSWindowController {
 
         let dialog = CompressDialogController(defaultArchiveURL: defaultURL, inputs: inputs)
         dialog.present(in: window) { [weak self] request in
-            guard let self, let request else { return }
+            guard let self, var request else { return }
+
+            // Never feed the destination archive to itself.
+            //
+            // "Add" with nothing selected snapshots the whole folder, and if an archive
+            // of the target name is already sitting there — which it is the second time
+            // you press Add — it lands in the input set and gets packed into its own
+            // replacement. Observed for real: a 41 KB src.7z reappeared as a member of
+            // the 82 KB src.7z that replaced it. Upstream 7-Zip excludes the output
+            // path from its inputs; so do we.
+            let destination = request.archiveURL.standardizedFileURL
+            request.inputs = request.inputs.filter { $0.standardizedFileURL != destination }
+
+            guard !request.inputs.isEmpty else {
+                self.presentMessage(
+                    "Nothing to add",
+                    "The only item selected was the archive being created."
+                )
+                return
+            }
+
             self.run(
                 operation: self.engine.compress(request),
                 title: "Creating \(request.archiveURL.lastPathComponent)",
@@ -676,6 +696,76 @@ public final class MainWindowController: NSWindowController {
         guard let window else { completion(nil); return }
         let dialog = PasswordDialogController(mode: .unlock, archiveName: archiveName)
         dialog.present(in: window, completion: completion)
+    }
+
+    // MARK: Finder entry points
+
+    /// Extract archives handed over by Finder (extension or Services).
+    ///
+    /// Extracts each into a sibling folder named after the archive, which is the
+    /// "Extract Here"-with-a-folder behaviour people expect from a context menu — no
+    /// dialog, because someone who right-clicked and chose Extract has already made
+    /// the decision the dialog would ask about.
+    public func extractFromFinder(_ urls: [URL]) {
+        let archives = urls.filter { FileSystemFolderProvider.isArchive($0) }
+        guard let first = archives.first else {
+            presentMessage(
+                "Nothing to extract",
+                "None of the selected items look like an archive ArcSeven can read."
+            )
+            return
+        }
+        if archives.count > 1 {
+            // Batch extraction needs the operation queue from a later milestone; say so
+            // rather than silently doing one of them.
+            presentMessage(
+                "One at a time for now",
+                "\(archives.count) archives were selected. ArcSeven will extract "
+                    + "\(first.lastPathComponent); extracting several at once arrives with the "
+                    + "operation queue."
+            )
+        }
+        let destination = first
+            .deletingLastPathComponent()
+            .appendingPathComponent(first.deletingPathExtension().lastPathComponent)
+        var request = ExtractRequest(archiveURL: first, destinationURL: destination)
+        request.overwriteMode = .autoRename
+        startExtraction(request)
+    }
+
+    /// Compress items handed over by Finder, opening the Add dialog pre-filled.
+    ///
+    /// The dialog IS shown here, unlike extraction: compressing has real choices
+    /// (format, level, password) and picking silently would be presumptuous.
+    public func compressFromFinder(_ urls: [URL]) {
+        guard let window, let first = urls.first else { return }
+
+        let base = urls.count == 1
+            ? first.deletingPathExtension().lastPathComponent
+            : first.deletingLastPathComponent().lastPathComponent
+        let defaultURL = first
+            .deletingLastPathComponent()
+            .appendingPathComponent(base.isEmpty ? "Archive" : base)
+            .appendingPathExtension("7z")
+
+        let dialog = CompressDialogController(defaultArchiveURL: defaultURL, inputs: urls)
+        dialog.present(in: window) { [weak self] request in
+            guard let self, var request else { return }
+            let destination = request.archiveURL.standardizedFileURL
+            request.inputs = request.inputs.filter { $0.standardizedFileURL != destination }
+            guard !request.inputs.isEmpty else { return }
+            self.run(
+                operation: self.engine.compress(request),
+                title: "Creating \(request.archiveURL.lastPathComponent)"
+            ) { result in
+                self.reportSuccess(
+                    result,
+                    title: "Archive created",
+                    detail: request.archiveURL.path,
+                    reveal: request.archiveURL
+                )
+            }
+        }
     }
 
     // MARK: Menu actions

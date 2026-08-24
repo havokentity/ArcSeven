@@ -227,6 +227,8 @@ targets:
     dependencies:
       - target: QuickLookPreview
         embed: true
+      - target: ArcSevenFinder
+        embed: true
         codeSign: false
       - target: QuickActions
         embed: true
@@ -297,6 +299,16 @@ targets:
         # NSSendTypes + NSRequiredContext(FilePath) is the combination verified to work
         # on current macOS; per-verb filtering (is this actually an archive?) happens in
         # the provider, because half the formats 7zz opens have no non-dynamic UTI.
+        # The Finder Sync extension is sandboxed and cannot run the bundled 7zz, so it
+        # writes a request to the shared container and opens this scheme to hand the
+        # work to the app. Paths are NOT encoded in the URL: they contain characters
+        # that make that fragile, and a large selection exceeds practical URL limits.
+        CFBundleURLTypes:
+          - CFBundleURLName: com.havokentity.ArcSeven.request
+            CFBundleTypeRole: Editor
+            CFBundleURLSchemes:
+              - arcseven
+
         NSServices:
           - NSMenuItem:
               default: ArcSeven/Open Archive
@@ -717,6 +729,62 @@ targets:
   # surfaces: ExtractArchive, CompressFiles, TestArchive, ListArchiveContents. Real work
   # is handed to the app over the shared app group, never performed in the extension -
   # an appex has no business spawning a long-running 7zz.
+  # =====================================================================================
+  # Finder Sync extension - the top-level right-click menu
+  # =====================================================================================
+  # This is what gives "Compress with ArcSeven" its own place in the Finder context menu
+  # rather than burying it under Services. It is also the one piece the user must switch
+  # on by hand: System Settings > General > Login Items & Extensions > Finder Extensions.
+  # Until then Finder never loads it and the menu simply is not there, which is a
+  # support question, not a bug.
+  # NOTE the target name. It must NOT be "FinderSync": the target's own module would
+  # then shadow Apple's FinderSync.framework, and `import FinderSync` inside it resolves
+  # to itself — failing with "cannot find type 'FIFinderSync' in scope", which reads like
+  # a missing import rather than a name collision.
+  ArcSevenFinder:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    dependencies:
+      # FIFinderSync lives in FinderSync.framework and is NOT pulled in by AppKit.
+      # Without this the target fails with "cannot find type 'FIFinderSync' in scope",
+      # which reads like a missing import rather than a missing link.
+      - sdk: FinderSync.framework
+    settings:
+      base:
+        PRODUCT_NAME: ArcSevenFinder
+        PRODUCT_BUNDLE_IDENTIFIER: com.havokentity.ArcSeven.FinderSync
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
+    sources:
+      - path: Extensions/FinderSync
+        excludes:
+          - "Info.plist"
+          - "FinderSync.entitlements"
+    entitlements:
+      path: Extensions/FinderSync/FinderSync.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-only: true
+        com.apple.security.application-groups:
+          - HAMH7N3PJR.group.com.havokentity.ArcSeven
+    info:
+      path: Extensions/FinderSync/Info.plist
+      properties:
+        CFBundleName: $(PRODUCT_NAME)
+        CFBundleDisplayName: ArcSeven Finder Extension
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: XPC!
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSHumanReadableCopyright: >-
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.FinderSync
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).FinderSyncExtension
+
   QuickActions:
     type: app-extension
     platform: macOS

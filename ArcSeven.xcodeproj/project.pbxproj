@@ -43,6 +43,7 @@
 		80C7D7C69A4C2DE83C184194 /* FoldersPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604747FF973E724EC15FB080 /* FoldersPane.swift */; };
 		815840DE238DDBD65EE77674 /* StreamTokenizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5A4D25949BC650C1C588AAE /* StreamTokenizer.swift */; };
 		87D45BD1BB0778C02870B495 /* ArchiveListing.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AFB603FE0F91434F2202DA5 /* ArchiveListing.swift */; };
+		88D7180EEB734EE2ABA77512 /* FinderRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0500621416DAF206CA673779 /* FinderRequest.swift */; };
 		8A9581BB77FD06714BC30D25 /* ShortcutsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAE8916D82C6CD2C8E175A62 /* ShortcutsPane.swift */; };
 		8D8A66B312AE188D7429407E /* ProcessRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2A87DC1C4E6D0BA63F5F98 /* ProcessRunner.swift */; };
 		90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */ = {isa = PBXBuildFile; fileRef = D0CF81E7C4293E3D80EFF7CF /* LGPL-2.1.txt */; };
@@ -56,15 +57,20 @@
 		AA42F2485E1D2EFFAE97E876 /* ZIPCentralDirectoryRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB88AC24598BD198B423700 /* ZIPCentralDirectoryRecord.swift */; };
 		AAC13B55D3E7181996092EEF /* Requests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074ACBADA4FBDAC321ABFDDA /* Requests.swift */; };
 		ACDAA9C127CE4A1107077427 /* PanelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 088A87C4D69A4F33992C667C /* PanelPreferences.swift */; };
+		B3B404538A83197C4C6407FC /* ServicesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E916028BC84AD1C8348AA92 /* ServicesProvider.swift */; };
 		B5482C5965AF69A0DD2B9D07 /* LanguagePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E3C68A735930AB41267F9A7 /* LanguagePane.swift */; };
 		B7365212603B9960470E3CD5 /* PropertiesInspectorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1622E06953E275F31ACEFDE /* PropertiesInspectorController.swift */; };
 		BA059C8E662ED3D0E95D5A9B /* SettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A33EEBF650F52AE00F93F0C9 /* SettingsWindowController.swift */; };
 		BA66F04E8555E4C8E754EA3F /* ArchiveFolderProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 108E27F2CB585D4565F1230A /* ArchiveFolderProvider.swift */; };
 		BE0B4665A989E73EE8BF02BC /* SettingsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 84EBAC7B1995F88FBD0485BD /* SettingsPane.swift */; };
+		BE47F6EAE206A9D6473C90BF /* FinderRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D4EC9DC21842CAB145CAD83 /* FinderRequest.swift */; };
 		C1203C3229DBB73CFD87CBF0 /* ProgressParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = F811D3BE1304776747802D65 /* ProgressParser.swift */; };
 		C5F71E33794E2F4A6B2704B9 /* ExtractDialogController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76E346242D8A91D508C47213 /* ExtractDialogController.swift */; };
+		C96462F37D425704048EEFBC /* ArcSevenFinder.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 914454927FC7D467D9B4FC1E /* ArcSevenFinder.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		CAB3D622397AAD28A20EA48B /* PropID.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9697F03A0B01CEBE45C6CFA /* PropID.swift */; };
+		D06EB35E2E38A78973901CBC /* FinderSyncExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = 77AFD993DF89C85E8AFF4672 /* FinderSyncExtension.swift */; };
 		D4643B9F8E6F05C8058837B4 /* PanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00A0A314820C9ADAD7A942E4 /* PanelViewController.swift */; };
+		D727A30CAF1F7B8B24DDF0DF /* FinderSync.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BAA6F058D53926E19785CF00 /* FinderSync.framework */; };
 		D80EAC7D302F2B523ABFCC39 /* SevenZipCLIEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11A34E6BCEB6703C283B76EE /* SevenZipCLIEngine.swift */; };
 		DBDCCE3488DBE83CE4144D62 /* CompressDialogController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EA8E78B8DCA2DA5D978996D /* CompressDialogController.swift */; };
 		DD9A588D599AFA217F317E40 /* ColumnModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13AB22BB156DFDB5C5780A12 /* ColumnModel.swift */; };
@@ -81,6 +87,13 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
+		133C6DB72189C3340FCE66E5 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 04D4E9AFCB24684EB4BF276E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 83CC53815BBC5B3B2EFAE694;
+			remoteInfo = ArcSevenFinder;
+		};
 		6B4438B65EEEF5016A34A2CD /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 04D4E9AFCB24684EB4BF276E /* Project object */;
@@ -120,6 +133,7 @@
 			dstSubfolderSpec = 13;
 			files = (
 				04A0290A367B0BDCAAEC45D5 /* QuickLookPreview.appex in Embed Foundation Extensions */,
+				C96462F37D425704048EEFBC /* ArcSevenFinder.appex in Embed Foundation Extensions */,
 				7531798E6210BBEB6605A6BA /* QuickActions.appex in Embed Foundation Extensions */,
 			);
 			name = "Embed Foundation Extensions";
@@ -140,10 +154,12 @@
 /* Begin PBXFileReference section */
 		00A0A314820C9ADAD7A942E4 /* PanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelViewController.swift; sourceTree = "<group>"; };
 		016B3797F3DF99CE9525CAFB /* SettingsDefaults.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsDefaults.swift; sourceTree = "<group>"; };
+		0500621416DAF206CA673779 /* FinderRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderRequest.swift; sourceTree = "<group>"; };
 		0599A25BB6650467D28E0E9D /* TrashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashService.swift; sourceTree = "<group>"; };
 		074ACBADA4FBDAC321ABFDDA /* Requests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Requests.swift; sourceTree = "<group>"; };
 		088A87C4D69A4F33992C667C /* PanelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPreferences.swift; sourceTree = "<group>"; };
 		0C8D9A2F3C0D1EC034F67AB4 /* PreviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViewController.swift; sourceTree = "<group>"; };
+		0E916028BC84AD1C8348AA92 /* ServicesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicesProvider.swift; sourceTree = "<group>"; };
 		108E27F2CB585D4565F1230A /* ArchiveFolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveFolderProvider.swift; sourceTree = "<group>"; };
 		11A34E6BCEB6703C283B76EE /* SevenZipCLIEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SevenZipCLIEngine.swift; sourceTree = "<group>"; };
 		13AB22BB156DFDB5C5780A12 /* ColumnModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColumnModel.swift; sourceTree = "<group>"; };
@@ -167,6 +183,7 @@
 		4ED6FF5EABD4603A1116BCC0 /* SevenZipSignatureReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SevenZipSignatureReader.swift; sourceTree = "<group>"; };
 		56819CE9C81AA397D2E30983 /* PathNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathNormalizer.swift; sourceTree = "<group>"; };
 		5AFB603FE0F91434F2202DA5 /* ArchiveListing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveListing.swift; sourceTree = "<group>"; };
+		5D4EC9DC21842CAB145CAD83 /* FinderRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderRequest.swift; sourceTree = "<group>"; };
 		5FD1B95713CECFF73396B324 /* FIDELITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = FIDELITY.md; sourceTree = "<group>"; };
 		604747FF973E724EC15FB080 /* FoldersPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldersPane.swift; sourceTree = "<group>"; };
 		63AF7EA9663869AC2AE071A4 /* VERSION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = VERSION.txt; sourceTree = "<group>"; };
@@ -177,6 +194,7 @@
 		6C2A87DC1C4E6D0BA63F5F98 /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		6E3C68A735930AB41267F9A7 /* LanguagePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePane.swift; sourceTree = "<group>"; };
 		76E346242D8A91D508C47213 /* ExtractDialogController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractDialogController.swift; sourceTree = "<group>"; };
+		77AFD993DF89C85E8AFF4672 /* FinderSyncExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderSyncExtension.swift; sourceTree = "<group>"; };
 		78F6A82C7282F3061E703F71 /* QuickLookPreview.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = QuickLookPreview.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		7D61041C6BAFE5BA53AD8EE3 /* sign.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = sign.sh; sourceTree = "<group>"; };
 		7EA8E78B8DCA2DA5D978996D /* CompressDialogController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressDialogController.swift; sourceTree = "<group>"; };
@@ -188,6 +206,7 @@
 		8BB88AC24598BD198B423700 /* ZIPCentralDirectoryRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZIPCentralDirectoryRecord.swift; sourceTree = "<group>"; };
 		8E70D2F48517A639307DCE44 /* CompressDialogModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressDialogModel.swift; sourceTree = "<group>"; };
 		8FBBCD2D0D590D05D61737DA /* ArchiveListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveListingView.swift; sourceTree = "<group>"; };
+		914454927FC7D467D9B4FC1E /* ArcSevenFinder.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArcSevenFinder.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		91D0B85908D951E18BB85B51 /* NOTICE */ = {isa = PBXFileReference; path = NOTICE; sourceTree = "<group>"; };
 		99BDD5F12265C85FB91CA016 /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
 		A134098FF89E5ECA64D63CFF /* FileSystemFolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemFolderProvider.swift; sourceTree = "<group>"; };
@@ -201,6 +220,7 @@
 		B2D68E18BB831CD5E9414413 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		B7CA357CA7412877FCB4A217 /* ArchiveText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveText.swift; sourceTree = "<group>"; };
 		B91FD4D05E53BC38898C3A0F /* ArchiveDirectory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveDirectory.swift; sourceTree = "<group>"; };
+		BAA6F058D53926E19785CF00 /* FinderSync.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FinderSync.framework; path = System/Library/Frameworks/FinderSync.framework; sourceTree = SDKROOT; };
 		C1622E06953E275F31ACEFDE /* PropertiesInspectorController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropertiesInspectorController.swift; sourceTree = "<group>"; };
 		C9423F09F19BAF3297560EEF /* DIVERGENCES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DIVERGENCES.md; sourceTree = "<group>"; };
 		CAE8916D82C6CD2C8E175A62 /* ShortcutsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsPane.swift; sourceTree = "<group>"; };
@@ -228,6 +248,17 @@
 		FCC43BFA75D395C89296B763 /* SHORTCUTS.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = SHORTCUTS.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
+/* Begin PBXFrameworksBuildPhase section */
+		E1E33A2EEC2473FF3ABEF4E7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D727A30CAF1F7B8B24DDF0DF /* FinderSync.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
 /* Begin PBXGroup section */
 		04ABE54ECCA1C800D99DE916 /* Models */ = {
 			isa = PBXGroup;
@@ -240,10 +271,19 @@
 			path = Models;
 			sourceTree = "<group>";
 		};
+		05BEA69FE5B3F1BE78DCC63F /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				BAA6F058D53926E19785CF00 /* FinderSync.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		077124CCBFAAE0C3EA85C722 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				CF99F9D2289D6A83D122BF95 /* ArcSeven.app */,
+				914454927FC7D467D9B4FC1E /* ArcSevenFinder.appex */,
 				22B64E53061A9EFD3E051395 /* QuickActions.appex */,
 				78F6A82C7282F3061E703F71 /* QuickLookPreview.appex */,
 			);
@@ -264,6 +304,7 @@
 		100D31B1DA09D559B66351AA /* Extensions */ = {
 			isa = PBXGroup;
 			children = (
+				87871C2B609B9061B75BFFA0 /* FinderSync */,
 				DDBF1E20B5299574B9825E7D /* QuickActions */,
 				BF2D1DC0AA5514888D190779 /* QuickLookPreview */,
 			);
@@ -334,10 +375,21 @@
 			children = (
 				AEAE0780040ED14FBD749BFD /* AppDelegate.swift */,
 				F9CD62C73D4EC21DB29FDB0C /* EngineLocator.swift */,
+				0500621416DAF206CA673779 /* FinderRequest.swift */,
 				B2D68E18BB831CD5E9414413 /* main.swift */,
 				99BDD5F12265C85FB91CA016 /* MainMenuBuilder.swift */,
+				0E916028BC84AD1C8348AA92 /* ServicesProvider.swift */,
 			);
 			path = App;
+			sourceTree = "<group>";
+		};
+		87871C2B609B9061B75BFFA0 /* FinderSync */ = {
+			isa = PBXGroup;
+			children = (
+				5D4EC9DC21842CAB145CAD83 /* FinderRequest.swift */,
+				77AFD993DF89C85E8AFF4672 /* FinderSyncExtension.swift */,
+			);
+			path = FinderSync;
 			sourceTree = "<group>";
 		};
 		8DFE4B5EEE4CAB515190C61C /* bin */ = {
@@ -420,6 +472,7 @@
 				91D0B85908D951E18BB85B51 /* NOTICE */,
 				DE1E5BEF5FD19724F7FDF0BB /* Package.swift */,
 				84D8AA9E347DC6E05A28DD30 /* project.yml */,
+				05BEA69FE5B3F1BE78DCC63F /* Frameworks */,
 				077124CCBFAAE0C3EA85C722 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -523,6 +576,7 @@
 			);
 			dependencies = (
 				B7141046AAF195EBBF146C15 /* PBXTargetDependency */,
+				23E49CF3B38D7D33209F64A0 /* PBXTargetDependency */,
 				3BC2403ACA4439E0EC822141 /* PBXTargetDependency */,
 			);
 			name = ArcSeven;
@@ -547,6 +601,24 @@
 			);
 			productName = QuickActions;
 			productReference = 22B64E53061A9EFD3E051395 /* QuickActions.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+		83CC53815BBC5B3B2EFAE694 /* ArcSevenFinder */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 434C0A64813C16EAE2211ABF /* Build configuration list for PBXNativeTarget "ArcSevenFinder" */;
+			buildPhases = (
+				E904A85D7992D8293AC0919C /* Sources */,
+				E1E33A2EEC2473FF3ABEF4E7 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ArcSevenFinder;
+			packageProductDependencies = (
+			);
+			productName = ArcSevenFinder;
+			productReference = 914454927FC7D467D9B4FC1E /* ArcSevenFinder.appex */;
 			productType = "com.apple.product-type.app-extension";
 		};
 		A7B1AB7A1929944A06EEB6AE /* QuickLookPreview */ = {
@@ -584,6 +656,10 @@
 						DevelopmentTeam = HAMH7N3PJR;
 						ProvisioningStyle = Manual;
 					};
+					83CC53815BBC5B3B2EFAE694 = {
+						DevelopmentTeam = HAMH7N3PJR;
+						ProvisioningStyle = Manual;
+					};
 					A7B1AB7A1929944A06EEB6AE = {
 						DevelopmentTeam = HAMH7N3PJR;
 						ProvisioningStyle = Manual;
@@ -606,6 +682,7 @@
 			targets = (
 				49705BF11075329110E25A9D /* ArcSeven */,
 				A7B1AB7A1929944A06EEB6AE /* QuickLookPreview */,
+				83CC53815BBC5B3B2EFAE694 /* ArcSevenFinder */,
 				7E869787C43FEEA5C2DD5A31 /* QuickActions */,
 			);
 		};
@@ -634,6 +711,7 @@
 				F76CECE2C54280580B9ADE19 /* FavoritesStore.swift in Sources */,
 				3240B3FFA2FD048A1253448A /* FileSystemFolderProvider.swift in Sources */,
 				E5DB9801E441A04DCB3BCCCA /* FileTypesPane.swift in Sources */,
+				88D7180EEB734EE2ABA77512 /* FinderRequest.swift in Sources */,
 				4FE451E1769A2FAA7C4DA764 /* FolderHistoryStore.swift in Sources */,
 				74212859FB64253ECB70E4B5 /* FolderProvider.swift in Sources */,
 				80C7D7C69A4C2DE83C184194 /* FoldersPane.swift in Sources */,
@@ -656,6 +734,7 @@
 				52465B17CBCF28E87511197C /* Quarantine.swift in Sources */,
 				AAC13B55D3E7181996092EEF /* Requests.swift in Sources */,
 				9749459B2660B2C836988537 /* SLTParser.swift in Sources */,
+				B3B404538A83197C4C6407FC /* ServicesProvider.swift in Sources */,
 				30CCA93D708CC8E752F138AF /* SettingsDefaults.swift in Sources */,
 				BE0B4665A989E73EE8BF02BC /* SettingsPane.swift in Sources */,
 				A0834E79029A56DC5303E0C3 /* SettingsPaneChrome.swift in Sources */,
@@ -695,9 +774,23 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E904A85D7992D8293AC0919C /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BE47F6EAE206A9D6473C90BF /* FinderRequest.swift in Sources */,
+				D06EB35E2E38A78973901CBC /* FinderSyncExtension.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
+		23E49CF3B38D7D33209F64A0 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 83CC53815BBC5B3B2EFAE694 /* ArcSevenFinder */;
+			targetProxy = 133C6DB72189C3340FCE66E5 /* PBXContainerItemProxy */;
+		};
 		3BC2403ACA4439E0EC822141 /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
 			target = 7E869787C43FEEA5C2DD5A31 /* QuickActions */;
@@ -721,6 +814,21 @@
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.havokentity.ArcSeven.QuickActions;
 				PRODUCT_NAME = QuickActions;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+			};
+			name = Release;
+		};
+		20D1FA5FC10839BF86693779 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Extensions/FinderSync/FinderSync.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Extensions/FinderSync/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../../../../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.havokentity.ArcSeven.FinderSync;
+				PRODUCT_NAME = ArcSevenFinder;
 				SDKROOT = macosx;
 				SKIP_INSTALL = YES;
 			};
@@ -835,6 +943,21 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.havokentity.ArcSeven;
 				PRODUCT_NAME = ArcSeven;
 				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		86D0EFA558684EE59A98E1A7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Extensions/FinderSync/FinderSync.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Extensions/FinderSync/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../../../../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.havokentity.ArcSeven.FinderSync;
+				PRODUCT_NAME = ArcSevenFinder;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
 			};
 			name = Debug;
 		};
@@ -978,6 +1101,15 @@
 			buildConfigurations = (
 				630E13A33313CF2839A86C61 /* Debug */,
 				AAA88AD9DE2C52C548E0687E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		434C0A64813C16EAE2211ABF /* Build configuration list for PBXNativeTarget "ArcSevenFinder" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				86D0EFA558684EE59A98E1A7 /* Debug */,
+				20D1FA5FC10839BF86693779 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
