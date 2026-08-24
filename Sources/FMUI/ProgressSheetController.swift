@@ -17,7 +17,7 @@ import AppKit
 public final class ProgressSheetController: NSObject {
 
     private let panel = NSPanel(
-        contentRect: NSRect(x: 0, y: 0, width: 420, height: 128),
+        contentRect: NSRect(x: 0, y: 0, width: 420, height: 168),
         styleMask: [.titled],
         backing: .buffered,
         defer: false
@@ -28,6 +28,13 @@ public final class ProgressSheetController: NSObject {
 
     private weak var host: NSWindow?
     private var isFinished = false
+    private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
+
+    /// Invoked when the user cancels.
+    ///
+    /// The caller cancels its own Task, which tears down the child process group;
+    /// `7zz` unwinds on SIGINT and deletes the partial archive it was writing.
+    public var onCancel: (@MainActor () -> Void)?
 
     public init(title: String) {
         titleLabel = NSTextField(labelWithString: title)
@@ -48,7 +55,15 @@ public final class ProgressSheetController: NSObject {
         bar.maxValue = 1
         bar.startAnimation(nil)
 
-        let stack = NSStackView(views: [titleLabel, bar, detailLabel])
+        cancelButton.bezelStyle = .rounded
+        cancelButton.target = self
+        cancelButton.action = #selector(cancelClicked)
+        cancelButton.keyEquivalent = "\u{1b}"   // Escape
+
+        let buttonRow = NSStackView(views: [NSView(), cancelButton])
+        buttonRow.orientation = .horizontal
+
+        let stack = NSStackView(views: [titleLabel, bar, detailLabel, buttonRow])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 10
@@ -64,6 +79,7 @@ public final class ProgressSheetController: NSObject {
             stack.bottomAnchor.constraint(equalTo: content.bottomAnchor),
             bar.widthAnchor.constraint(equalToConstant: 380),
             detailLabel.widthAnchor.constraint(equalToConstant: 380),
+            buttonRow.widthAnchor.constraint(equalToConstant: 380),
         ])
         panel.contentView = content
     }
@@ -88,6 +104,13 @@ public final class ProgressSheetController: NSObject {
             bar.doubleValue = min(max(fraction, 0), 1)
         }
         detailLabel.stringValue = detail
+    }
+
+    @objc private func cancelClicked() {
+        guard !isFinished else { return }
+        cancelButton.isEnabled = false
+        cancelButton.title = "Cancelling…"
+        onCancel?()
     }
 
     /// Dismiss the sheet. Safe to call more than once.

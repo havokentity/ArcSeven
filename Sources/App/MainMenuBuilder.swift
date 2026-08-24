@@ -31,6 +31,8 @@ enum MainMenuBuilder {
         let menu = NSMenu(title: name)
         menu.addItem(withTitle: "About \(name)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
+        menu.addItem(withTitle: "Settings…", action: Selector(("showSettings:")), keyEquivalent: ",")
+        menu.addItem(.separator())
 
         let services = NSMenu(title: "Services")
         let servicesItem = NSMenuItem(title: "Services", action: nil, keyEquivalent: "")
@@ -56,7 +58,16 @@ enum MainMenuBuilder {
         let menu = NSMenu(title: "File")
         menu.addItem(withTitle: "Open…", action: Selector(("openLocation:")), keyEquivalent: "o")
         menu.addItem(.separator())
+
+        // 7zFM's toolbar verbs. Its own accelerators are F-keys, which are fn-key
+        // hostages on Mac laptops; the Finder preset uses Command chords instead and
+        // the "7-Zip Classic" keymap adds the F-keys alongside. See docs/SHORTCUTS.md.
+        let add = NSMenuItem(title: "Add to Archive…", action: Selector(("addAction:")), keyEquivalent: "a")
+        add.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(add)
         menu.addItem(withTitle: "Extract…", action: Selector(("extractAction:")), keyEquivalent: "e")
+        menu.addItem(withTitle: "Test Archive", action: Selector(("testAction:")), keyEquivalent: "t")
+        menu.addItem(.separator())
         menu.addItem(withTitle: "Get Info", action: Selector(("infoAction:")), keyEquivalent: "i")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Close Window", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
@@ -69,6 +80,16 @@ enum MainMenuBuilder {
     private static func editMenuItem() -> NSMenuItem {
         let menu = NSMenu(title: "Edit")
         menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Copy to Other Panel", action: Selector(("copyAction:")), keyEquivalent: "")
+        menu.addItem(withTitle: "Move to Other Panel", action: Selector(("moveAction:")), keyEquivalent: "")
+        menu.addItem(.separator())
+
+        // Cmd+Delete is "move to Trash" on macOS, and on disk that is exactly what
+        // Delete does here. Inside an archive it removes the member instead.
+        let remove = NSMenuItem(title: "Delete", action: Selector(("deleteAction:")), keyEquivalent: String(UnicodeScalar(NSBackspaceCharacter)!))
+        remove.keyEquivalentModifierMask = [.command]
+        menu.addItem(remove)
         let item = NSMenuItem()
         item.submenu = menu
         return item

@@ -200,11 +200,17 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             standardInput: delivery.stdinBytes
         )
 
-        let stderrLines = run.standardError.split(separator: "\n").map(String.init)
+        // Classify against BOTH streams. `-bso1` sends the log — including the
+        // "Enter password:" prompt — to stdout, so inspecting stderr alone makes an
+        // encrypted archive look like a generic failure instead of a password request.
+        let diagnosticLines =
+            run.standardError.split(separator: "\n").map(String.init)
+            + run.standardOutput.split(separator: "\n").map(String.init)
+
         switch ExitCodeMapper.classify(
             exitCode: run.exitCode,
             terminationSignal: run.terminationSignal,
-            stderrLines: stderrLines,
+            stderrLines: diagnosticLines,
             path: request.archiveURL.path
         ) {
         case .success:
@@ -520,7 +526,9 @@ public struct SevenZipCLIEngine: ArchiveEngine {
                             switch ExitCodeMapper.classify(
                                 exitCode: completion.exitCode,
                                 terminationSignal: completion.terminationSignal,
-                                stderrLines: stderrLines,
+                                // Both streams: the password prompt is written to the
+                                // stdout log, not to stderr. See list().
+                                stderrLines: stderrLines + logLines,
                                 warnings: warnings,
                                 path: path,
                                 wasCancelled: Task.isCancelled

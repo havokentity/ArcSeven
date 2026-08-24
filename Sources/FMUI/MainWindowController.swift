@@ -17,6 +17,15 @@ import ArchiveCore
 #if canImport(FMKit)   // module-guard
 import FMKit
 #endif
+#if canImport(Dialogs)   // module-guard
+import Dialogs
+#endif
+#if canImport(SettingsUI)   // module-guard
+import SettingsUI
+#endif
+#if canImport(Support)   // module-guard
+import Support
+#endif
 
 @MainActor
 public final class MainWindowController: NSWindowController {
@@ -29,6 +38,10 @@ public final class MainWindowController: NSWindowController {
 
     /// The panel that has focus. Operations act on this one.
     private var activePanelIndex = 0
+
+    /// Held while the Properties inspector is on screen; it is a sheet, not a child
+    /// view controller, so nothing else retains it.
+    private var propertiesInspector: PropertiesInspectorController?
 
     private var activePanel: PanelViewController? {
         panels.indices.contains(activePanelIndex) ? panels[activePanelIndex] : nil
@@ -142,32 +155,78 @@ public final class MainWindowController: NSWindowController {
     private func perform(_ action: ToolbarAction) {
         guard let panel = activePanel else { return }
         switch action {
-        case .extract:
-            extractSelection(from: panel)
-        case .info:
-            showInfo(for: panel)
-        case .add, .test, .copy, .move, .delete:
-            // The dialogs these open are the next milestone. Say so plainly rather
-            // than failing silently, which reads as a bug.
-            presentNotImplemented(action.title)
+        case .add:     addToArchive(from: panel)
+        case .extract: extractSelection(from: panel)
+        case .test:    testArchive(from: panel)
+        case .delete:  deleteSelection(from: panel)
+        case .copy:    transferSelection(from: panel, move: false)
+        case .move:    transferSelection(from: panel, move: true)
+        case .info:    showInfo(for: panel)
         }
-    }
-
-    private func presentNotImplemented(_ name: String) {
-        guard let window else { return }
-        let alert = NSAlert()
-        alert.messageText = "\(name) is not implemented yet"
-        alert.informativeText =
-            "ArcSeven is at milestone M2: browsing archives and extracting them works. "
-            + "The \(name) dialog arrives in a later milestone."
-        alert.alertStyle = .informational
-        alert.beginSheetModal(for: window)
     }
 
     // MARK: Operations
 
-    /// Extract the selection, or the whole archive when nothing is selected.
+    /// Add to archive — 7zFM's Add button.
+    ///
+    /// Operates on the selection, or on everything in the folder when nothing is
+    /// selected, which is what 7zFM does. Only meaningful for rows that exist on disk:
+    /// re-compressing members of an archive in place is a later milestone.
+    private func addToArchive(from panel: PanelViewController) {
+        guard let window else { return }
+
+        let selected = panel.selectedItems.compactMap(\.url)
+        let inputs: [URL]
+        if !selected.isEmpty {
+            inputs = selected
+        } else if let directory = (panel.provider as? FileSystemFolderProvider)?.directoryURL {
+            inputs = (try? FileManager.default.contentsOfDirectory(
+                at: directory, includingPropertiesForKeys: nil)) ?? []
+        } else {
+            inputs = []
+        }
+
+        guard !inputs.isEmpty else {
+            presentMessage(
+                "Nothing to add",
+                "Select files on disk to compress. Adding to an archive from inside "
+                    + "another archive is not supported yet."
+            )
+            return
+        }
+
+        // Default the archive name to the selection when it is a single item, or to
+        // the enclosing folder otherwise — 7zFM's naming rule.
+        let base = inputs.count == 1
+            ? inputs[0].deletingPathExtension().lastPathComponent
+            : inputs[0].deletingLastPathComponent().lastPathComponent
+        let defaultURL = inputs[0]
+            .deletingLastPathComponent()
+            .appendingPathComponent(base.isEmpty ? "Archive" : base)
+            .appendingPathExtension("7z")
+
+        let dialog = CompressDialogController(defaultArchiveURL: defaultURL, inputs: inputs)
+        dialog.present(in: window) { [weak self] request in
+            guard let self, let request else { return }
+            self.run(
+                operation: self.engine.compress(request),
+                title: "Creating \(request.archiveURL.lastPathComponent)",
+                completion: { result in
+                    self.reportSuccess(
+                        result,
+                        title: "Archive created",
+                        detail: request.archiveURL.path,
+                        reveal: request.archiveURL
+                    )
+                    self.refreshPanelsShowing(request.archiveURL.deletingLastPathComponent())
+                }
+            )
+        }
+    }
+
+    /// Extract — 7zFM's Extract button.
     private func extractSelection(from panel: PanelViewController) {
+        guard let window else { return }
         guard let archive = panel.provider as? ArchiveFolderProvider else {
             presentMessage(
                 "Not an archive",
@@ -176,41 +235,266 @@ public final class MainWindowController: NSWindowController {
             return
         }
 
-        let openPanel = NSOpenPanel()
-        openPanel.canChooseDirectories = true
-        openPanel.canChooseFiles = false
-        openPanel.canCreateDirectories = true
-        openPanel.prompt = "Extract"
-        openPanel.message = "Choose where to extract \(archive.archiveURL.lastPathComponent)"
-        openPanel.directoryURL = archive.archiveURL.deletingLastPathComponent()
+        let entries = panel.selectedItems.map(\.path)
+        let dialog = ExtractDialogController(
+            archiveURL: archive.archiveURL,
+            selectedEntries: entries
+        )
+        dialog.present(in: window) { [weak self] request in
+            guard let self, var request else { return }
 
-        guard let window else { return }
-        openPanel.beginSheetModal(for: window) { [weak self] response in
-            guard response == .OK, let destination = openPanel.url, let self else { return }
-            self.runExtraction(
-                archiveURL: archive.archiveURL,
-                entries: panel.selectedItems.map(\.path),
-                destination: destination
+            // "Ask before overwrite" cannot be answered mid-stream: the child process
+            // has no interactive channel once it is running. Resolve conflicts up
+            // front, then hand the engine a concrete, non-interactive mode.
+            if request.overwriteMode == .ask {
+                self.resolveOverwrite(for: request, in: archive.listing) { resolved in
+                    guard let resolved else { return }
+                    request = resolved
+                    self.startExtraction(request)
+                }
+            } else {
+                self.startExtraction(request)
+            }
+        }
+    }
+
+    private func startExtraction(_ request: ExtractRequest) {
+        run(
+            operation: engine.extract(request),
+            title: "Extracting \(request.archiveURL.lastPathComponent)"
+        ) { [weak self] result in
+            self?.reportSuccess(
+                result,
+                title: "Extraction complete",
+                detail: "Extracted to \(request.destinationURL.path).",
+                reveal: request.destinationURL
             )
         }
     }
 
-    private func runExtraction(archiveURL: URL, entries: [String], destination: URL) {
-        let progress = ProgressSheetController(
-            title: "Extracting \(archiveURL.lastPathComponent)"
+    /// Ask about the first conflicting file, then apply the answer to the whole run.
+    ///
+    /// 7zFM prompts per file. The subprocess engine cannot, so ArcSeven asks once and
+    /// maps the answer onto an `-ao*` switch. `docs/DIVERGENCES.md` records this; a
+    /// true per-file prompt arrives with the in-process engine.
+    private func resolveOverwrite(
+        for request: ExtractRequest,
+        in listing: ArchiveListing,
+        completion: @escaping @MainActor (ExtractRequest?) -> Void
+    ) {
+        let candidates = request.selectedEntries ?? listing.entries.map(\.path)
+        let manager = FileManager.default
+
+        var conflict: (existing: URL, entry: ArchiveEntry)?
+        for path in candidates {
+            guard let entry = listing.entry(atPath: path), !entry.isDirectory else { continue }
+            // Resolve through the zip-slip guard rather than joining paths naively.
+            guard let destination = try? PathSafety.resolvedDestination(
+                root: request.destinationURL, entryPath: path
+            ) else { continue }
+            if manager.fileExists(atPath: destination.path) {
+                conflict = (destination, entry)
+                break
+            }
+        }
+
+        guard let conflict, let window else {
+            completion(request)
+            return
+        }
+
+        let attributes = try? manager.attributesOfItem(atPath: conflict.existing.path)
+        let dialog = OverwriteDialogController(
+            existing: FileInfo(
+                path: conflict.existing.path,
+                size: (attributes?[.size] as? NSNumber)?.uint64Value,
+                modified: attributes?[.modificationDate] as? Date
+            ),
+            incoming: FileInfo(
+                path: conflict.entry.path,
+                size: conflict.entry.size,
+                modified: conflict.entry.modified
+            )
         )
+        dialog.present(in: window) { decision in
+            var resolved = request
+            switch decision {
+            case .yes, .yesToAll: resolved.overwriteMode = .overwrite
+            case .no, .noToAll:   resolved.overwriteMode = .skip
+            case .autoRename:     resolved.overwriteMode = .autoRename
+            case .cancel:         completion(nil); return
+            }
+            completion(resolved)
+        }
+    }
+
+    /// Test — verify every member's CRC without writing anything.
+    private func testArchive(from panel: PanelViewController) {
+        guard let archive = panel.provider as? ArchiveFolderProvider else {
+            presentMessage("Not an archive", "Open an archive to test it.")
+            return
+        }
+        let entries = panel.selectedItems.map(\.path)
+        var request = TestRequest(archiveURL: archive.archiveURL)
+        request.selectedEntries = entries.isEmpty ? nil : entries
+
+        run(
+            operation: engine.test(request),
+            title: "Testing \(archive.archiveURL.lastPathComponent)"
+        ) { [weak self] result in
+            self?.reportSuccess(
+                result,
+                title: result.hasWarnings ? "Tested with warnings" : "No errors found",
+                detail: "\(result.itemsProcessed) item(s) verified.",
+                reveal: nil
+            )
+        }
+    }
+
+    /// Delete — Trash on disk, remove-from-archive inside one.
+    private func deleteSelection(from panel: PanelViewController) {
+        let items = panel.selectedItems
+        guard !items.isEmpty else {
+            presentMessage("Nothing selected", "Select the items you want to delete.")
+            return
+        }
+
+        if let archive = panel.provider as? ArchiveFolderProvider {
+            confirmDestructive(
+                "Delete \(items.count) item(s) from \(archive.archiveURL.lastPathComponent)?",
+                "This rewrites the archive and cannot be undone."
+            ) { [weak self] in
+                guard let self else { return }
+                let request = DeleteRequest(
+                    archiveURL: archive.archiveURL,
+                    entryPaths: items.map(\.path)
+                )
+                self.run(
+                    operation: self.engine.delete(request),
+                    title: "Updating \(archive.archiveURL.lastPathComponent)"
+                ) { _ in
+                    // The listing is now stale; reopen the archive at the same level.
+                    self.reopenArchive(archive, in: panel)
+                }
+            }
+            return
+        }
+
+        // On disk, Delete means "move to Trash" — the Mac meaning, and recoverable.
+        let urls = items.compactMap(\.url)
+        var trashed = 0
+        var failures: [String] = []
+        for url in urls {
+            do { _ = try TrashService.trash(url); trashed += 1 }
+            catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+        }
+        panel.reload()
+        if !failures.isEmpty {
+            presentMessage(
+                "Moved \(trashed) of \(urls.count) to the Trash",
+                failures.prefix(5).joined(separator: "\n")
+            )
+        }
+    }
+
+    /// Copy / Move — to the other panel when there is one, else to a chosen folder.
+    ///
+    /// This is 7zFM's F5/F6: with two panels open, the other panel IS the destination,
+    /// which is the whole reason the two-pane layout exists.
+    private func transferSelection(from panel: PanelViewController, move: Bool) {
+        let items = panel.selectedItems
+        guard !items.isEmpty else {
+            presentMessage("Nothing selected", "Select the items you want to \(move ? "move" : "copy").")
+            return
+        }
+
+        // Extracting out of an archive is a copy by definition; a move would mean
+        // deleting from the archive afterwards, which is a separate confirmation.
+        if let archive = panel.provider as? ArchiveFolderProvider {
+            guard let destination = otherPanelDirectory(besides: panel) else {
+                presentMessage(
+                    "No destination",
+                    "Open a second panel (View ▸ Toggle Two Panels) on a folder, then "
+                        + "Copy extracts the selection into it."
+                )
+                return
+            }
+            var request = ExtractRequest(archiveURL: archive.archiveURL, destinationURL: destination)
+            request.selectedEntries = items.map(\.path)
+            request.overwriteMode = .autoRename
+            startExtraction(request)
+            return
+        }
+
+        guard let destination = otherPanelDirectory(besides: panel) else {
+            presentMessage(
+                "No destination",
+                "Open a second panel (View ▸ Toggle Two Panels) to \(move ? "move" : "copy") into."
+            )
+            return
+        }
+
+        let manager = FileManager.default
+        var failures: [String] = []
+        for url in items.compactMap(\.url) {
+            let target = destination.appendingPathComponent(url.lastPathComponent)
+            do {
+                if move { try manager.moveItem(at: url, to: target) }
+                else { try manager.copyItem(at: url, to: target) }
+            } catch {
+                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+            }
+        }
+        for other in panels { other.reload() }
+        if !failures.isEmpty {
+            presentMessage("Some items could not be \(move ? "moved" : "copied")",
+                           failures.prefix(5).joined(separator: "\n"))
+        }
+    }
+
+    private func otherPanelDirectory(besides panel: PanelViewController) -> URL? {
+        for candidate in panels where candidate !== panel {
+            if let directory = (candidate.provider as? FileSystemFolderProvider)?.directoryURL {
+                return directory
+            }
+        }
+        return nil
+    }
+
+    /// Info — the Properties inspector.
+    private func showInfo(for panel: PanelViewController) {
         guard let window else { return }
+        guard let archive = panel.provider as? ArchiveFolderProvider else {
+            presentMessage("No archive open", "Open an archive to see its properties.")
+            return
+        }
+        let inspector = PropertiesInspectorController(
+            listing: archive.listing,
+            entry: panel.selectedItems.first?.entry
+        )
+        inspector.present(in: window)
+        propertiesInspector = inspector      // held so it is not deallocated while shown
+    }
+
+    // MARK: Running an operation
+
+    /// Drive an operation stream against the progress sheet.
+    ///
+    /// One place for the pattern so every action gets cancellation, warning reporting
+    /// and error handling identically. Cancelling the task tears down the child
+    /// process group; `7zz` unwinds and removes a partial archive.
+    private func run(
+        operation: ArchiveOperationStream,
+        title: String,
+        completion: @escaping @MainActor (ArchiveOperationResult) -> Void
+    ) {
+        guard let window else { return }
+        let progress = ProgressSheetController(title: title)
         progress.present(in: window)
 
-        Task { [engine] in
-            var request = ExtractRequest(archiveURL: archiveURL, destinationURL: destination)
-            // An empty selection means "everything", which is what 7zFM does when the
-            // user presses Extract with no rows highlighted.
-            request.selectedEntries = entries.isEmpty ? nil : entries
-            request.overwriteMode = .autoRename
-
+        let task = Task { @MainActor in
             do {
-                for try await event in engine.extract(request) {
+                for try await event in operation {
                     switch event {
                     case .progress(let tick):
                         progress.update(
@@ -219,60 +503,76 @@ public final class MainWindowController: NSWindowController {
                         )
                     case .finished(let result):
                         progress.finish()
-                        self.presentExtractionResult(result, destination: destination)
+                        completion(result)
                     default:
                         break
                     }
                 }
+            } catch is CancellationError {
+                progress.finish()
             } catch {
                 progress.finish()
-                self.presentMessage("Extraction failed", error.localizedDescription)
+                self.reportFailure(error)
             }
         }
+        progress.onCancel = { task.cancel() }
     }
 
-    private func presentExtractionResult(_ result: ArchiveOperationResult, destination: URL) {
+    private func reportSuccess(
+        _ result: ArchiveOperationResult,
+        title: String,
+        detail: String,
+        reveal: URL?
+    ) {
         guard let window else { return }
         let alert = NSAlert()
-        alert.messageText = "Extraction complete"
-        var text = "Extracted to \(destination.path)."
+        alert.messageText = title
+        var text = detail
         if result.hasWarnings {
-            // Exit code 1 is success-with-warnings; surface them without calling the
-            // operation a failure.
+            // Exit code 1 is success-with-warnings. Show them; do not call it a failure.
             text += "\n\n\(result.warnings.count) warning(s):\n"
                 + result.warnings.prefix(5).map(\.message).joined(separator: "\n")
         }
         alert.informativeText = text
-        alert.addButton(withTitle: "Reveal in Finder")
+        if reveal != nil { alert.addButton(withTitle: "Reveal in Finder") }
         alert.addButton(withTitle: "Done")
         alert.beginSheetModal(for: window) { response in
-            if response == .alertFirstButtonReturn {
-                NSWorkspace.shared.activateFileViewerSelecting([destination])
+            if let reveal, response == .alertFirstButtonReturn {
+                NSWorkspace.shared.activateFileViewerSelecting([reveal])
             }
         }
     }
 
-    private func showInfo(for panel: PanelViewController) {
-        guard let archive = panel.provider as? ArchiveFolderProvider else {
-            presentMessage("No archive open", "Open an archive to see its properties.")
+    /// Report a failure, naming a password problem specifically when that is the cause.
+    ///
+    /// Named `reportFailure` rather than `presentError`: `NSResponder` already declares
+    /// `presentError(_:) -> Bool`, and overloading it here is ambiguous at every call site.
+    private func reportFailure(_ error: any Error) {
+        if let archiveError = error as? ArchiveError, archiveError.needsPassword {
+            presentMessage(
+                "Wrong password",
+                "That password did not open the archive. Try opening it again."
+            )
             return
         }
-        let listing = archive.listing
-        var lines: [String] = []
-        lines.append("Path: \(archive.archiveURL.path)")
-        if let format = listing.format { lines.append("Type: \(format.rawValue)") }
-        lines.append("Files: \(listing.fileCount)")
-        lines.append("Folders: \(listing.directoryCount)")
-        lines.append("Size: \(ColumnModel.groupedByteCount(listing.totalSize)) bytes")
-        if let physical = listing.physicalSize {
-            lines.append("Physical size: \(ColumnModel.groupedByteCount(physical)) bytes")
+        presentMessage("The operation failed", error.localizedDescription)
+    }
+
+    private func confirmDestructive(
+        _ title: String,
+        _ body: String,
+        proceed: @escaping @MainActor () -> Void
+    ) {
+        guard let window else { return }
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = body
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Delete")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn { proceed() }
         }
-        if let ratio = listing.compressionRatio {
-            lines.append(String(format: "Ratio: %.1f%%", ratio * 100))
-        }
-        lines.append("Solid: \(listing.isSolid ? "Yes" : "No")")
-        lines.append("Encrypted: \(listing.isEncrypted ? "Yes" : "No")")
-        presentMessage(archive.archiveURL.lastPathComponent, lines.joined(separator: "\n"))
     }
 
     private func presentMessage(_ title: String, _ body: String) {
@@ -281,6 +581,28 @@ public final class MainWindowController: NSWindowController {
         alert.messageText = title
         alert.informativeText = body
         alert.beginSheetModal(for: window)
+    }
+
+    /// Reopen an archive whose contents changed underneath us.
+    private func reopenArchive(_ archive: ArchiveFolderProvider, in panel: PanelViewController) {
+        Task { [engine] in
+            do {
+                let reopened = try await ArchiveFolderProvider.open(
+                    archiveURL: archive.archiveURL, engine: engine
+                )
+                panel.go(to: reopened)
+            } catch {
+                self.reportFailure(error)
+            }
+        }
+    }
+
+    /// Reload any panel currently showing `directory`, so a new archive appears.
+    private func refreshPanelsShowing(_ directory: URL) {
+        for panel in panels {
+            guard let shown = (panel.provider as? FileSystemFolderProvider)?.directoryURL else { continue }
+            if shown.standardizedFileURL == directory.standardizedFileURL { panel.reload() }
+        }
     }
 
     // MARK: Panels
@@ -310,15 +632,7 @@ public final class MainWindowController: NSWindowController {
         guard let panel = activePanel else { return }
         Task {
             if FileSystemFolderProvider.isArchive(url) {
-                do {
-                    let provider = try await ArchiveFolderProvider.open(archiveURL: url, engine: engine)
-                    panel.go(to: provider)
-                } catch {
-                    self.presentMessage(
-                        "Could not open \(url.lastPathComponent)",
-                        error.localizedDescription
-                    )
-                }
+                await self.openArchive(at: url, in: panel, password: nil)
             } else {
                 var isDirectory: ObjCBool = false
                 FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
@@ -326,6 +640,42 @@ public final class MainWindowController: NSWindowController {
                 panel.go(to: FileSystemFolderProvider(directoryURL: directory, engine: engine))
             }
         }
+    }
+
+    /// Open an archive, prompting for a passphrase when its headers are encrypted.
+    ///
+    /// An archive with encrypted headers cannot even be LISTED without the password —
+    /// `7zz` fails with "Cannot open encrypted archive. Wrong password?" — so the
+    /// prompt has to happen here, on the open path, not at extraction time.
+    /// `ArchiveError.needsPassword` covers both the wrong-password case and the
+    /// prompt-was-required case, which is exactly the retry condition.
+    private func openArchive(
+        at url: URL,
+        in panel: PanelViewController,
+        password: String?
+    ) async {
+        do {
+            let provider = try await ArchiveFolderProvider.open(
+                archiveURL: url, engine: engine, password: password
+            )
+            panel.go(to: provider)
+        } catch let error as ArchiveError where error.needsPassword {
+            promptForPassword(archiveName: url.lastPathComponent) { [weak self] result in
+                guard let self, let result else { return }
+                Task { await self.openArchive(at: url, in: panel, password: result.password) }
+            }
+        } catch {
+            presentMessage("Could not open \(url.lastPathComponent)", error.localizedDescription)
+        }
+    }
+
+    private func promptForPassword(
+        archiveName: String,
+        completion: @escaping @MainActor (PasswordPromptResult?) -> Void
+    ) {
+        guard let window else { completion(nil); return }
+        let dialog = PasswordDialogController(mode: .unlock, archiveName: archiveName)
+        dialog.present(in: window, completion: completion)
     }
 
     // MARK: Menu actions
@@ -347,6 +697,12 @@ public final class MainWindowController: NSWindowController {
     @objc public func toggleDualPane(_ sender: Any?) { toggleSecondPanel() }
     @objc public func extractAction(_ sender: Any?) { perform(.extract) }
     @objc public func infoAction(_ sender: Any?) { perform(.info) }
+    @objc public func addAction(_ sender: Any?) { perform(.add) }
+    @objc public func testAction(_ sender: Any?) { perform(.test) }
+    @objc public func deleteAction(_ sender: Any?) { perform(.delete) }
+    @objc public func copyAction(_ sender: Any?) { perform(.copy) }
+    @objc public func moveAction(_ sender: Any?) { perform(.move) }
+    @objc public func showSettings(_ sender: Any?) { SettingsWindowController.shared.show() }
 }
 
 // MARK: - Panel delegate
@@ -365,7 +721,9 @@ extension MainWindowController: PanelViewControllerDelegate {
     }
 
     public func panel(_ panel: PanelViewController, didFailWith error: any Error) {
-        presentMessage("Could not open this location", error.localizedDescription)
+        // Routed through reportFailure so an encrypted nested archive says "wrong
+        // password" rather than dumping a raw engine message.
+        reportFailure(error)
     }
 }
 

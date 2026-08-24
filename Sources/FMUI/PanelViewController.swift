@@ -192,22 +192,22 @@ public final class PanelViewController: NSViewController {
         focusTable()
     }
 
-    /// Give the list keyboard focus and a selection.
+    /// Give the list keyboard focus — but deliberately NOT a selection.
     ///
-    /// Without this the window opens with nothing focused, so the arrow keys do
-    /// nothing until the user clicks a row — which is wrong for a file manager, where
-    /// keyboard navigation is the primary interaction. The first *real* row is
-    /// selected rather than row 0, because row 0 is the ".." parent and starting there
-    /// means the first Down keypress is wasted.
+    /// Focus is needed because a file manager whose arrow keys do nothing until you
+    /// click a row feels broken.
+    ///
+    /// Auto-*selecting* a row is a different matter, and selecting one here was a bug:
+    /// every operation treats "nothing selected" as "act on everything", which is
+    /// 7zFM's rule. Pre-selecting the first row silently turned "Extract" and "Test"
+    /// into "extract/test that one item", so testing a 12-member archive reported 7.
+    /// An empty selection is meaningful state, so the panel leaves it empty and lets
+    /// the user create one.
     private func focusTable() {
         guard let window = view.window else { return }
         if window.firstResponder !== tableView {
             window.makeFirstResponder(tableView)
         }
-        guard tableView.selectedRow < 0, !rows.isEmpty else { return }
-        let firstRealRow = rows.firstIndex { !$0.isParentRow } ?? 0
-        tableView.selectRowIndexes(IndexSet(integer: firstRealRow), byExtendingSelection: false)
-        tableView.scrollRowToVisible(firstRealRow)
     }
 
     // MARK: Loading

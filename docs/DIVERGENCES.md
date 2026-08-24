@@ -800,13 +800,23 @@ them via the "missing sorts last" rule.
 
 **Reversible?** No reason to.
 
-### D-M2-3. The panel opens with the first real row selected and focused
+### D-M2-3. The panel opens focused but with NOTHING selected
 
-7zFM opens with no selection. On macOS a file manager that ignores the arrow keys until
-you click something feels broken, so the panel takes first responder and selects the
-first non-`..` row. Starting at `..` would waste the first Down keypress.
+The list takes first responder so the arrow keys work immediately — a file manager that
+ignores the keyboard until you click feels broken.
 
-**Reversible?** Yes, trivially.
+It does **not** pre-select a row, and that distinction is load-bearing. Every operation
+follows 7zFM's rule that an empty selection means "act on everything": Extract with
+nothing selected extracts the whole archive, Test tests every member. An earlier build
+auto-selected the first row for keyboard convenience and thereby made that rule
+unreachable — testing a 12-member archive reported "7 items verified" because the
+first folder happened to be selected. An empty selection is meaningful state.
+
+7zFM distinguishes the *focus rectangle* from *marked* items (Space / Insert). ArcSeven
+currently has only `NSTableView` selection, which plays the "marked" role. A separate
+focus-vs-marked model is deferred; see the Space-key open question in this document.
+
+**Reversible?** The behaviour is deliberate, but the focus/marked split should land.
 
 ### D-M2-4. Toolbar actions not yet implemented say so
 

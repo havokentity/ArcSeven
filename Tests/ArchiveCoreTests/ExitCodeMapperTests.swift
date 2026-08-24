@@ -85,3 +85,35 @@ struct ExitCodeMapperTests {
         #expect(code == 42)
     }
 }
+
+@Suite("ExitCodeMapper — password prompt routing")
+struct ExitCodeMapperPromptTests {
+
+    /// Regression: `7zz` writes "Enter password:" to the STDOUT log (because `-bso1`
+    /// routes the log there), not to stderr. Classifying against stderr alone made an
+    /// encrypted archive report a generic failure, so the UI never offered to ask for
+    /// a password. The engine now passes both streams.
+    @Test("A password prompt on the log stream is recognised")
+    func promptOnStdout() {
+        let lines = [
+            "Listing archive: /tmp/locked.7z",
+            "Enter password:",
+            "Break signaled",
+        ]
+        let outcome = ExitCodeMapper.classify(exitCode: 255, stderrLines: lines)
+        guard case .failure(let error) = outcome else {
+            Issue.record("255 with a prompt should fail"); return
+        }
+        #expect(error.needsPassword, "got \(error)")
+    }
+
+    @Test("A break with no recognisable prompt is not silently a cancellation")
+    func breakWithoutPrompt() {
+        let outcome = ExitCodeMapper.classify(exitCode: 255, stderrLines: ["Break signaled"])
+        guard case .failure(let error) = outcome else { Issue.record("should fail"); return }
+        guard case .inputRequired(let requirement, _) = error else {
+            Issue.record("should be .inputRequired, got \(error)"); return
+        }
+        #expect(requirement == .unknown)
+    }
+}
