@@ -7,84 +7,229 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 All notable changes to ArcSeven are documented in this file.
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Because nothing has been
+released yet, everything so far sits under `Unreleased`, grouped by the milestone that delivered it
+rather than by date.
 
-Milestone tags (M0–M6) refer to the roadmap in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2.
-No release has been published yet; the first public build will be `v0.1` at the end of M1.
+**No release has been published.** The milestone numbering has drifted from
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2 — vendoring and engine verification took a
+milestone of their own, so the shipped M2 is what §2 calls M1.
 
 ## [Unreleased]
 
-### Added
+Pre-alpha. The app builds, launches, opens an archive from Finder, browses it and extracts from it.
+The Add / Test / Copy / Move / Delete dialogs are written but not yet reachable from the toolbar.
+197 tests across 15 suites pass.
 
-**Milestone M0 — Foundations.** Scaffolding and de-risking only. There is no user interface, and
-nothing here is installable.
+---
 
-- **Repository scaffold** — module directory layout matching the architecture document:
-  `Sources/ArchiveCore` (engine, parsers, models; no AppKit), `Sources/FMKit` (file-manager domain;
-  no views), `Sources/FMUI` (AppKit), `Sources/Dialogs`, `Sources/SettingsUI`, `Sources/Support`,
-  `Sources/App`, plus `Extensions/QuickLookPreview` and `Extensions/QuickActions`, and `Tests/`
-  with `ArchiveCoreTests`, `FMKitTests` and `Fixtures`.
+### M2 — The AppKit shell
+
+The first build that does something for a person. Verified by running it and reading the screen.
+
+**Added**
+
+- **`PanelViewController`** — 7zFM's `CPanel`: path bar, view-based `NSTableView`, status bar.
+  Driven by an explicit data source rather than bindings, so cells exist for visible rows only and
+  a reload is O(visible), not O(entries). That is the only approach that stays responsive at the
+  row counts archives reach.
+- **`MainWindowController`** — `NSSplitViewController` shell, 7zFM's seven toolbar buttons in its
+  order (Add / Extract / Test / Copy / Move / Delete / Info), window title tracking the focused
+  panel, a second panel that can be toggled on. Extract and Info are implemented; the remaining
+  buttons present an explicit "not implemented yet" sheet naming the milestone, because a button
+  that silently does nothing reads as a bug.
+- **`ProgressSheetController`, `MainMenuBuilder`, `EngineLocator`**, and an explicit `main.swift`.
+- **`SortEngine`** implementing 7zFM's real ordering: `..` pinned first, folders above files in
+  **both** directions (reversing reverses within each group — the rule reimplementations usually
+  get wrong), natural numeric name comparison, deterministic tiebreak.
+- **`FileSystemFolderProvider` and `ArchiveFolderProvider`.** The archive is listed **once** and
+  navigation is pure computation over that snapshot, because `7zz l -slt` returns the whole archive
+  and there is no list-one-directory operation. Directories with no entry of their own are
+  synthesised, or archives written by `zip -D` open empty.
+- **`ColumnModel`**, per-folder-type column sets, and the persistence stores `FavoritesStore`,
+  `FolderHistoryStore` and `PanelPreferences` (implemented and tested; no UI reads them yet).
+- **`Support`** — `PathSafety` (zip-slip guard), `PathNormalizer`, `Quarantine`, `TrashService`,
+  `ThreadPlanner`, `ByteFormatting`.
+- **Dialogs**, written and compiling but not yet wired: Add-to-Archive (controller and model),
+  Extract, Overwrite, Password, Properties inspector.
+- **`SettingsUI`** — six panes plus the settings window chrome.
+- **Live navigation test suite** that builds a real nested `.7z` with the vendored `7zz` and walks
+  the provider tree the way the panel does, confirming natural ordering (`file1`, `file2`, `file3`,
+  `file10`, `file20`) end to end.
+
+**Changed**
+
+- `Package.swift` grew from the two AppKit-free modules to six library targets plus `SupportTests`,
+  so `swift build` covers everything the Xcode project compiles.
+- Size columns show exact grouped byte counts rather than `ByteCountFormatter`'s "1.2 MB". In an
+  archive manager the point of Size and Packed Size is comparing them against each other, and
+  rounding destroys that. Implemented with `FormatStyle`, since `NumberFormatter` is not `Sendable`
+  and cannot be a shared static under Swift 6. (`docs/DIVERGENCES.md` D-M2-1.)
+- The panel opens with the first real row selected and focused. 7zFM opens with no selection; on
+  macOS a list that ignores the arrow keys until you click it reads as broken. (D-M2-3.)
+
+**Fixed** — every one of these was found by running the app, not by a test
+
+- **The window opened at 278×85.** Assigning `contentViewController` **resizes the window to the
+  view's fitting size**, discarding the `contentRect` passed to `NSWindow.init`. With autolayout
+  content that has no intrinsic height, that collapses the window. The content size is now set
+  *after* the assignment, and both panes carry a minimum thickness so a pane cannot be dragged to
+  zero width and become unrecoverable.
+- **Finder-launched URLs were dropped.** `application(_:open:)` fires **before**
+  `applicationDidFinishLaunching`, so double-clicking a `.7z` — the most important way anyone will
+  ever open this app — silently did nothing. URLs are now queued and replayed once the window
+  exists.
+- **`7zz` was copied to the wrong bundle subpath.** It landed at `ArcSeven.app/Helpers/7zz` instead
+  of `Contents/Helpers/7zz`, because XcodeGen's `destination: wrapper` is the bundle *root*. That
+  would have failed `codesign --verify --deep --strict` at release. `EngineLocator` compounded it
+  by relying on `Bundle.url(forAuxiliaryExecutable:)`, which only searches `Contents/MacOS` and
+  returned `nil`; the path is now spelled out.
+- **The path bar was hidden behind the toolbar.** `.fullSizeContentView` extends the content view
+  under the title bar; the panel's top edge is now anchored to the safe area.
+- Folders rendered `0` in the Packed Size column, which also clumped every folder at one end of a
+  size sort. Directories now report no size at all. (D-M2-2.)
+- The file list took no keyboard focus on open, so the arrow keys did nothing until you clicked a
+  row.
+
+**Build system**
+
+- **The `module-guard` idiom.** `Package.swift` builds six modules; the Xcode target compiles the
+  same files into one, because Xcode cannot consume a local Swift package rooted at the project's
+  own directory — `packageProductDependencies` come out empty. Intra-project imports are therefore
+  wrapped in `#if canImport(…)`, true under SwiftPM and false under Xcode. One source tree, both
+  build systems, and `swift test` exercises exactly the sources the app ships. **Any new file
+  importing a sibling module must use this form** or the app target fails to build. See
+  `docs/DIVERGENCES.md`, "Build-system note".
+
+**Tests** — 197 across 15 suites, up from 40.
+
+---
+
+### M1 — Vendored `7zz`, and the engine verified against it
+
+Adds the pinned upstream submodule, builds it, and drives the actual binary from the test suite.
+Four defects surfaced that byte-fixture tests could not have caught.
+
+**Added**
+
+- **`vendor/7zip`** as a git submodule pinned to ip7z/7zip **26.02**
+  (`f9d78aff31a5f2521ae7ddbdc97c4a8855808959`), verified pristine.
+- **`vendor/build-7zz.sh`** produces a universal `arm64` + `x86_64` `7zz` from unmodified upstream
+  source using upstream's own makefiles: `lipo`'d, checksummed, provenance-stamped, both slices
+  verified to execute. It refuses to build a modified tree. The output is git-ignored — it is
+  reproducible, not a committed artefact.
+- **`Tests/ArchiveCoreTests/LiveEngineTests.swift`**, which encodes every correction below against
+  the real binary and **skips itself when `vendor/bin/7zz` is absent**, so a bare checkout still
+  passes `swift test`. Re-run it on every upstream version bump — that is the whole reason it
+  exists.
+- **`docs/ENGINE-PROTOCOL.md` Appendix A**, which records the corrections and **overrides the body
+  of that document** wherever the two disagree. The body was researched against 7-Zip 18.05; the
+  appendix was verified against the vendored 26.02.
+
+**Fixed** — corrections to the CLI contract, verified against 26.02 rather than 18.05
+
+- **A bare `-p` means an EMPTY password**, and suppresses the prompt. It does not read stdin, which
+  is what the research described. Passing it with a passphrase on stdin fails with exit 2 and
+  "Cannot open encrypted archive. Wrong password?".
+- **Omitting *both* `-y` and `-p` makes `7zz` prompt and read the passphrase from stdin**, with no
+  TTY required — confirmed with the child in its own session via `setsid`. Read operations (`l`,
+  `t`, `x`, `e`, `d`, `rn`, `h`) now use that path, so extraction passphrases never reach argv and
+  are never visible in `ps`. Because `-y` is absent there, every such invocation must pass an
+  explicit `-ao*` overwrite mode so no other prompt can block the child.
+- **Creating an archive with a piped password silently produces an UNENCRYPTED archive and exits
+  0.** There is no prompt on the creation path at all. Creation must use `-p<pw>` on argv, and
+  `verifyEncryption(of:password:)` earned its place immediately by catching exactly this.
+- **`-mem=` is ZIP-only.** Passing it to the `.7z` handler is
+  `System ERROR: E_INVALIDARG : One or more arguments are invalid`. `.7z` supports AES-256 and
+  nothing else, so the cipher is implicit. Header encryption (`-mhe=on`) remains `.7z`-only.
+- **The version banner is preceded by a blank line**, so any check using `head -n 1` gets `""`.
+  `vendor/build-7zz.sh` had this bug and now matches the first line containing `7-Zip`.
+
+**Fixed** — two host-side concurrency defects, both of which would have shipped
+
+- **Blocking pipe reads ran on the Swift cooperative thread pool.** `Task.detached` still uses that
+  pool and `FileHandle.availableData` blocks, so a few concurrent operations exhausted it and
+  deadlocked the process. `ProcessRunner` now reads on dispatch queues, which grow a thread per
+  blocked work item.
+- **`Process.waitUntilExit()` deadlocks when called from a queue** with several processes in
+  flight; a sampled backtrace pinned it. Replaced with `terminationHandler` plus a completion gate,
+  because the exit notification and pipe EOF race in either order.
+
+**Tests** — 40 across 6 suites, stable over five consecutive runs.
+
+---
+
+### M0 — Foundations
+
+Scaffolding, compliance and the engine layer. No user interface.
+
+**Added**
+
+- **Repository scaffold** matching the architecture document: `Sources/ArchiveCore` (engine,
+  parsers, models; no AppKit), `Sources/FMKit` (file-manager domain; no views), `Sources/FMUI`,
+  `Sources/Dialogs`, `Sources/SettingsUI`, `Sources/Support`, `Sources/App`, plus
+  `Extensions/QuickLookPreview` and `Extensions/QuickActions`, and `Tests/`.
 - **Licensing and compliance files** — verbatim `GPL-3.0` `LICENSE`; `NOTICE` carrying the 7-Zip
   attribution triple, the unRAR statement and the source offer; `THIRD_PARTY_LICENSES/7-Zip/` with
-  the upstream `license.txt`, the full LGPL-2.1 text, and `VERSION.txt` recording the bundled `7zz`
+  upstream's `license.txt`, the full LGPL-2.1 text, and `VERSION.txt` recording the bundled `7zz`
   version, both SHA-256 checksums, the upstream source URL and `Modifications: NONE`.
-- **`README.md`** — scope, non-affiliation, the unRAR extract-only restriction, the Mac App Store
-  rationale, and an honest survey of prior art (ShichiZip, Keka, The Unarchiver and the wider field).
-- **`CONTRIBUTING.md`** — inbound = outbound `GPL-3.0-or-later` with no CLA; DCO sign-off via
-  `git commit -s`; the clean-room rule forbidding any 7-Zip, unRAR, p7zip or NanaZip source in this
-  repository, with the cite-file-and-line workflow that replaces it; Swift 6 strict-concurrency and
-  SwiftLint style rules; and the requirement that every behavioural divergence from Windows 7zFM be
-  recorded in `docs/DIVERGENCES.md`.
-- **`docs/ARCHITECTURE.md`** — the settled design: milestone roadmap M0–M6, the 72-row fidelity
-  matrix against Windows 7zFM, the module breakdown, the improvements-over-Windows list, the risk
-  register, and the per-release compliance checklist. Supporting rationale documents for the
-  license, stack, backend and fork-or-fresh decisions.
-- **`docs/DIVERGENCES.md`** — the register of deliberate departures from Windows 7zFM, classified as
-  *adapted*, *dropped*, *fixed* or *improved*, each with its upstream file/line citation.
-- **SPDX headers** on every first-party file (`GPL-3.0-or-later`), with `reuse lint` wired into CI.
+  SPDX headers on every first-party file.
+- **`README.md`, `CONTRIBUTING.md`** (inbound = outbound, DCO sign-off, the clean-room rule and the
+  cite-file-and-line workflow that replaces copying), **`docs/ARCHITECTURE.md`** (milestone
+  roadmap, the 72-row fidelity matrix, module breakdown, risk register, per-release compliance
+  checklist), **`docs/DIVERGENCES.md`**, **`docs/ENGINE-PROTOCOL.md`**, **`docs/FIDELITY.md`**,
+  **`docs/SHORTCUTS.md`**, **`docs/RELEASING.md`**, **`docs/SECURITY.md`**.
 - **`ArchiveCore`: the engine boundary.** The `ArchiveEngine` protocol, written with a single
-  implementation from the first commit so that the M5 in-process XPC engine can be swapped in
-  without touching the UI. `SevenZipCLIEngine` spawns the bundled `7zz`, passes paths via an
-  `@listfile` with `-scsUTF-8`, and cancels by killing the process group rather than abandoning the
-  read loop.
-- **`ArchiveCore`: output parsing.** A byte-oriented stream reader that splits on `\b`, `\n` and
-  `\r` — 7-Zip's progress output is backspace-delimited, verified empirically against 7zz rather
-  than assumed — a `l -slt` state-machine parser keyed on the ten-hyphen separator, and an exit-code
-  mapper that treats status `1` as *success with warnings*, not failure.
-- **Golden-file test corpus** in `Tests/Fixtures`, with its generator script: 7z solid and
-  non-solid, zip, tar.gz, rar, encrypted body, encrypted headers, multi-volume, a 200k-entry
-  archive, UTF-8 filenames (`café_日本.txt`), NFD-vs-NFC pairs, a legacy CP932 zip, a deliberately
-  corrupted archive, and a filename containing a newline. Every parser change re-runs the whole
-  corpus.
-- **Phase 0 spike** — a signed, hardened, notarized throwaway bundle that spawns `7zz` and extracts
-  a user-selected archive from an external volume to a user-selected destination, confirming that
-  `lipo -info 7zz` reports `x86_64 arm64`, that spawning a co-signed bundled helper needs no
-  `com.apple.security.cs.*` entitlement, and that the progress encoding is unchanged in 26.02.
-- **`Scripts/bootstrap.sh`** — fetches the pinned upstream `7zz` universal binary and the upstream
-  license texts into the git-ignored `vendor/`, verifies the SHA-256 against
-  `THIRD_PARTY_LICENSES/7-Zip/VERSION.txt`, and installs the build tooling (XcodeGen, SwiftLint).
-  It never modifies the downloaded binary.
-- **XcodeGen `project.yml`** generating `ArcSeven.xcodeproj` — target and Swift module name
+  implementation from the first commit so the future in-process engine can be swapped in without
+  touching the UI. `SevenZipCLIEngine` spawns the bundled `7zz`, passes paths via an `@listfile`
+  with `-scsUTF-8`, and cancels by killing the process group rather than abandoning the read loop.
+- **`ArchiveCore`: output parsing.** `StreamTokenizer` — `7zz` paints progress with **backspaces**,
+  not carriage returns, verified empirically rather than assumed. `SLTParser` — a ten-hyphen state
+  machine that splits on the *first* `" = "` so paths containing `" = "` survive. `ProgressParser`
+  for transient progress rows and `-bb3` member lines. `ExitCodeMapper` — exit 1 is
+  success-with-warnings; 255 is overloaded and disambiguates a real cancellation from a prompt that
+  found stdin closed.
+- **`Scripts/bootstrap.sh`** — toolchain checks, submodule pin, `7zz` build, XcodeGen install
+  (asking first), project generation. **`project.yml`** generating `ArcSeven.xcodeproj`: module name
   `ArcSeven`, bundle identifier root `com.havokentity.ArcSeven`, deployment target macOS 14.0,
-  Universal 2 (`arm64` + `x86_64`), built against the macOS 26 SDK with Xcode 26, Swift 6 language
-  mode with complete strict concurrency and warnings-as-errors.
-- **CI pipeline**, wired up now rather than on release day: build → test → SwiftLint → `reuse lint`
-  → sign (inner Mach-O binaries first, hardened runtime everywhere) → DMG → notarize → staple →
-  verify (`codesign --verify --deep --strict`, `spctl -a -vvv -t exec` must report
-  `source=Notarized Developer ID`, `stapler validate`) → release. Signing identity:
-  `Developer ID Application: Rajesh DMonte (HAMH7N3PJR)`. GitHub issue templates for bug reports and
-  for **fidelity discrepancies against Windows 7zFM**.
+  Universal 2, macOS 26 SDK, Swift 6 language mode with complete strict concurrency and
+  warnings-as-errors.
+- **CI**, wired up now rather than on release day. `ci.yml` runs three jobs on every push and pull
+  request: `swift build` + `swift test` (no Xcode project, no signing, so fork PRs that never see
+  repository secrets still run it), `swiftlint lint --strict`, and an XcodeGen job that regenerates
+  the project, validates the generated property lists and lists the targets.
+- **Release pipeline** in `release.yml`, never yet exercised: bootstrap → universal Release build →
+  sign (inner Mach-O binaries first, hardened runtime everywhere) → notarise → staple → DMG →
+  notarise and staple the DMG → verify (`codesign --verify --deep --strict`; `spctl -a -vvv -t exec`
+  must report `source=Notarized Developer ID`; `stapler validate`; architecture check) → build the
+  7-Zip corresponding-source tarball → checksums → sign the update and generate the Sparkle appcast
+  → publish. GitHub issue templates for bug reports and for **fidelity discrepancies against
+  Windows 7zFM**.
+
+**Fixed** — both found by the tests, before any of it ran against a real archive
+
+- `SLTParser` treated CRLF input as a single line. In Swift `"\r\n"` is one `Character`, so
+  `split(separator: "\n")` never splits it. Now splits on `isNewline`.
+- Encrypted-archive creation could silently produce plaintext, since `7zz` exits 0 when `-p` is
+  dropped. Creation now verifies the result is actually encrypted — a guard that proved itself in
+  M1.
+
+**Tests** — 33 across 5 suites; `swift build` clean with zero warnings.
+
+---
 
 ### Notes
 
 - ArcSeven drives the **stock, unmodified upstream `7zz`** as a subprocess and links no 7-Zip code.
   This is what keeps the project's `GPL-3.0-or-later` licensing valid while RAR support is present:
-  the unRAR use restriction is a *further restriction* forbidden by GPLv3 §10, so RAR-capable code
-  must never enter the GPL boundary. The planned M5 in-process XPC engine will be built **without
-  the RAR handlers**, and `.rar` will continue to route to the `7zz` subprocess.
+  the unRAR use restriction is a *further restriction*, which GPLv3 §7 classifies as such and §10
+  forbids imposing, so RAR-capable code must never enter the GPL boundary. The planned in-process
+  engine will be built **without the RAR handlers**, and `.rar` will continue to route to the `7zz`
+  subprocess.
 - **RAR is extract-only**, permanently, and there is no "create RAR" affordance anywhere. The
   Windows 7-Zip File Manager cannot create RAR archives either.
-- ArcSeven is **not affiliated with, endorsed by, or sponsored by** the 7-Zip project or Igor Pavlov.
+- ArcSeven is **not affiliated with, endorsed by, or sponsored by** the 7-Zip project or Igor
+  Pavlov.
 
-[Unreleased]: https://github.com/havokentity/ArcSeven/commits/main
+[Unreleased]: https://github.com/havokentity/ArcSeven/commits/master

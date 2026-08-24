@@ -72,7 +72,26 @@ CHECK_BINARY=""
 JOBS=""
 DO_CLEAN=0
 ALLOW_DIRTY=0
-SIGN_IDENTITY="-"          # ad-hoc by default; Xcode re-signs on copy for release
+# Signing identity for the staged helper.
+#
+# Defaults to a Developer ID Application certificate when one is in the keychain, and
+# falls back to ad-hoc when none is. This is NOT cosmetic: notarisation rejects any
+# Mach-O in the bundle that is not Developer ID signed with the hardened runtime, and
+# Xcode does NOT re-sign a plain file delivered by a copy-files phase. Verified
+# empirically -- with an ad-hoc helper the app signed correctly and
+# `codesign --verify --deep --strict` still passed, while the helper itself reported
+# `flags=0x10002(adhoc,runtime)` and `TeamIdentifier=not set`, which fails notarisation
+# only at the very end of the release process. Sign it here instead.
+#
+# Override with --sign, --no-sign, or $ARCSEVEN_SIGN_IDENTITY.
+if [ -n "${ARCSEVEN_SIGN_IDENTITY:-}" ]; then
+  SIGN_IDENTITY="$ARCSEVEN_SIGN_IDENTITY"
+else
+  _auto_identity="$(security find-identity -v -p codesigning 2>/dev/null \
+    | awk -F'"' '/Developer ID Application/ { print $2; exit }')"
+  SIGN_IDENTITY="${_auto_identity:--}"
+  unset _auto_identity
+fi
 DO_SIGN=1
 VERBOSE=0
 
@@ -646,8 +665,8 @@ if [ "$DO_SIGN" -eq 1 ] && have codesign; then
       --sign "$SIGN_IDENTITY" "$TMP_FAT" >/dev/null 2>&1; then
     ok "signed"
   else
-    warn "codesign failed with identity '$SIGN_IDENTITY'; leaving the binary unsigned"
-    warn "Xcode's Copy Files phase (codeSignOnCopy) will sign it for the app bundle"
+    warn "codesign failed with identity '$SIGN_IDENTITY'; leaving the binary ad-hoc"
+    warn "the app will still run locally, but notarisation will reject the bundle"
   fi
 fi
 

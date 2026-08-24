@@ -65,15 +65,27 @@ settings:
     # for both architectures, and the vendored 7zz is lipo'd the same way.
     ARCHS: "$(ARCHS_STANDARD)"
 
-    # Signing: the Xcode build produces an UNSIGNED bundle, then Scripts/sign.sh signs the
-    # whole tree inside-out (helpers, then frameworks, then appexes, then the app) with
-    # --options runtime --timestamp. Doing it in one place is the only way to keep the
-    # ordering right, and it means a contributor with no Developer ID can still build.
+    # Signing.
+    #
+    # Local builds sign with Developer ID so the Quick Look and Finder extensions
+    # actually load: an ad-hoc signature is enough to launch the app, but the system
+    # will not register appexes from a bundle it cannot attribute to a team, so
+    # "everything works except the extensions" is the symptom of building unsigned.
+    #
+    # Signing here also means the bundled 7zz helper is signed with the SAME Team ID as
+    # the app, which is what satisfies library validation under the hardened runtime —
+    # and is why no com.apple.security.cs.* entitlement is needed to spawn it.
+    #
+    # Contributors without a Developer ID override on the command line:
+    #     xcodebuild ... CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO
+    #
+    # Release still goes through Scripts/sign.sh, which re-signs the whole tree
+    # inside-out (helper, frameworks, appexes, then the app) and adds --timestamp.
+    # Ordering matters and doing it in one place is the only way to keep it right.
     CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGN_IDENTITY: "Developer ID Application"
     DEVELOPMENT_TEAM: HAMH7N3PJR
     ENABLE_HARDENED_RUNTIME: YES
-    OTHER_CODE_SIGN_FLAGS: "$(inherited) --timestamp"
 
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
@@ -98,12 +110,16 @@ settings:
   configs:
     Debug:
       ONLY_ACTIVE_ARCH: YES
+      # No --timestamp locally: it round-trips to Apple's timestamp server on every
+      # single build. Release adds it in Scripts/sign.sh, where it belongs.
+      OTHER_CODE_SIGN_FLAGS: "$(inherited)"
       SWIFT_OPTIMIZATION_LEVEL: "-Onone"
       SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG"
       GCC_OPTIMIZATION_LEVEL: "0"
       ENABLE_TESTABILITY: YES
     Release:
       ONLY_ACTIVE_ARCH: NO
+      OTHER_CODE_SIGN_FLAGS: "$(inherited) --timestamp"
       SWIFT_OPTIMIZATION_LEVEL: "-O"
       SWIFT_COMPILATION_MODE: wholemodule
       ENABLE_TESTABILITY: NO

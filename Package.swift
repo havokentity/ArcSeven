@@ -54,6 +54,7 @@ let package = Package(
         .library(name: "FMKit", targets: ["FMKit"]),
         .library(name: "FMUI", targets: ["FMUI"]),
         .library(name: "Support", targets: ["Support"]),
+        .library(name: "QuickLookCore", targets: ["QuickLookCore"]),
         .library(name: "Dialogs", targets: ["Dialogs"]),
         .library(name: "SettingsUI", targets: ["SettingsUI"]),
     ],
@@ -91,6 +92,30 @@ let package = Package(
             name: "FMUI",
             dependencies: ["FMKit", "ArchiveCore", "Dialogs", "Support"],
             path: "Sources/FMUI",
+            swiftSettings: strictSettings
+        ),
+        // The Quick Look extension's header parsers, exposed to `swift test`.
+        //
+        // These read UNTRUSTED bytes out of arbitrary archives inside a sandboxed,
+        // memory-capped appex, which makes them the least forgiving code in the
+        // project — and the appex itself cannot be unit-tested. The UI files are
+        // excluded so the target builds without QuickLookUI; Xcode still compiles the
+        // whole directory into the real extension.
+        .target(
+            name: "QuickLookCore",
+            path: "Extensions/QuickLookPreview",
+            exclude: [
+                "ArchiveListingView.swift",
+                "PreviewViewController.swift",
+                "Info.plist",
+                "QuickLookPreview.entitlements",
+            ],
+            swiftSettings: strictSettings
+        ),
+        .testTarget(
+            name: "QuickLookCoreTests",
+            dependencies: ["QuickLookCore"],
+            path: "Tests/QuickLookCoreTests",
             swiftSettings: strictSettings
         ),
         .testTarget(

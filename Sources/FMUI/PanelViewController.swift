@@ -61,6 +61,10 @@ public final class PanelViewController: NSViewController {
 
     public weak var delegate: (any PanelViewControllerDelegate)?
 
+    /// Turns rows into pasteboard writers, so a member can be dragged straight out of
+    /// an archive into Finder without extracting it first.
+    private let dragController: DragController
+
     // MARK: Views
 
     private let pathControl = NSPathControl()
@@ -76,6 +80,7 @@ public final class PanelViewController: NSViewController {
     public init(provider: any FolderProvider, engine: any ArchiveEngine) {
         self.provider = provider
         self.engine = engine
+        self.dragController = DragController(engine: engine)
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -171,6 +176,12 @@ public final class PanelViewController: NSViewController {
         tableView.rowHeight = 20
         tableView.target = self
         tableView.doubleAction = #selector(rowDoubleClicked(_:))
+
+        // Dragging OUT. `.copy` for both, because nothing here is a move: dragging a
+        // member out of an archive extracts a copy, and dragging a file off a panel
+        // must not delete it.
+        tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
+        tableView.setDraggingSourceOperationMask(.copy, forLocal: true)
         tableView.headerView = NSTableHeaderView()
 
         scrollView.documentView = tableView
@@ -464,6 +475,30 @@ public final class PanelViewController: NSViewController {
 extension PanelViewController: NSTableViewDataSource {
 
     public func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
+
+    /// Supply the pasteboard writer for a dragged row.
+    ///
+    /// Returning nil makes the row undraggable, which is what we want for the ".."
+    /// parent and for directories inside an archive (a promise for a whole subtree
+    /// needs the operation queue that lands in a later milestone).
+    public func tableView(
+        _ tableView: NSTableView,
+        pasteboardWriterForRow row: Int
+    ) -> (any NSPasteboardWriting)? {
+        guard rows.indices.contains(row) else { return nil }
+        let item = rows[row]
+        guard !item.isParentRow else { return nil }
+        return dragController.pasteboardWriter(for: item, in: provider)
+    }
+
+    public func tableView(
+        _ tableView: NSTableView,
+        draggingSession session: NSDraggingSession,
+        endedAt screenPoint: NSPoint,
+        operation: NSDragOperation
+    ) {
+        dragController.dragSessionEnded()
+    }
 
     public func tableView(_ tableView: NSTableView, didClick tableColumn: NSTableColumn) {
         let property = PropID(rawValue: tableColumn.identifier.rawValue)
