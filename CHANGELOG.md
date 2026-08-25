@@ -12,11 +12,19 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Because n
 released yet, everything so far sits under `Unreleased`, grouped by the milestone that delivered it
 rather than by date.
 
-**No release has been published.** The milestone numbering has drifted from
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2 — vendoring and engine verification took a
-milestone of their own, so the shipped M2 is what §2 calls M1.
+The milestone numbering has drifted from [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2 —
+vendoring and engine verification took a milestone of their own, so the shipped M2 is what §2
+calls M1.
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.1.0] - 2026-08-25
+
+First release: a notarised, stapled, universal (arm64 + x86_64) DMG, with the 7-Zip 26.02
+corresponding-source tarball attached to the same release per LGPL-2.1 §4. Everything below —
+previously grouped under `Unreleased` by milestone — ships in this version.
 
 Pre-alpha. The app builds, launches, opens an archive from Finder, browses it and extracts from it.
 The Add / Test / Copy / Move / Delete dialogs are written but not yet reachable from the toolbar.
