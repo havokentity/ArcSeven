@@ -242,6 +242,7 @@
 		C9423F09F19BAF3297560EEF /* DIVERGENCES.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = DIVERGENCES.md; sourceTree = "<group>"; };
 		CAE8916D82C6CD2C8E175A62 /* ShortcutsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShortcutsPane.swift; sourceTree = "<group>"; };
 		CB9FEE2DCD9C98AE18737A27 /* ARCHITECTURE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = ARCHITECTURE.md; sourceTree = "<group>"; };
+		CBAD63CD975A5021E5EE4BEA /* SetDefaultHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetDefaultHandler.swift; sourceTree = "<group>"; };
 		CE5E161A65383E51A9480C63 /* FavoritesStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesStore.swift; sourceTree = "<group>"; };
 		CF99F9D2289D6A83D122BF95 /* ArcSeven.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ArcSeven.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D06C87AACD9A7C6B30BF2BCA /* SortEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortEngine.swift; sourceTree = "<group>"; };
@@ -381,6 +382,14 @@
 				A7FA75EB114D00FDA7D8BF9F /* SystemSettingsLink.swift */,
 			);
 			path = SettingsUI;
+			sourceTree = "<group>";
+		};
+		39153B252C2B91B7127190F6 /* tools */ = {
+			isa = PBXGroup;
+			children = (
+				CBAD63CD975A5021E5EE4BEA /* SetDefaultHandler.swift */,
+			);
+			path = tools;
 			sourceTree = "<group>";
 		};
 		4F1987D6C6BA36F8EAE9BF34 /* Resources */ = {
@@ -538,6 +547,7 @@
 			isa = PBXGroup;
 			children = (
 				7087C9153BDE295183846C02 /* icon */,
+				39153B252C2B91B7127190F6 /* tools */,
 				2C0BCDA5314932F42663BFA6 /* bootstrap.sh */,
 				A10F9485B31405A0AA3EA3D0 /* install-local.sh */,
 				39EC82CB3AABAD194D9AC580 /* make-dmg.sh */,

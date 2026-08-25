@@ -229,6 +229,12 @@ final class FinderSyncExtension: FIFinderSync {
 
         guard !urls.isEmpty else { return nil }
 
+        // ONE top-level item with a submenu, not three siblings.
+        //
+        // Three separate entries is what Apple's template does, and it is what we shipped
+        // first, but it costs three lines of a menu that every other app is also competing
+        // for — and the user asked for the shape Keka uses. A single branded item also
+        // means the icon appears once instead of three times.
         let menu = NSMenu(title: "ArcSeven")
 
         // Automatic enabling would ask Finder's responder chain whether it responds to our
@@ -236,18 +242,52 @@ final class FinderSyncExtension: FIFinderSync {
         // extension host — so leaving it on greys out every item.
         menu.autoenablesItems = false
 
-        addItem(to: menu, title: "Compress with ArcSeven", action: #selector(compressWithArcSeven(_:)))
+        let root = NSMenuItem(title: "ArcSeven", action: nil, keyEquivalent: "")
+        root.isEnabled = true
+        root.image = Self.menuIcon
+
+        let submenu = NSMenu(title: "ArcSeven")
+        submenu.autoenablesItems = false
+
+        addItem(to: submenu, title: "Compress…", action: #selector(compressWithArcSeven(_:)))
 
         if Self.everyItemLooksLikeAnArchive(urls) {
-            addItem(to: menu, title: "Extract with ArcSeven", action: #selector(extractWithArcSeven(_:)))
+            addItem(to: submenu, title: "Extract Here", action: #selector(extractWithArcSeven(_:)))
         }
 
-        addItem(to: menu, title: "Open with ArcSeven", action: #selector(openWithArcSeven(_:)))
+        addItem(to: submenu, title: "Open in ArcSeven", action: #selector(openWithArcSeven(_:)))
 
+        root.submenu = submenu
+        menu.addItem(root)
         return menu
     }
 
-    /// Append one top-level item.
+    /// The containing app's icon, at menu size.
+    ///
+    /// Computed once. `menu(for:)` runs on Finder's UI path while the mouse is held down,
+    /// and reading an icon off disk there is exactly the kind of I/O that turns a
+    /// right-click into a beachball — so it is resolved at load and reused.
+    ///
+    /// `Bundle.main` inside an appex is the APPEX, not the app, so the icon has to be
+    /// fetched from the containing bundle three levels up
+    /// (`ArcSeven.app/Contents/PlugIns/ArcSevenFinder.appex`). `NSWorkspace.icon(forFile:)`
+    /// returns the composited app icon rather than a raw asset, which is what Finder's
+    /// own menus show.
+    private static let menuIcon: NSImage? = {
+        let appexURL = Bundle.main.bundleURL
+        let containerURL = appexURL
+            .deletingLastPathComponent()   // PlugIns
+            .deletingLastPathComponent()   // Contents
+            .deletingLastPathComponent()   // ArcSeven.app
+        guard containerURL.pathExtension == "app" else { return nil }
+        let icon = NSWorkspace.shared.icon(forFile: containerURL.path)
+        // 16pt is the size Finder draws a context-menu image at; handing it a 512pt
+        // icon makes it downscale on every menu build.
+        icon.size = NSSize(width: 16, height: 16)
+        return icon
+    }()
+
+    /// Append one submenu item.
     ///
     /// The item's `target` is left `nil` on purpose. This menu is serialised across to
     /// Finder's process, where an object reference to `self` means nothing; a nil-targeted
