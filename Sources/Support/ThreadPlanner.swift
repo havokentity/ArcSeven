@@ -42,7 +42,6 @@ import ArchiveCore
 
 /// What the machine actually has.
 public struct CPUTopology: Hashable, Sendable {
-
     /// Logical CPUs at performance level 0 - the fastest cluster. On Apple silicon these
     /// are the P-cores, and because they have no SMT the count is also the physical count.
     public let performanceCoreCount: Int
@@ -80,7 +79,7 @@ public struct CPUTopology: Hashable, Sendable {
     }
 
     /// Ask the kernel.
-    public static func detect() -> CPUTopology {
+    public static func detect() -> Self {
         let logical = max(sysctlInteger("hw.logicalcpu") ?? ProcessInfo.processInfo.activeProcessorCount, 1)
         let physical = sysctlInteger("hw.physicalcpu") ?? logical
 
@@ -90,7 +89,7 @@ public struct CPUTopology: Hashable, Sendable {
         let efficiency = sysctlInteger("hw.perflevel1.logicalcpu")
 
         guard let performance, let efficiency, performance > 0 else {
-            return CPUTopology(
+            return Self(
                 performanceCoreCount: logical,
                 efficiencyCoreCount: 0,
                 logicalCoreCount: logical,
@@ -98,7 +97,7 @@ public struct CPUTopology: Hashable, Sendable {
             )
         }
 
-        return CPUTopology(
+        return Self(
             performanceCoreCount: performance,
             efficiencyCoreCount: max(efficiency, 0),
             logicalCoreCount: logical,
@@ -119,7 +118,6 @@ public struct CPUTopology: Hashable, Sendable {
 
 /// Chooses the thread count for a compression job.
 public enum ThreadPlanner {
-
     /// The machine, read once. Core counts do not change while the process runs.
     public static let topology = CPUTopology.detect()
 
@@ -132,7 +130,7 @@ public enum ThreadPlanner {
     /// - Returns: At least 1.
     public static func recommendedThreadCount(
         upperBound: Int? = nil,
-        topology: CPUTopology = ThreadPlanner.topology
+        topology: CPUTopology = Self.topology
     ) -> Int {
         // The whole point of the file: on a heterogeneous machine the budget is the fast
         // cores only. See the header for why counting the E-cores loses time and memory.
@@ -151,7 +149,7 @@ public enum ThreadPlanner {
     /// - Parameter thermalState: Injectable for testing; defaults to the live state.
     public static func recommendedThreadCount(
         upperBound: Int? = nil,
-        topology: CPUTopology = ThreadPlanner.topology,
+        topology: CPUTopology = Self.topology,
         thermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState,
         isLowPowerModeEnabled: Bool = ProcessInfo.processInfo.isLowPowerModeEnabled
     ) -> Int {
@@ -179,7 +177,7 @@ public enum ThreadPlanner {
     /// number this file exists to avoid.
     public static func automaticThreadCount(
         upperBound: Int? = nil,
-        topology: CPUTopology = ThreadPlanner.topology
+        topology: CPUTopology = Self.topology
     ) -> ThreadCount {
         .count(recommendedThreadCount(upperBound: upperBound, topology: topology))
     }
@@ -192,7 +190,7 @@ public enum ThreadPlanner {
     /// though the automatic value never takes it.
     public static func maximumSelectableThreadCount(
         algorithmMaximum: Int,
-        topology: CPUTopology = ThreadPlanner.topology
+        topology: CPUTopology = Self.topology
     ) -> Int {
         max(min(topology.logicalCoreCount * 2, algorithmMaximum), 1)
     }

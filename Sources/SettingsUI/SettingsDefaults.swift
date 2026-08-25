@@ -24,11 +24,10 @@ import Observation
 
 /// Every defaults key the settings window owns.
 ///
-/// Raw values are the persisted names and are API: other modules read them directly
-/// (`UserDefaults.standard.bool(forKey: "FM.ShowDots")`) rather than importing SettingsUI,
+/// Raw values are the persisted names and are API: other modules read them directly off the
+/// standard defaults domain (`bool(forKey: "FM.ShowDots")`) rather than importing SettingsUI,
 /// which is what keeps SettingsUI a leaf module that nothing else has to link against.
 public enum SettingsKey: String, CaseIterable, Sendable {
-
     // Settings pane — 7zFM Options ▸ Settings (FIDELITY OPT-18…OPT-24, PST-10).
     // Every one of these is **off** by default on Windows, and that is preserved.
     case showDots = "FM.ShowDots"
@@ -74,6 +73,12 @@ public enum SettingsKey: String, CaseIterable, Sendable {
 
     /// Keymap preset: `finder` / `commander` / `custom` (PST-16, docs/SHORTCUTS.md §1.2).
     case shortcutsPreset = "Shortcuts.Preset"
+    /// Which pane the settings window had open when it was last closed.
+    ///
+    /// Not a 7zFM key — its property sheet only remembers the page within a session — but a
+    /// Mac settings window is expected to come back where it was left.
+    case selectedPane = "Settings.SelectedPane"
+
     /// The `.custom` preset's delta table, owned and written by FMUI's `ShortcutMap`.
     ///
     /// docs/FIDELITY.md PST-16 names this key `Shortcuts.Custom`; docs/SHORTCUTS.md §1.2 calls
@@ -88,7 +93,6 @@ let legacyKeymapKey = "Keymap"
 // MARK: - Notifications
 
 public extension Notification.Name {
-
     /// Any list-appearance setting changed.
     ///
     /// 7zFM applies the whole Options sheet on OK by calling `SetListSettings()` and then
@@ -120,10 +124,13 @@ public enum WorkDirType: Int, CaseIterable, Sendable {
 /// `WriteZone` (OPT-11), retargeted from `Zone.Identifier` to `com.apple.quarantine` (D-08).
 ///
 /// Upstream also accepts raw values ≥ 3 typed into the registry and shows them in the combo;
-/// an unknown stored value therefore falls back to `.no` for display but is left on disk.
+/// an unknown stored value therefore falls back to `.never` for display but is left on disk.
+///
+/// The cases are spelled `never` / `always` rather than `no` / `yes`; the raw values are the
+/// upstream ones and are what persists, so this is a spelling of the API, not of the setting.
 public enum QuarantinePropagation: Int, CaseIterable, Sendable {
-    case no = 0
-    case yes = 1
+    case never = 0
+    case always = 1
     /// Upstream's `For Office files`; here, types conforming to `public.executable`,
     /// `public.script`, or the Office document UTIs.
     case documentsAndExecutables = 2
@@ -193,13 +200,12 @@ public enum KeymapPreset: String, CaseIterable, Sendable, Identifiable {
 
 /// The single read/write path for everything the settings window owns.
 ///
-/// Main-actor isolated because every consumer is a view. Writes go straight to
-/// `UserDefaults.standard` in `didSet`, so a crash between two settings changes cannot lose
-/// the first one, and so other modules can read the keys without knowing this type exists.
+/// Main-actor isolated because every consumer is a view. Writes go straight to the standard
+/// defaults domain in `didSet`, so a crash between two settings changes cannot lose the first
+/// one, and so other modules can read the keys without knowing this type exists.
 @MainActor
 @Observable
 public final class SettingsStore {
-
     public static let shared = SettingsStore()
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -284,7 +290,7 @@ public final class SettingsStore {
         elimDup = defaults.bool(forKey: SettingsKey.elimDup.rawValue)
         quarantinePropagation = QuarantinePropagation(
             rawValue: defaults.integer(forKey: SettingsKey.writeZone.rawValue)
-        ) ?? .no
+        ) ?? .never
         contextMenuMask = defaults.integer(forKey: SettingsKey.contextMenu.rawValue)
 
         language = defaults.string(forKey: SettingsKey.language.rawValue) ?? ""
@@ -295,9 +301,10 @@ public final class SettingsStore {
 
     /// Seed the registration domain with every default that is not "zero".
     ///
-    /// Call this once at launch if you want `UserDefaults.standard.bool(forKey:)` to be correct
-    /// in modules that never open the settings window. The seven Settings-pane checkboxes are
-    /// deliberately absent: they are all off upstream, and absent already reads as `false`.
+    /// Call this once at launch if you want a bare `bool(forKey:)` on the standard defaults
+    /// domain to be correct in modules that never open the settings window. The seven
+    /// Settings-pane checkboxes are deliberately absent: they are all off upstream, and absent
+    /// already reads as `false`.
     public static func registerDefaults(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             SettingsKey.memUse.rawValue: 4,                 // OPT-26: the spin edit starts at 4 GB.
@@ -329,6 +336,22 @@ public final class SettingsStore {
             if let dictionary = defaults.dictionary(forKey: key) { return dictionary.count }
         }
         return 0
+    }
+
+    /// Which pane the settings window should open on, or `nil` when it has never been closed.
+    ///
+    /// Window state rather than a setting, but it goes through the store like everything else:
+    /// this file is the one place that touches the defaults domain, so the key cannot drift
+    /// out of it. Not `@Observable`-tracked — the window reads it once, at construction.
+    public var selectedPaneIndex: Int? {
+        get { defaults.object(forKey: SettingsKey.selectedPane.rawValue) as? Int }
+        set {
+            guard let newValue else {
+                defaults.removeObject(forKey: SettingsKey.selectedPane.rawValue)
+                return
+            }
+            defaults.set(newValue, forKey: SettingsKey.selectedPane.rawValue)
+        }
     }
 
     /// Discard the `.custom` delta table, under both spellings the docs use for it.

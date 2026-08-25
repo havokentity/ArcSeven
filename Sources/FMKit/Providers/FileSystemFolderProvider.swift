@@ -10,7 +10,6 @@ import ArchiveCore
 
 /// Presents a filesystem directory to a panel.
 public struct FileSystemFolderProvider: FolderProvider {
-
     /// The directory this provider represents.
     public let directoryURL: URL
 
@@ -96,7 +95,7 @@ public struct FileSystemFolderProvider: FolderProvider {
     public func child(at item: FolderItem) async throws -> (any FolderProvider)? {
         guard let url = item.url else { return nil }
         if item.isDirectory {
-            return FileSystemFolderProvider(directoryURL: url, engine: engine)
+            return Self(directoryURL: url, engine: engine)
         }
         if Self.isArchive(url) {
             return try await ArchiveFolderProvider.open(archiveURL: url, engine: engine)
@@ -108,7 +107,7 @@ public struct FileSystemFolderProvider: FolderProvider {
         // `/` is the top; standardized comparison avoids a "/" vs "/." mismatch.
         let parent = directoryURL.deletingLastPathComponent().standardizedFileURL
         guard parent.path != directoryURL.path else { return nil }
-        return FileSystemFolderProvider(directoryURL: parent, engine: engine)
+        return Self(directoryURL: parent, engine: engine)
     }
 
     // MARK: Helpers

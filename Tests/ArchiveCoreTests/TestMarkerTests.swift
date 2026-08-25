@@ -6,7 +6,6 @@ import Testing
 
 @Suite("Test-operation member lines")
 struct TestMarkerTests {
-
     /// `7zz t -bb3` emits one `T <path>` line per member, INCLUDING directory entries
     /// whose paths end in "/". Every one of them must be counted, or the "N items
     /// verified" figure the user sees is wrong.

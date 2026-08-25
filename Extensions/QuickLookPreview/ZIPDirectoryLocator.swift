@@ -27,7 +27,6 @@ import Foundation
 
 /// Where the central directory is, and how big.
 struct ZIPDirectoryLocation {
-
     var offset: UInt64
     var size: UInt64
 
@@ -41,7 +40,6 @@ struct ZIPDirectoryLocation {
 }
 
 enum ZIPDirectoryLocator {
-
     // Signatures, spelled as the little-endian words they are read back as.
     static let endOfCentralDirectorySignature: UInt32 = 0x0605_4b50       // PK\5\6
     private static let zip64LocatorSignature: UInt32 = 0x0706_4b50        // PK\6\7

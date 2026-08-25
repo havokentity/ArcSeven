@@ -43,7 +43,6 @@ import Foundation
 /// sequence has to be atomic or a concurrent write to a different slot is lost. An
 /// actor would push `await` into the menu-building path, which is synchronous.
 public final class FavoritesStore: @unchecked Sendable {
-
     /// Exactly ten, always. Not a default, not a preference — the menu, the key
     /// bindings and the stored array are all built around this number.
     public static let slotCount = 10

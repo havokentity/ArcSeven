@@ -65,7 +65,6 @@ import Foundation
 /// The App Group shared by the app, the Finder Sync extension, the Quick Look preview and
 /// the Quick Actions extension.
 public enum ArcSevenAppGroup {
-
     /// The Team ID the whole bundle is signed with.
     public static let teamIdentifier = "HAMH7N3PJR"
 
@@ -123,7 +122,6 @@ public enum FinderRequestAction: String, Codable, Sendable, Hashable, CaseIterab
 
 /// One thing the user asked for, addressed to the app.
 public struct FinderRequest: Codable, Sendable, Hashable, Identifiable {
-
     /// Spelled `FinderRequest.Action` as well as `FinderRequestAction`, because both
     /// readings are natural and a second name costs nothing next to a second definition.
     public typealias Action = FinderRequestAction
@@ -225,7 +223,6 @@ public struct FinderRequest: Codable, Sendable, Hashable, Identifiable {
 ///   the handler the extension writes a perfectly good request, the app launches, and
 ///   nothing happens.
 public enum ArcSevenURLScheme {
-
     public static let scheme = "arcseven"
 
     /// The host component marking a Finder handoff, leaving room for other verbs later.
@@ -268,7 +265,6 @@ public enum ArcSevenURLScheme {
 /// in particular must never be reported as "extraction failed": the fix is a provisioning
 /// one and the user's archive is fine.
 public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
-
     /// No App Group container. The entitlement is missing from the running binary's
     /// signature, or the container has not been provisioned for this user yet.
     case appGroupUnavailable(identifier: String)
@@ -293,11 +289,11 @@ public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
             "The shared container '\(identifier)' is not available to this build of ArcSeven."
         case .notFound(let id):
             "The Finder request \(id.uuidString) is no longer available."
-        case .unreadable(let id, let reason):
+        case let .unreadable(id, reason):
             "The Finder request \(id.uuidString) could not be read: \(reason)"
-        case .malformed(let id, let reason):
+        case let .malformed(id, reason):
             "The Finder request \(id.uuidString) is not readable by this version: \(reason)"
-        case .writeFailed(let id, let reason):
+        case let .writeFailed(id, reason):
             "The Finder request \(id.uuidString) could not be handed to ArcSeven: \(reason)"
         }
     }
@@ -325,7 +321,6 @@ public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
 /// Swift 6 strict concurrency a stored `FileManager` would make every holder non-`Sendable`
 /// for no benefit.
 public enum FinderRequestStore {
-
     // MARK: Identity
 
     /// The app group, unprefixed. Forwards to ``ArcSevenAppGroup``, which is where these

@@ -6,7 +6,6 @@ import Testing
 
 @Suite("ExitCodeMapper")
 struct ExitCodeMapperTests {
-
     /// The single most important behaviour in this file. 7-Zip exits 1 for
     /// "Warning (Non fatal error(s))" — a locked file skipped, an ACL dropped. The
     /// operation succeeded. Treating it as failure is the classic integration bug.
@@ -50,16 +49,16 @@ struct ExitCodeMapperTests {
     @Test("255 distinguishes cancellation from a blocked prompt")
     func userBreakIsAmbiguous() {
         let cancelled = ExitCodeMapper.classify(exitCode: 255, wasCancelled: true)
-        guard case .failure(let a) = cancelled else { Issue.record("should fail"); return }
-        #expect(a == .cancelled)
+        guard case .failure(let cancelReason) = cancelled else { Issue.record("should fail"); return }
+        #expect(cancelReason == .cancelled)
 
         let prompted = ExitCodeMapper.classify(
             exitCode: 255,
             stderrLines: ["Enter password (will not be echoed):", "Break signaled"]
         )
-        guard case .failure(let b) = prompted else { Issue.record("should fail"); return }
-        guard case .inputRequired(let requirement, _) = b else {
-            Issue.record("should be .inputRequired, got \(b)"); return
+        guard case .failure(let promptFailure) = prompted else { Issue.record("should fail"); return }
+        guard case .inputRequired(let requirement, _) = promptFailure else {
+            Issue.record("should be .inputRequired, got \(promptFailure)"); return
         }
         #expect(requirement == .password)
     }
@@ -88,7 +87,6 @@ struct ExitCodeMapperTests {
 
 @Suite("ExitCodeMapper — password prompt routing")
 struct ExitCodeMapperPromptTests {
-
     /// Regression: `7zz` writes "Enter password:" to the STDOUT log (because `-bso1`
     /// routes the log there), not to stderr. Classifying against stderr alone made an
     /// encrypted archive report a generic failure, so the UI never offered to ask for

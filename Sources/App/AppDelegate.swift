@@ -14,7 +14,6 @@ import FMUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-
     private var windowController: MainWindowController?
     private var engine: (any ArchiveEngine)?
 
@@ -143,7 +142,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.terminate(nil)
     }
 }
-
 
 // MARK: - Services
 

@@ -32,7 +32,6 @@ public protocol PanelViewControllerDelegate: AnyObject {
 
 @MainActor
 public final class PanelViewController: NSViewController {
-
     // MARK: State
 
     /// The engine used to open archives. Handed to every provider this panel creates.
@@ -89,7 +88,7 @@ public final class PanelViewController: NSViewController {
 
     // MARK: View construction
 
-    public override func loadView() {
+    override public func loadView() {
         let root = NSView()
 
         configurePathControl()
@@ -198,7 +197,7 @@ public final class PanelViewController: NSViewController {
         }
     }
 
-    public override func viewDidAppear() {
+    override public func viewDidAppear() {
         super.viewDidAppear()
         focusTable()
     }
@@ -237,16 +236,16 @@ public final class PanelViewController: NSViewController {
             do {
                 let children = try await provider.loadChildren()
                 let parent = try await provider.parent()
-                guard let self, token == self.loadToken else { return }
-                self.apply(children: children, hasParent: parent != nil)
+                guard let self, token == loadToken else { return }
+                apply(children: children, hasParent: parent != nil)
             } catch {
-                guard let self, token == self.loadToken else { return }
-                self.isLoading = false
-                self.spinner.stopAnimation(nil)
-                self.rows = []
-                self.tableView.reloadData()
-                self.showMessage("Could not open this location.")
-                self.delegate?.panel(self, didFailWith: error)
+                guard let self, token == loadToken else { return }
+                isLoading = false
+                spinner.stopAnimation(nil)
+                rows = []
+                tableView.reloadData()
+                showMessage("Could not open this location.")
+                delegate?.panel(self, didFailWith: error)
             }
         }
     }
@@ -362,12 +361,12 @@ public final class PanelViewController: NSViewController {
     private func ascend(levels: Int) {
         Task { [weak self] in
             guard let self else { return }
-            var target = self.provider
+            var target = provider
             for _ in 0..<levels {
                 guard let parent = try? await target.parent() else { break }
                 target = parent
             }
-            self.go(to: target)
+            go(to: target)
         }
     }
 
@@ -379,9 +378,14 @@ public final class PanelViewController: NSViewController {
         let item = rows[index]
 
         if item.isParentRow {
+            // `self.provider` must stay qualified: a local named `provider` is declared
+            // further down this function, and an unqualified reference here captures
+            // that instead. SwiftLint's redundant_self autofix removed the `self.` and
+            // broke the build exactly this way.
+            let current = self.provider
             Task { [weak self] in
-                guard let self, let parent = try? await self.provider.parent() else { return }
-                self.go(to: parent)
+                guard let self, let parent = try? await current.parent() else { return }
+                go(to: parent)
             }
             return
         }
@@ -399,10 +403,10 @@ public final class PanelViewController: NSViewController {
             do {
                 guard let child = try await provider.child(at: item) else { return }
                 guard let self else { return }
-                self.go(to: child)
+                go(to: child)
             } catch {
                 guard let self else { return }
-                self.delegate?.panel(self, didFailWith: error)
+                delegate?.panel(self, didFailWith: error)
             }
         }
     }
@@ -416,8 +420,8 @@ public final class PanelViewController: NSViewController {
     /// Go up one level. Bound to Cmd+Up.
     public func goToParent() {
         Task { [weak self] in
-            guard let self, let parent = try? await self.provider.parent() else { return }
-            self.go(to: parent)
+            guard let self, let parent = try? await provider.parent() else { return }
+            go(to: parent)
         }
     }
 
@@ -437,9 +441,13 @@ public final class PanelViewController: NSViewController {
             return item.isParentRow ? nil : item
         }
     }
+}
 
-    // MARK: Status bar
+// MARK: - Status bar
 
+/// The two footer readouts: the folder tally on the left, the selection tally on the
+/// right. In an extension so the controller body stays inside its size budget.
+extension PanelViewController {
     private func updateStatusBar() {
         let items = rows.filter { !$0.isParentRow }
         let folders = items.filter(\.isDirectory).count
@@ -473,7 +481,6 @@ public final class PanelViewController: NSViewController {
 // MARK: - Data source
 
 extension PanelViewController: NSTableViewDataSource {
-
     public func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
 
     /// Supply the pasteboard writer for a dragged row.
@@ -533,7 +540,6 @@ extension PanelViewController: NSTableViewDataSource {
 // MARK: - Delegate
 
 extension PanelViewController: NSTableViewDelegate {
-
     public func tableView(
         _ tableView: NSTableView,
         viewFor tableColumn: NSTableColumn?,

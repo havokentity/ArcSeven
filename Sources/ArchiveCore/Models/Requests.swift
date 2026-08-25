@@ -36,7 +36,7 @@ public enum ExtractPathMode: String, Hashable, Sendable, Codable, CaseIterable {
     }
 
     /// The modes the Extract dialog lists, in dialog order.
-    public static var selectableCases: [ExtractPathMode] {
+    public static var selectableCases: [Self] {
         [.fullPaths, .noPaths, .absolutePaths]
     }
 }
@@ -99,7 +99,7 @@ public enum HashAlgorithm: String, Hashable, Sendable, Codable, CaseIterable {
     case sha256  = "SHA256"
     case sha384  = "SHA384"
     case sha512  = "SHA512"
-    case sha3_256 = "SHA3-256"
+    case sha3256 = "SHA3-256"
     case blake2sp = "BLAKE2sp"
     case xxh64   = "XXH64"
     case md5     = "MD5"
@@ -116,7 +116,7 @@ public enum HashAlgorithm: String, Hashable, Sendable, Codable, CaseIterable {
         case .sha256:   "SHA-256"
         case .sha384:   "SHA-384"
         case .sha512:   "SHA-512"
-        case .sha3_256: "SHA3-256"
+        case .sha3256:  "SHA3-256"
         case .blake2sp: "BLAKE2sp"
         case .xxh64:    "XXH64"
         case .md5:      "MD5"
@@ -441,24 +441,39 @@ extension CompressRequest {
 
     /// Which timestamps to store and at what resolution (res_8 §1.17).
     public struct TimestampOptions: Sendable, Hashable {
+        /// What to do about one timestamp field.
+        ///
+        /// Three states rather than two, because "say nothing" is not the same as
+        /// "say off": `-mtc=off` actively suppresses a field the handler would
+        /// otherwise have written, while emitting no switch at all leaves whatever
+        /// the handler does by default.
+        public enum FieldStorage: Sendable, Hashable {
+            /// Emit no switch for this field.
+            case handlerDefault
+            /// Emit `on`.
+            case store
+            /// Emit `off`.
+            case omit
+        }
+
         /// Sub-second resolution the format should record, expressed as the number
         /// of decimal digits after the second. `nil` leaves it to the handler.
         /// 7-Zip's own presets are 0 (1 s, Unix), 7 (100 ns, Windows) and 9 (1 ns, Linux).
         public var precisionDigits: Int?
-        /// `nil` leaves the handler's default; `true`/`false` emit `-mtm=on|off`.
-        public var storeModified: Bool?
+        /// `.handlerDefault` leaves the handler's default; the rest emit `-mtm=on|off`.
+        public var storeModified: FieldStorage
         /// `-mtc=on|off`.
-        public var storeCreated: Bool?
+        public var storeCreated: FieldStorage
         /// `-mta=on|off`.
-        public var storeAccessed: Bool?
+        public var storeAccessed: FieldStorage
         /// Do not disturb the sources' access times while reading them (`-ssp`).
         public var preserveSourceAccessTime: Bool
 
         public init(
             precisionDigits: Int? = nil,
-            storeModified: Bool? = nil,
-            storeCreated: Bool? = nil,
-            storeAccessed: Bool? = nil,
+            storeModified: FieldStorage = .handlerDefault,
+            storeCreated: FieldStorage = .handlerDefault,
+            storeAccessed: FieldStorage = .handlerDefault,
             preserveSourceAccessTime: Bool = false
         ) {
             self.precisionDigits = precisionDigits

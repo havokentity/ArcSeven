@@ -40,7 +40,6 @@ import QuickLookUI
 /// isolation, check it at runtime, and stop the compiler from demanding a `nonisolated`
 /// implementation that would then have to hop back to touch the view anyway.
 final class PreviewViewController: NSViewController, @preconcurrency QLPreviewingController {
-
     private let listingView = ArchiveListingView(
         frame: NSRect(x: 0, y: 0, width: 620, height: 420)
     )

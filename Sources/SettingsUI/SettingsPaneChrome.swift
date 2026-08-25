@@ -60,7 +60,6 @@ enum PathChoice {
 /// path has been chosen — on Windows you select the text and press Delete, which is not a
 /// discoverable affordance for a setting that changes which menu items exist.
 struct PathChooserRow: View {
-
     let title: String
     let placeholder: String
     let choice: PathChoice

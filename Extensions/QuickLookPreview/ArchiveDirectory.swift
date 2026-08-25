@@ -21,7 +21,6 @@ import Foundation
 /// sandboxed extension has no right to execute it. So this enum lists what a bounded,
 /// read-only header parse can establish and nothing else.
 enum ArchiveFormat: Sendable, Equatable {
-
     /// A ZIP container, including the many things that are one underneath: `.zipx`,
     /// `.jar`, `.war`, `.docx`, and a self-extracting `.exe` with a ZIP glued to the end.
     case zip
@@ -44,7 +43,6 @@ enum ArchiveFormat: Sendable, Equatable {
 
 /// One member of an archive, reduced to what a preview shows.
 struct ArchiveDirectoryEntry: Sendable, Identifiable {
-
     /// Stable identity for the table view. The in-archive path is not usable as an id -
     /// nothing stops a hostile archive from listing the same path twice - so this is the
     /// walk order instead.
@@ -77,7 +75,6 @@ struct ArchiveDirectoryEntry: Sendable, Identifiable {
 
 /// Everything the preview needs to draw one archive.
 struct ArchiveDirectory: Sendable {
-
     /// The archive file's own name, for the title line.
     let displayName: String
 
@@ -157,8 +154,8 @@ struct ArchiveDirectory: Sendable {
         archiveByteSize: UInt64,
         format: ArchiveFormat,
         message: String
-    ) -> ArchiveDirectory {
-        ArchiveDirectory(
+    ) -> Self {
+        Self(
             displayName: displayName,
             archiveByteSize: archiveByteSize,
             format: format,

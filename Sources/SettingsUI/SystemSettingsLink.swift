@@ -18,7 +18,6 @@
 import AppKit
 
 enum SystemSettingsLink {
-
     /// A pane worth linking to from settings.
     enum Pane {
         /// General ▸ Login Items & Extensions (macOS 15.2+), Privacy & Security ▸ Extensions before it.

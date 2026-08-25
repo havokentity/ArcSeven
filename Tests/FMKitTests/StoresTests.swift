@@ -13,12 +13,11 @@ import Testing
 import ArchiveCore
 @testable import FMKit
 
-@Suite("Persistence stores")
-struct StoresTests {
-
+/// Scaffolding shared by the three store suites below.
+enum ThrowawayDefaults {
     /// Prefix every throwaway suite shares, so the sweep below can recognise its own
     /// litter and nothing else.
-    private static let suitePrefix = "com.havokentity.ArcSeven.StoresTests."
+    static let suitePrefix = "com.havokentity.ArcSeven.StoresTests."
 
     /// Delete the empty suite plists left behind by EARLIER test runs.
     ///
@@ -38,7 +37,7 @@ struct StoresTests {
     ///
     /// A `static let` so it runs exactly once per process, lazily and thread-safely,
     /// however many tests swift-testing decides to run in parallel.
-    private static let sweepStaleSuites: Void = {
+    static let sweepStaleSuites: Void = {
         let manager = FileManager.default
         let preferences = manager.homeDirectoryForCurrentUser
             .appending(path: "Library/Preferences")
@@ -47,15 +46,20 @@ struct StoresTests {
             try? manager.removeItem(at: preferences.appending(path: name))
         }
     }()
+}
 
+/// Conforming is the whole implementation: it hands a suite `withDefaults`.
+protocol UsesThrowawayDefaults {}
+
+extension UsesThrowawayDefaults {
     /// Run `body` against a private, empty defaults domain that is emptied on exit.
     ///
     /// The UUID suite name is what keeps tests — which swift-testing runs in
     /// parallel — from seeing each other's writes, and what guarantees none of them
     /// touches the real `com.havokentity.ArcSeven` domain.
-    private func withDefaults<T>(_ body: (UserDefaults) throws -> T) throws -> T {
-        _ = Self.sweepStaleSuites
-        let suiteName = "\(Self.suitePrefix)\(UUID().uuidString)"
+    func withDefaults<T>(_ body: (UserDefaults) throws -> T) throws -> T {
+        _ = ThrowawayDefaults.sweepStaleSuites
+        let suiteName = "\(ThrowawayDefaults.suitePrefix)\(UUID().uuidString)"
         let defaults = try #require(
             UserDefaults(suiteName: suiteName),
             "the suite name must be usable as a defaults domain"
@@ -67,9 +71,10 @@ struct StoresTests {
         }
         return try body(defaults)
     }
+}
 
-    // MARK: - Folder history
-
+@Suite("Folder history store")
+struct FolderHistoryStoreTests: UsesThrowawayDefaults {
     @Test("History is most-recent-first")
     func historyOrdering() throws {
         try withDefaults { defaults in
@@ -187,9 +192,10 @@ struct StoresTests {
             #expect(store.recent() == ["/real/path"])
         }
     }
+}
 
-    // MARK: - Favourites
-
+@Suite("Favourites store")
+struct FavouritesStoreTests: UsesThrowawayDefaults {
     @Test("There are exactly ten slots, empty until set")
     func favouritesHaveTenSlots() throws {
         try withDefaults { defaults in
@@ -295,9 +301,10 @@ struct StoresTests {
             #expect(store.path(at: 9) == nil)
         }
     }
+}
 
-    // MARK: - Panel preferences
-
+@Suite("Panel preferences store")
+struct PanelPreferencesStoreTests: UsesThrowawayDefaults {
     private func diskColumns() -> [PanelColumn] {
         [
             PanelColumn(property: .name, width: 260, alignment: .leading),

@@ -21,7 +21,6 @@ import ArchiveCore
 /// Conforms to the whole `ArchiveEngine` surface so the provider can be constructed;
 /// only `list` is ever reached, and it answers with an empty listing.
 private struct StubEngine: ArchiveEngine {
-
     var identifier: String { "stub" }
 
     func capabilities() async throws -> EngineCapabilities {
@@ -58,7 +57,6 @@ private struct StubEngine: ArchiveEngine {
 /// freshly populated tree and cleans up after itself even when it fails.
 @Suite("Filesystem folder provider")
 final class FileSystemProviderTests: Sendable {
-
     private let root: URL
     private let engine: any ArchiveEngine = StubEngine()
 
@@ -72,8 +70,8 @@ final class FileSystemProviderTests: Sendable {
         root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
             .appendingPathComponent("ArcSevenFSProviderTests-\(UUID().uuidString)", isDirectory: true)
 
-        let fm = FileManager.default
-        try fm.createDirectory(at: root, withIntermediateDirectories: true)
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
 
         try Self.write(Self.alphaBytes, to: root.appendingPathComponent("alpha.txt"))
         try Self.write(Self.pngBytes, to: root.appendingPathComponent("image.png"))
@@ -83,7 +81,7 @@ final class FileSystemProviderTests: Sendable {
         try Self.write(Self.fakeArchiveBytes, to: root.appendingPathComponent("bundle.7z"))
 
         let sub = root.appendingPathComponent("sub", isDirectory: true)
-        try fm.createDirectory(at: sub, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: sub, withIntermediateDirectories: true)
         try Self.write("nested", to: sub.appendingPathComponent("nested.txt"))
     }
 
@@ -142,7 +140,7 @@ final class FileSystemProviderTests: Sendable {
         let sub = try item("sub", in: items)
         #expect(sub.properties[.size] == nil)
         #expect(sub.numericValue(for: .size) == nil)
-        #expect(ColumnModel.displayText(for: sub, column: .size) == "")
+        #expect(ColumnModel.displayText(for: sub, column: .size).isEmpty)
     }
 
     @Test("Rows carry a URL and an absolute path")
@@ -328,12 +326,12 @@ final class FileSystemProviderTests: Sendable {
         // root bypasses the permission bits, so the case cannot be provoked there.
         guard getuid() != 0 else { return }
 
-        let fm = FileManager.default
+        let fileManager = FileManager.default
         let locked = root.appendingPathComponent("locked", isDirectory: true)
-        try fm.createDirectory(at: locked, withIntermediateDirectories: true)
+        try fileManager.createDirectory(at: locked, withIntermediateDirectories: true)
         // Restore the mode either way, or `deinit` cannot clean the tree up.
-        defer { try? fm.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path) }
-        try fm.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
+        defer { try? fileManager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: locked.path) }
+        try fileManager.setAttributes([.posixPermissions: 0o000], ofItemAtPath: locked.path)
 
         let provider = FileSystemFolderProvider(directoryURL: locked, engine: engine)
         await #expect(throws: ArchiveError.self) {

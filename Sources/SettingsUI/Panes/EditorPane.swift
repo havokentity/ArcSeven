@@ -20,7 +20,6 @@ import AppKit
 import SwiftUI
 
 struct EditorPane: View {
-
     @Bindable var store: SettingsStore
 
     var body: some View {

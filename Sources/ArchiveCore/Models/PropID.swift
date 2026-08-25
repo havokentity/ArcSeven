@@ -155,11 +155,13 @@ extension PropID {
     public static let error: PropID               = "Error"                 // IDS_PROP_ERROR
     public static let errorType: PropID           = "Error Type"            // IDS_PROP_ERROR_TYPE
     public static let numErrors: PropID           = "Errors"                // IDS_PROP_NUM_ERRORS
-    public static let errorFlags: PropID          = "Errors"                // IDS_PROP_ERROR_FLAGS (same display name upstream)
+    // IDS_PROP_ERROR_FLAGS (same display name upstream)
+    public static let errorFlags: PropID          = "Errors"
     public static let warningFlags: PropID        = "Warnings"              // IDS_PROP_WARNING_FLAGS
     public static let warning: PropID             = "Warning"               // IDS_PROP_WARNING
     public static let isNotArchiveType: PropID    = "Is not archive type"   // IDS_PROP_IS_NOT_ARC_TYPE
-    public static let physicalSizeUndetectable: PropID = "Physical Size can't be detected" // IDS_PROP_PHY_SIZE_CANT_BE_DETECTED
+    // IDS_PROP_PHY_SIZE_CANT_BE_DETECTED
+    public static let physicalSizeUndetectable: PropID = "Physical Size can't be detected"
     public static let zerosTailIsAllowed: PropID  = "Zeros Tail Is Allowed" // IDS_PROP_ZEROS_TAIL_IS_ALLOWED
     public static let deleted: PropID             = "Deleted"               // IDS_PROP_DELETED
     public static let isTree: PropID              = "Is Tree"               // IDS_PROP_IS_TREE

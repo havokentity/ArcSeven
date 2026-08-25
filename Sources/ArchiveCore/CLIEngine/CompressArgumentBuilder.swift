@@ -17,7 +17,6 @@ import Foundation
 
 /// Builds the `-m…` switch block for a compression request.
 public enum CompressArgumentBuilder {
-
     /// Method, dictionary, word size, solid block and thread switches.
     public static func methodSwitches(for request: CompressRequest) -> [String] {
         var switches: [String] = []

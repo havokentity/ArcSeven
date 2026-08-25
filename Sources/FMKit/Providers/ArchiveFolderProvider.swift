@@ -28,7 +28,6 @@ import ArchiveCore
 
 /// Presents one directory level inside an archive.
 public struct ArchiveFolderProvider: FolderProvider {
-
     /// The archive on disk.
     public let archiveURL: URL
 
@@ -53,11 +52,11 @@ public struct ArchiveFolderProvider: FolderProvider {
         archiveURL: URL,
         engine: any ArchiveEngine,
         password: String? = nil
-    ) async throws -> ArchiveFolderProvider {
+    ) async throws -> Self {
         let listing = try await engine.list(
             ListRequest(archiveURL: archiveURL, password: password)
         )
-        return ArchiveFolderProvider(
+        return Self(
             archiveURL: archiveURL,
             listing: listing,
             subPath: "",
@@ -111,7 +110,7 @@ public struct ArchiveFolderProvider: FolderProvider {
         guard item.isNavigable else { return nil }
 
         if item.isDirectory {
-            return ArchiveFolderProvider(
+            return Self(
                 archiveURL: archiveURL,
                 listing: listing,
                 subPath: item.path,          // already the full in-archive path
@@ -122,7 +121,7 @@ public struct ArchiveFolderProvider: FolderProvider {
         // A nested archive: materialise the member to a temp file and open that.
         // This is how 7zFM browses `outer.7z/inner.tar` to arbitrary depth.
         let temporary = try await extractToTemporary(entryPath: item.path)
-        return try await ArchiveFolderProvider.open(archiveURL: temporary, engine: engine)
+        return try await Self.open(archiveURL: temporary, engine: engine)
     }
 
     public func parent() async throws -> (any FolderProvider)? {
@@ -134,7 +133,7 @@ public struct ArchiveFolderProvider: FolderProvider {
             )
         }
         let parentPath = (subPath as NSString).deletingLastPathComponent
-        return ArchiveFolderProvider(
+        return Self(
             archiveURL: archiveURL,
             listing: listing,
             subPath: parentPath,

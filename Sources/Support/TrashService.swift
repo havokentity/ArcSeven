@@ -17,7 +17,6 @@ import Foundation
 
 /// Why a move to Trash failed.
 public enum TrashError: Error, LocalizedError, Hashable, Sendable {
-
     /// The item is already gone.
     case notFound(path: String)
 
@@ -40,7 +39,7 @@ public enum TrashError: Error, LocalizedError, Hashable, Sendable {
             "'\(path)' could not be moved to the Trash because you do not have permission."
         case .volumeHasNoTrash(let path):
             "The volume containing '\(path)' does not have a Trash."
-        case .failed(let path, let reason):
+        case let .failed(path, reason):
             "'\(path)' could not be moved to the Trash: \(reason)"
         }
     }
@@ -71,7 +70,6 @@ public struct TrashSummary: Hashable, Sendable {
 
 /// Moves files and folders to the Trash.
 public enum TrashService {
-
     /// Move one item to the Trash.
     ///
     /// - Returns: The item's new location inside the Trash, when the system reports one.

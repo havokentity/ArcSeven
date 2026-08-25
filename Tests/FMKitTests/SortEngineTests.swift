@@ -8,7 +8,6 @@ import ArchiveCore
 
 @Suite("SortEngine")
 struct SortEngineTests {
-
     private func file(_ name: String, size: UInt64? = nil, modified: Date? = nil) -> FolderItem {
         var entry = ArchiveEntry(path: name, isDirectory: false)
         entry.size = size
@@ -96,7 +95,7 @@ struct SortEngineTests {
         let items = [
             file("new", modified: now),
             file("old", modified: now.addingTimeInterval(-86_400)),
-            file("mid", modified: now.addingTimeInterval(-3_600)),
+            file("mid", modified: now.addingTimeInterval(-3600)),
         ]
         let sorted = SortEngine.sort(items, by: SortDescriptor(column: .modified))
         #expect(sorted.map(\.name) == ["old", "mid", "new"])

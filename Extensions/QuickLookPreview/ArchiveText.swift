@@ -12,7 +12,6 @@
 import Foundation
 
 enum ArchiveText {
-
     /// The upper half of code page 437, the encoding a ZIP member name is in when
     /// general-purpose flag bit 11 is clear.
     ///
@@ -52,6 +51,9 @@ enum ArchiveText {
         if let decoded = String(bytes: bytes, encoding: .utf8) { return decoded }
         if declaresUTF8 {
             // The archive said UTF-8 and was wrong. Salvage what decodes and mark the rest.
+            // The failable initializer the rule asks for is what line above already tried
+            // and it returned nil; U+FFFD substitution is the point of this branch.
+            // swiftlint:disable:next optional_data_string_conversion
             return String(decoding: bytes, as: UTF8.self)
         }
 

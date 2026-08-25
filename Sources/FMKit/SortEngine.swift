@@ -27,7 +27,7 @@ public enum SortDirection: String, Sendable, Hashable, Codable {
     case ascending
     case descending
 
-    public var reversed: SortDirection { self == .ascending ? .descending : .ascending }
+    public var reversed: Self { self == .ascending ? .descending : .ascending }
 }
 
 /// A column plus a direction.
@@ -43,7 +43,6 @@ public struct SortDescriptor: Sendable, Hashable, Codable {
 
 /// Orders panel rows the way 7zFM does.
 public enum SortEngine {
-
     /// Sort a folder listing.
     ///
     /// - Parameters:
@@ -91,11 +90,11 @@ public enum SortEngine {
             return compareDates(lhs.dateValue(for: column), rhs.dateValue(for: column))
 
         default:
-            let a = lhs.properties[column] ?? ""
-            let b = rhs.properties[column] ?? ""
+            let lhsText = lhs.properties[column] ?? ""
+            let rhsText = rhs.properties[column] ?? ""
             // Numeric-looking columns compare numerically, so "10" is not before "9".
-            if let x = UInt64(a), let y = UInt64(b) { return compareNumbers(x, y) }
-            return naturalCompare(a, b)
+            if let x = UInt64(lhsText), let y = UInt64(rhsText) { return compareNumbers(x, y) }
+            return naturalCompare(lhsText, rhsText)
         }
     }
 
@@ -124,7 +123,8 @@ public enum SortEngine {
         case (nil, nil): .orderedSame
         case (nil, _): .orderedDescending
         case (_, nil): .orderedAscending
-        case (let a?, let b?): a == b ? .orderedSame : (a < b ? .orderedAscending : .orderedDescending)
+        case let (left?, right?):
+            left == right ? .orderedSame : (left < right ? .orderedAscending : .orderedDescending)
         }
     }
 
@@ -133,7 +133,8 @@ public enum SortEngine {
         case (nil, nil): .orderedSame
         case (nil, _): .orderedDescending
         case (_, nil): .orderedAscending
-        case (let a?, let b?): a == b ? .orderedSame : (a < b ? .orderedAscending : .orderedDescending)
+        case let (left?, right?):
+            left == right ? .orderedSame : (left < right ? .orderedAscending : .orderedDescending)
         }
     }
 }

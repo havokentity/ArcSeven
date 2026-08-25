@@ -12,7 +12,6 @@ import AppKit
 
 @MainActor
 enum MainMenuBuilder {
-
     static func install() {
         let main = NSMenu()
         main.addItem(applicationMenuItem())
@@ -42,10 +41,18 @@ enum MainMenuBuilder {
 
         menu.addItem(.separator())
         menu.addItem(withTitle: "Hide \(name)", action: #selector(NSApplication.hide(_:)), keyEquivalent: "h")
-        let hideOthers = NSMenuItem(title: "Hide Others", action: #selector(NSApplication.hideOtherApplications(_:)), keyEquivalent: "h")
+        let hideOthers = NSMenuItem(
+            title: "Hide Others",
+            action: #selector(NSApplication.hideOtherApplications(_:)),
+            keyEquivalent: "h"
+        )
         hideOthers.keyEquivalentModifierMask = [.command, .option]
         menu.addItem(hideOthers)
-        menu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
+        menu.addItem(
+            withTitle: "Show All",
+            action: #selector(NSApplication.unhideAllApplications(_:)),
+            keyEquivalent: ""
+        )
         menu.addItem(.separator())
         menu.addItem(withTitle: "Quit \(name)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
@@ -87,7 +94,11 @@ enum MainMenuBuilder {
 
         // Cmd+Delete is "move to Trash" on macOS, and on disk that is exactly what
         // Delete does here. Inside an archive it removes the member instead.
-        let remove = NSMenuItem(title: "Delete", action: Selector(("deleteAction:")), keyEquivalent: String(UnicodeScalar(NSBackspaceCharacter)!))
+        let remove = NSMenuItem(
+            title: "Delete",
+            action: Selector(("deleteAction:")),
+            keyEquivalent: keyEquivalent(NSBackspaceCharacter)
+        )
         remove.keyEquivalentModifierMask = [.command]
         menu.addItem(remove)
         let item = NSMenuItem()
@@ -101,7 +112,11 @@ enum MainMenuBuilder {
         // Finder preset binds Cmd+2; the Classic preset will add F9 alongside.
         menu.addItem(withTitle: "Toggle Two Panels", action: Selector(("toggleDualPane:")), keyEquivalent: "2")
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Enter Full Screen", action: #selector(NSWindow.toggleFullScreen(_:)), keyEquivalent: "f")
+        menu.addItem(
+            withTitle: "Enter Full Screen",
+            action: #selector(NSWindow.toggleFullScreen(_:)),
+            keyEquivalent: "f"
+        )
         let item = NSMenuItem()
         item.submenu = menu
         return item
@@ -109,11 +124,19 @@ enum MainMenuBuilder {
 
     private static func goMenuItem() -> NSMenuItem {
         let menu = NSMenu(title: "Go")
-        let up = NSMenuItem(title: "Enclosing Folder", action: Selector(("goBack:")), keyEquivalent: String(UnicodeScalar(NSUpArrowFunctionKey)!))
+        let up = NSMenuItem(
+            title: "Enclosing Folder",
+            action: Selector(("goBack:")),
+            keyEquivalent: keyEquivalent(NSUpArrowFunctionKey)
+        )
         up.keyEquivalentModifierMask = [.command]
         menu.addItem(up)
 
-        let open = NSMenuItem(title: "Open Selection", action: Selector(("openSelection:")), keyEquivalent: String(UnicodeScalar(NSDownArrowFunctionKey)!))
+        let open = NSMenuItem(
+            title: "Open Selection",
+            action: Selector(("openSelection:")),
+            keyEquivalent: keyEquivalent(NSDownArrowFunctionKey)
+        )
         open.keyEquivalentModifierMask = [.command]
         menu.addItem(open)
 
@@ -130,5 +153,21 @@ enum MainMenuBuilder {
         item.submenu = menu
         NSApp.windowsMenu = menu
         return item
+    }
+
+    // MARK: Key equivalents
+
+    /// The one-character key equivalent for an AppKit key constant.
+    ///
+    /// `NSUpArrowFunctionKey` and friends are `Int` code points in the Unicode private-use
+    /// area, and `NSBackspaceCharacter` is plain C0 backspace; every one of them is a valid
+    /// scalar, so the guard never fires. It is written as a guard rather than a force
+    /// unwrap because an empty key equivalent - AppKit's own spelling for "no shortcut" -
+    /// costs the user one keyboard shortcut, and a trap costs them the app.
+    private static func keyEquivalent(_ codePoint: Int) -> String {
+        guard let value = UInt32(exactly: codePoint), let scalar = UnicodeScalar(value) else {
+            return ""
+        }
+        return String(scalar)
     }
 }

@@ -150,6 +150,44 @@ jobs:
       - name: Generate project
         run: xcodegen generate --spec project.yml --project .
 
+      # Compile the app target itself, unsigned.
+      #
+      # `swift build` is NOT a substitute. SwiftPM compiles six modules; the Xcode target
+      # compiles the same files as ONE, and Sources/App plus the three extensions are not
+      # SwiftPM targets at all — nothing outside this job ever compiles them. It also
+      # catches the failure mode that has bitten repeatedly in development: a source file
+      # added without regenerating the project, which builds locally against a stale
+      # .xcodeproj and then fails for everyone else.
+      #
+      # No signing: fork PRs have no certificate. The vendored 7zz is `optional: true` in
+      # project.yml, so its absence is not an error here — only release.yml needs it.
+      - name: Build the app target (unsigned)
+        run: |
+          set -euo pipefail
+          for config in Debug Release; do
+            echo "--- $config"
+            log="$RUNNER_TEMP/build-$config.log"
+            # Redirect rather than pipe. Piping into grep and recovering the real status
+            # via PIPESTATUS is fragile — appending `|| true` detaches PIPESTATUS from
+            # xcodebuild, and the step then passes on a FAILED build, which is worse than
+            # having no check. A log file keeps the exit status honest.
+            if ! xcodebuild \
+              -project ArcSeven.xcodeproj \
+              -scheme ArcSeven \
+              -configuration "$config" \
+              -derivedDataPath "$RUNNER_TEMP/dd-$config" \
+              CODE_SIGN_IDENTITY="-" \
+              CODE_SIGNING_REQUIRED=NO \
+              CODE_SIGNING_ALLOWED=NO \
+              build > "$log" 2>&1
+            then
+              echo "::error::$config build failed"
+              grep -E "error:" "$log" | sort -u | head -40
+              exit 1
+            fi
+            grep -E "BUILD SUCCEEDED" "$log" || { echo "::error::no success marker"; exit 1; }
+          done
+
       - name: Validate generated property lists
         run: |
           set -euo pipefail

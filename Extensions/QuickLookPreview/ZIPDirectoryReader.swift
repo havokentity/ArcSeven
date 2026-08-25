@@ -14,7 +14,6 @@
 import Foundation
 
 enum ZIPDirectoryReader {
-
     static func read(_ reader: BoundedFileReader, displayName: String) throws -> ArchiveDirectory {
         let location = try ZIPDirectoryLocator.locate(in: reader)
 
@@ -126,7 +125,6 @@ enum ZIPDirectoryReader {
 /// has one genuinely subtle rule in it - the overflow guard below - and that rule deserves
 /// somewhere to live where it can be read.
 private struct Tally {
-
     var entries: [ArchiveDirectoryEntry] = []
     var walked = 0
     var fileCount = 0

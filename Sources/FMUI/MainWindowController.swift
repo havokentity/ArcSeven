@@ -29,19 +29,18 @@ import Support
 
 @MainActor
 public final class MainWindowController: NSWindowController {
-
-    private let engine: any ArchiveEngine
+    let engine: any ArchiveEngine
     private let splitViewController = NSSplitViewController()
 
     /// The panels, left to right. One entry until the second panel is toggled on.
-    private var panels: [PanelViewController] = []
+    var panels: [PanelViewController] = []
 
     /// The panel that has focus. Operations act on this one.
     private var activePanelIndex = 0
 
     /// Held while the Properties inspector is on screen; it is a sheet, not a child
     /// view controller, so nothing else retains it.
-    private var propertiesInspector: PropertiesInspectorController?
+    var propertiesInspector: PropertiesInspectorController?
 
     private var activePanel: PanelViewController? {
         panels.indices.contains(activePanelIndex) ? panels[activePanelIndex] : nil
@@ -101,401 +100,6 @@ public final class MainWindowController: NSWindowController {
         return panel
     }
 
-    // MARK: Toolbar
-
-    private func configureToolbar() {
-        let toolbar = NSToolbar(identifier: "ArcSevenMainToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconAndLabel
-        toolbar.allowsUserCustomization = true
-        toolbar.autosavesConfiguration = true
-        window?.toolbar = toolbar
-        window?.toolbarStyle = .unified
-    }
-
-    /// 7zFM's seven toolbar buttons, in its order.
-    fileprivate enum ToolbarAction: String, CaseIterable {
-        case add, extract, test, copy, move, delete, info
-
-        var title: String {
-            switch self {
-            case .add: "Add"
-            case .extract: "Extract"
-            case .test: "Test"
-            case .copy: "Copy"
-            case .move: "Move"
-            case .delete: "Delete"
-            case .info: "Info"
-            }
-        }
-
-        /// SF Symbols standing in for 7-Zip's bitmaps.
-        var symbolName: String {
-            switch self {
-            case .add: "plus.rectangle.on.folder"
-            case .extract: "arrow.down.doc"
-            case .test: "checkmark.seal"
-            case .copy: "doc.on.doc"
-            case .move: "arrow.right.doc.on.clipboard"
-            case .delete: "trash"
-            case .info: "info.circle"
-            }
-        }
-
-        var itemIdentifier: NSToolbarItem.Identifier { .init("ArcSeven." + rawValue) }
-    }
-
-    @objc fileprivate func toolbarActionInvoked(_ sender: NSToolbarItem) {
-        guard let action = ToolbarAction.allCases.first(
-            where: { $0.itemIdentifier == sender.itemIdentifier }
-        ) else { return }
-        perform(action)
-    }
-
-    private func perform(_ action: ToolbarAction) {
-        guard let panel = activePanel else { return }
-        switch action {
-        case .add:     addToArchive(from: panel)
-        case .extract: extractSelection(from: panel)
-        case .test:    testArchive(from: panel)
-        case .delete:  deleteSelection(from: panel)
-        case .copy:    transferSelection(from: panel, move: false)
-        case .move:    transferSelection(from: panel, move: true)
-        case .info:    showInfo(for: panel)
-        }
-    }
-
-    // MARK: Operations
-
-    /// Add to archive — 7zFM's Add button.
-    ///
-    /// Operates on the selection, or on everything in the folder when nothing is
-    /// selected, which is what 7zFM does. Only meaningful for rows that exist on disk:
-    /// re-compressing members of an archive in place is a later milestone.
-    private func addToArchive(from panel: PanelViewController) {
-        guard let window else { return }
-
-        let selected = panel.selectedItems.compactMap(\.url)
-        let inputs: [URL]
-        if !selected.isEmpty {
-            inputs = selected
-        } else if let directory = (panel.provider as? FileSystemFolderProvider)?.directoryURL {
-            inputs = (try? FileManager.default.contentsOfDirectory(
-                at: directory, includingPropertiesForKeys: nil)) ?? []
-        } else {
-            inputs = []
-        }
-
-        guard !inputs.isEmpty else {
-            presentMessage(
-                "Nothing to add",
-                "Select files on disk to compress. Adding to an archive from inside "
-                    + "another archive is not supported yet."
-            )
-            return
-        }
-
-        // Default the archive name to the selection when it is a single item, or to
-        // the enclosing folder otherwise — 7zFM's naming rule.
-        let base = inputs.count == 1
-            ? inputs[0].deletingPathExtension().lastPathComponent
-            : inputs[0].deletingLastPathComponent().lastPathComponent
-        let defaultURL = inputs[0]
-            .deletingLastPathComponent()
-            .appendingPathComponent(base.isEmpty ? "Archive" : base)
-            .appendingPathExtension("7z")
-
-        let dialog = CompressDialogController(defaultArchiveURL: defaultURL, inputs: inputs)
-        dialog.present(in: window) { [weak self] request in
-            guard let self, var request else { return }
-
-            // Never feed the destination archive to itself.
-            //
-            // "Add" with nothing selected snapshots the whole folder, and if an archive
-            // of the target name is already sitting there — which it is the second time
-            // you press Add — it lands in the input set and gets packed into its own
-            // replacement. Observed for real: a 41 KB src.7z reappeared as a member of
-            // the 82 KB src.7z that replaced it. Upstream 7-Zip excludes the output
-            // path from its inputs; so do we.
-            let destination = request.archiveURL.standardizedFileURL
-            request.inputs = request.inputs.filter { $0.standardizedFileURL != destination }
-
-            guard !request.inputs.isEmpty else {
-                self.presentMessage(
-                    "Nothing to add",
-                    "The only item selected was the archive being created."
-                )
-                return
-            }
-
-            self.run(
-                operation: self.engine.compress(request),
-                title: "Creating \(request.archiveURL.lastPathComponent)",
-                completion: { result in
-                    self.reportSuccess(
-                        result,
-                        title: "Archive created",
-                        detail: request.archiveURL.path,
-                        reveal: request.archiveURL
-                    )
-                    self.refreshPanelsShowing(request.archiveURL.deletingLastPathComponent())
-                }
-            )
-        }
-    }
-
-    /// Extract — 7zFM's Extract button.
-    private func extractSelection(from panel: PanelViewController) {
-        guard let window else { return }
-        guard let archive = panel.provider as? ArchiveFolderProvider else {
-            presentMessage(
-                "Not an archive",
-                "Open an archive first — Extract works on the contents of an archive."
-            )
-            return
-        }
-
-        let entries = panel.selectedItems.map(\.path)
-        let dialog = ExtractDialogController(
-            archiveURL: archive.archiveURL,
-            selectedEntries: entries
-        )
-        dialog.present(in: window) { [weak self] request in
-            guard let self, var request else { return }
-
-            // "Ask before overwrite" cannot be answered mid-stream: the child process
-            // has no interactive channel once it is running. Resolve conflicts up
-            // front, then hand the engine a concrete, non-interactive mode.
-            if request.overwriteMode == .ask {
-                self.resolveOverwrite(for: request, in: archive.listing) { resolved in
-                    guard let resolved else { return }
-                    request = resolved
-                    self.startExtraction(request)
-                }
-            } else {
-                self.startExtraction(request)
-            }
-        }
-    }
-
-    private func startExtraction(_ request: ExtractRequest) {
-        run(
-            operation: engine.extract(request),
-            title: "Extracting \(request.archiveURL.lastPathComponent)"
-        ) { [weak self] result in
-            self?.reportSuccess(
-                result,
-                title: "Extraction complete",
-                detail: "Extracted to \(request.destinationURL.path).",
-                reveal: request.destinationURL
-            )
-        }
-    }
-
-    /// Ask about the first conflicting file, then apply the answer to the whole run.
-    ///
-    /// 7zFM prompts per file. The subprocess engine cannot, so ArcSeven asks once and
-    /// maps the answer onto an `-ao*` switch. `docs/DIVERGENCES.md` records this; a
-    /// true per-file prompt arrives with the in-process engine.
-    private func resolveOverwrite(
-        for request: ExtractRequest,
-        in listing: ArchiveListing,
-        completion: @escaping @MainActor (ExtractRequest?) -> Void
-    ) {
-        let candidates = request.selectedEntries ?? listing.entries.map(\.path)
-        let manager = FileManager.default
-
-        var conflict: (existing: URL, entry: ArchiveEntry)?
-        for path in candidates {
-            guard let entry = listing.entry(atPath: path), !entry.isDirectory else { continue }
-            // Resolve through the zip-slip guard rather than joining paths naively.
-            guard let destination = try? PathSafety.resolvedDestination(
-                root: request.destinationURL, entryPath: path
-            ) else { continue }
-            if manager.fileExists(atPath: destination.path) {
-                conflict = (destination, entry)
-                break
-            }
-        }
-
-        guard let conflict, let window else {
-            completion(request)
-            return
-        }
-
-        let attributes = try? manager.attributesOfItem(atPath: conflict.existing.path)
-        let dialog = OverwriteDialogController(
-            existing: FileInfo(
-                path: conflict.existing.path,
-                size: (attributes?[.size] as? NSNumber)?.uint64Value,
-                modified: attributes?[.modificationDate] as? Date
-            ),
-            incoming: FileInfo(
-                path: conflict.entry.path,
-                size: conflict.entry.size,
-                modified: conflict.entry.modified
-            )
-        )
-        dialog.present(in: window) { decision in
-            var resolved = request
-            switch decision {
-            case .yes, .yesToAll: resolved.overwriteMode = .overwrite
-            case .no, .noToAll:   resolved.overwriteMode = .skip
-            case .autoRename:     resolved.overwriteMode = .autoRename
-            case .cancel:         completion(nil); return
-            }
-            completion(resolved)
-        }
-    }
-
-    /// Test — verify every member's CRC without writing anything.
-    private func testArchive(from panel: PanelViewController) {
-        guard let archive = panel.provider as? ArchiveFolderProvider else {
-            presentMessage("Not an archive", "Open an archive to test it.")
-            return
-        }
-        let entries = panel.selectedItems.map(\.path)
-        var request = TestRequest(archiveURL: archive.archiveURL)
-        request.selectedEntries = entries.isEmpty ? nil : entries
-
-        run(
-            operation: engine.test(request),
-            title: "Testing \(archive.archiveURL.lastPathComponent)"
-        ) { [weak self] result in
-            self?.reportSuccess(
-                result,
-                title: result.hasWarnings ? "Tested with warnings" : "No errors found",
-                detail: "\(result.itemsProcessed) item(s) verified.",
-                reveal: nil
-            )
-        }
-    }
-
-    /// Delete — Trash on disk, remove-from-archive inside one.
-    private func deleteSelection(from panel: PanelViewController) {
-        let items = panel.selectedItems
-        guard !items.isEmpty else {
-            presentMessage("Nothing selected", "Select the items you want to delete.")
-            return
-        }
-
-        if let archive = panel.provider as? ArchiveFolderProvider {
-            confirmDestructive(
-                "Delete \(items.count) item(s) from \(archive.archiveURL.lastPathComponent)?",
-                "This rewrites the archive and cannot be undone."
-            ) { [weak self] in
-                guard let self else { return }
-                let request = DeleteRequest(
-                    archiveURL: archive.archiveURL,
-                    entryPaths: items.map(\.path)
-                )
-                self.run(
-                    operation: self.engine.delete(request),
-                    title: "Updating \(archive.archiveURL.lastPathComponent)"
-                ) { _ in
-                    // The listing is now stale; reopen the archive at the same level.
-                    self.reopenArchive(archive, in: panel)
-                }
-            }
-            return
-        }
-
-        // On disk, Delete means "move to Trash" — the Mac meaning, and recoverable.
-        let urls = items.compactMap(\.url)
-        var trashed = 0
-        var failures: [String] = []
-        for url in urls {
-            do { _ = try TrashService.trash(url); trashed += 1 }
-            catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
-        }
-        panel.reload()
-        if !failures.isEmpty {
-            presentMessage(
-                "Moved \(trashed) of \(urls.count) to the Trash",
-                failures.prefix(5).joined(separator: "\n")
-            )
-        }
-    }
-
-    /// Copy / Move — to the other panel when there is one, else to a chosen folder.
-    ///
-    /// This is 7zFM's F5/F6: with two panels open, the other panel IS the destination,
-    /// which is the whole reason the two-pane layout exists.
-    private func transferSelection(from panel: PanelViewController, move: Bool) {
-        let items = panel.selectedItems
-        guard !items.isEmpty else {
-            presentMessage("Nothing selected", "Select the items you want to \(move ? "move" : "copy").")
-            return
-        }
-
-        // Extracting out of an archive is a copy by definition; a move would mean
-        // deleting from the archive afterwards, which is a separate confirmation.
-        if let archive = panel.provider as? ArchiveFolderProvider {
-            guard let destination = otherPanelDirectory(besides: panel) else {
-                presentMessage(
-                    "No destination",
-                    "Open a second panel (View ▸ Toggle Two Panels) on a folder, then "
-                        + "Copy extracts the selection into it."
-                )
-                return
-            }
-            var request = ExtractRequest(archiveURL: archive.archiveURL, destinationURL: destination)
-            request.selectedEntries = items.map(\.path)
-            request.overwriteMode = .autoRename
-            startExtraction(request)
-            return
-        }
-
-        guard let destination = otherPanelDirectory(besides: panel) else {
-            presentMessage(
-                "No destination",
-                "Open a second panel (View ▸ Toggle Two Panels) to \(move ? "move" : "copy") into."
-            )
-            return
-        }
-
-        let manager = FileManager.default
-        var failures: [String] = []
-        for url in items.compactMap(\.url) {
-            let target = destination.appendingPathComponent(url.lastPathComponent)
-            do {
-                if move { try manager.moveItem(at: url, to: target) }
-                else { try manager.copyItem(at: url, to: target) }
-            } catch {
-                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
-            }
-        }
-        for other in panels { other.reload() }
-        if !failures.isEmpty {
-            presentMessage("Some items could not be \(move ? "moved" : "copied")",
-                           failures.prefix(5).joined(separator: "\n"))
-        }
-    }
-
-    private func otherPanelDirectory(besides panel: PanelViewController) -> URL? {
-        for candidate in panels where candidate !== panel {
-            if let directory = (candidate.provider as? FileSystemFolderProvider)?.directoryURL {
-                return directory
-            }
-        }
-        return nil
-    }
-
-    /// Info — the Properties inspector.
-    private func showInfo(for panel: PanelViewController) {
-        guard let window else { return }
-        guard let archive = panel.provider as? ArchiveFolderProvider else {
-            presentMessage("No archive open", "Open an archive to see its properties.")
-            return
-        }
-        let inspector = PropertiesInspectorController(
-            listing: archive.listing,
-            entry: panel.selectedItems.first?.entry
-        )
-        inspector.present(in: window)
-        propertiesInspector = inspector      // held so it is not deallocated while shown
-    }
-
     // MARK: Running an operation
 
     /// Drive an operation stream against the progress sheet.
@@ -503,7 +107,7 @@ public final class MainWindowController: NSWindowController {
     /// One place for the pattern so every action gets cancellation, warning reporting
     /// and error handling identically. Cancelling the task tears down the child
     /// process group; `7zz` unwinds and removes a partial archive.
-    private func run(
+    func run(
         operation: ArchiveOperationStream,
         title: String,
         completion: @escaping @MainActor (ArchiveOperationResult) -> Void
@@ -538,7 +142,7 @@ public final class MainWindowController: NSWindowController {
         progress.onCancel = { task.cancel() }
     }
 
-    private func reportSuccess(
+    func reportSuccess(
         _ result: ArchiveOperationResult,
         title: String,
         detail: String,
@@ -578,7 +182,7 @@ public final class MainWindowController: NSWindowController {
         presentMessage("The operation failed", error.localizedDescription)
     }
 
-    private func confirmDestructive(
+    func confirmDestructive(
         _ title: String,
         _ body: String,
         proceed: @escaping @MainActor () -> Void
@@ -595,7 +199,7 @@ public final class MainWindowController: NSWindowController {
         }
     }
 
-    private func presentMessage(_ title: String, _ body: String) {
+    func presentMessage(_ title: String, _ body: String) {
         guard let window else { return }
         let alert = NSAlert()
         alert.messageText = title
@@ -604,7 +208,7 @@ public final class MainWindowController: NSWindowController {
     }
 
     /// Reopen an archive whose contents changed underneath us.
-    private func reopenArchive(_ archive: ArchiveFolderProvider, in panel: PanelViewController) {
+    func reopenArchive(_ archive: ArchiveFolderProvider, in panel: PanelViewController) {
         Task { [engine] in
             do {
                 let reopened = try await ArchiveFolderProvider.open(
@@ -618,7 +222,7 @@ public final class MainWindowController: NSWindowController {
     }
 
     /// Reload any panel currently showing `directory`, so a new archive appears.
-    private func refreshPanelsShowing(_ directory: URL) {
+    func refreshPanelsShowing(_ directory: URL) {
         for panel in panels {
             guard let shown = (panel.provider as? FileSystemFolderProvider)?.directoryURL else { continue }
             if shown.standardizedFileURL == directory.standardizedFileURL { panel.reload() }
@@ -754,8 +358,8 @@ public final class MainWindowController: NSWindowController {
             let destination = request.archiveURL.standardizedFileURL
             request.inputs = request.inputs.filter { $0.standardizedFileURL != destination }
             guard !request.inputs.isEmpty else { return }
-            self.run(
-                operation: self.engine.compress(request),
+            run(
+                operation: engine.compress(request),
                 title: "Creating \(request.archiveURL.lastPathComponent)"
             ) { result in
                 self.reportSuccess(
@@ -798,7 +402,6 @@ public final class MainWindowController: NSWindowController {
 // MARK: - Panel delegate
 
 extension MainWindowController: PanelViewControllerDelegate {
-
     public func panelDidChangeLocation(_ panel: PanelViewController) {
         if let index = panels.firstIndex(where: { $0 === panel }) { activePanelIndex = index }
         // 7zFM titles the window with the focused panel's path, falling back to the
@@ -821,10 +424,78 @@ extension MainWindowController: PanelViewControllerDelegate {
 
 extension MainWindowController: NSWindowDelegate {}
 
+// MARK: - Toolbar
+
+/// The rebar, and the seven buttons on it. In an extension so the controller body
+/// stays inside its size budget; `ToolbarAction` stays file-private because the
+/// `NSToolbarDelegate` conformance below is the only other place that reads it.
+extension MainWindowController {
+    private func configureToolbar() {
+        let toolbar = NSToolbar(identifier: "ArcSevenMainToolbar")
+        toolbar.delegate = self
+        toolbar.displayMode = .iconAndLabel
+        toolbar.allowsUserCustomization = true
+        toolbar.autosavesConfiguration = true
+        window?.toolbar = toolbar
+        window?.toolbarStyle = .unified
+    }
+
+    /// 7zFM's seven toolbar buttons, in its order.
+    private enum ToolbarAction: String, CaseIterable {
+        case add, extract, test, copy, move, delete, info
+
+        var title: String {
+            switch self {
+            case .add: "Add"
+            case .extract: "Extract"
+            case .test: "Test"
+            case .copy: "Copy"
+            case .move: "Move"
+            case .delete: "Delete"
+            case .info: "Info"
+            }
+        }
+
+        /// SF Symbols standing in for 7-Zip's bitmaps.
+        var symbolName: String {
+            switch self {
+            case .add: "plus.rectangle.on.folder"
+            case .extract: "arrow.down.doc"
+            case .test: "checkmark.seal"
+            case .copy: "doc.on.doc"
+            case .move: "arrow.right.doc.on.clipboard"
+            case .delete: "trash"
+            case .info: "info.circle"
+            }
+        }
+
+        var itemIdentifier: NSToolbarItem.Identifier { .init("ArcSeven." + rawValue) }
+    }
+
+    @objc private func toolbarActionInvoked(_ sender: NSToolbarItem) {
+        guard let action = ToolbarAction.allCases.first(
+            where: { $0.itemIdentifier == sender.itemIdentifier }
+        ) else { return }
+        perform(action)
+    }
+
+    private func perform(_ action: ToolbarAction) {
+        guard let panel = activePanel else { return }
+        switch action {
+        case .add:     addToArchive(from: panel)
+        case .extract: extractSelection(from: panel)
+        case .test:    testArchive(from: panel)
+        case .delete:  deleteSelection(from: panel)
+        case .copy:    transferSelection(from: panel, move: false)
+        case .move:    transferSelection(from: panel, move: true)
+        case .info:    showInfo(for: panel)
+        }
+    }
+}
+
 // MARK: - Toolbar delegate
 
 extension MainWindowController: NSToolbarDelegate {
-
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         var identifiers: [NSToolbarItem.Identifier] = []
         for action in ToolbarAction.allCases {

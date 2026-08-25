@@ -30,7 +30,6 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct FileTypesPane: View {
-
     @State private var model = FileTypesModel()
 
     var body: some View {
@@ -79,7 +78,6 @@ struct FileTypesPane: View {
 // MARK: - Row
 
 private struct FileTypeRow: View {
-
     let row: FileTypesModel.Row
     let setDefault: () -> Void
 
@@ -110,11 +108,10 @@ private struct FileTypeRow: View {
 @MainActor
 @Observable
 final class FileTypesModel {
-
     /// The four states 7zFM's association cells show, mapped onto LaunchServices.
     enum HandlerState: Equatable {
         /// Nothing claims the type. Upstream renders this as an empty cell.
-        case none
+        case unclaimed
         /// Another application. Upstream shows its name.
         case other(String)
         /// A *different* copy of this app — same bundle identifier, different location.
@@ -126,7 +123,7 @@ final class FileTypesModel {
 
         var displayText: String {
             switch self {
-            case .none: "—"
+            case .unclaimed: "—"
             case .other(let name): name
             case .otherCopy: "[ArcSeven]"
             case .thisApp: "ArcSeven"
@@ -209,7 +206,7 @@ final class FileTypesModel {
 
     private static func handlerState(for type: UTType?) -> HandlerState {
         guard let type, let handler = NSWorkspace.shared.urlForApplication(toOpen: type) else {
-            return .none
+            return .unclaimed
         }
         let ourBundle = Bundle.main
         if handler.standardizedFileURL == ourBundle.bundleURL.standardizedFileURL {

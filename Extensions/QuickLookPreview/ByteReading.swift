@@ -25,10 +25,9 @@ import Foundation
 /// Hard ceilings. Every one of these exists to bound work on a hostile file, not to bound
 /// work on a plausible one; the numbers are far above anything a real archive needs.
 enum PreviewLimits {
-
     /// Rows handed to the table view. A preview is a glance, not a file manager, and
     /// building 200k cell views inside an appex is how you get killed for memory.
-    static let maxRenderedEntries = 4_000
+    static let maxRenderedEntries = 4000
 
     /// Central-directory records we will walk at all, counted but not necessarily shown.
     /// Bounds the loop itself so a self-referential or absurdly long directory terminates.
@@ -60,7 +59,6 @@ enum PreviewLimits {
 /// Why a preview could not be produced. Carries a human sentence, because every one of
 /// these ends up on screen rather than in a log.
 enum ArchiveReadError: Error {
-
     /// The file could not be opened or read at all.
     case unreadable(String)
 
@@ -83,7 +81,6 @@ enum ArchiveReadError: Error {
 /// All integer accessors return `nil` rather than trapping when the requested field does
 /// not fit. That turns "the file lied about a length" from a crash into a `guard`.
 struct ByteBuffer {
-
     /// The bytes, always zero-based. See the file comment for why this is not `Data`.
     let bytes: [UInt8]
 
@@ -135,17 +132,17 @@ struct ByteBuffer {
     /// carries a variable-length comment, and that comment is attacker-controlled, so it may
     /// itself contain the EOCD signature. The *last* match is the real record.
     func lastIndex(ofSignature signature: UInt32, notAfter upperBound: Int) -> Int? {
-        let b0 = UInt8(truncatingIfNeeded: signature)
-        let b1 = UInt8(truncatingIfNeeded: signature >> 8)
-        let b2 = UInt8(truncatingIfNeeded: signature >> 16)
-        let b3 = UInt8(truncatingIfNeeded: signature >> 24)
+        let byte0 = UInt8(truncatingIfNeeded: signature)
+        let byte1 = UInt8(truncatingIfNeeded: signature >> 8)
+        let byte2 = UInt8(truncatingIfNeeded: signature >> 16)
+        let byte3 = UInt8(truncatingIfNeeded: signature >> 24)
 
         var index = min(upperBound, bytes.count - 4)
         while index >= 0 {
-            if bytes[index] == b0,
-               bytes[index + 1] == b1,
-               bytes[index + 2] == b2,
-               bytes[index + 3] == b3 {
+            if bytes[index] == byte0,
+               bytes[index + 1] == byte1,
+               bytes[index + 2] == byte2,
+               bytes[index + 3] == byte3 {
                 return index
             }
             index -= 1
@@ -161,7 +158,6 @@ struct ByteBuffer {
 /// The handle is closed before the preview is rendered, as `QLPreviewingController`'s
 /// documentation asks - an appex must not sit on a descriptor for the life of the preview.
 final class BoundedFileReader {
-
     /// The file's size in bytes, established once by seeking to the end. Every subsequent
     /// read is validated against this, so no offset taken from the file's own headers can
     /// send us past EOF.

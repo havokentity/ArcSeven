@@ -22,12 +22,11 @@
 //   36  u16  internal attributes
 //   38  u32  external attributes
 //   42  u32  relative offset of local header
-//   46  ...  name, then extra fields, then comment
+//   46  ... name, then extra fields, then comment
 
 import Foundation
 
 struct ZIPCentralDirectoryRecord {
-
     /// What one attempt to read a record at a given offset produced.
     ///
     /// `endOfDirectory` and `malformed` have to be distinguishable: the first is the

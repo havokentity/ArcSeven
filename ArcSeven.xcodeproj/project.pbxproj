@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		04A0290A367B0BDCAAEC45D5 /* QuickLookPreview.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 78F6A82C7282F3061E703F71 /* QuickLookPreview.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		0D068C1627A809DAC0A92342 /* ArchiveFormat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A038B390D0A4C6DFB5EF105 /* ArchiveFormat.swift */; };
 		0F7953B0EBDC371E907ACAB3 /* ProgressSheetController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAA0D3A045EEBFBC9456BCEE /* ProgressSheetController.swift */; };
 		109DE5644E8A0410B9CA4E1B /* TrashService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0599A25BB6650467D28E0E9D /* TrashService.swift */; };
 		12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */ = {isa = PBXBuildFile; fileRef = 6A9FEB45092A8771E318822A /* README.md */; };
@@ -21,8 +22,10 @@
 		227220D185D6D9C52B35591A /* ByteReading.swift in Sources */ = {isa = PBXBuildFile; fileRef = F493C417295EEA01F3491B4C /* ByteReading.swift */; };
 		232678E8618FE02D76CBA5E7 /* ExitCodeMapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A30246BF36A1716D2834577 /* ExitCodeMapper.swift */; };
 		24959BB0A2E83210EE01B7EE /* FormatCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F3FBC1D782B44F96CF886B5 /* FormatCatalog.swift */; };
+		27AF978C79DDDA8614838681 /* CompressDialogController+Redraw.swift in Sources */ = {isa = PBXBuildFile; fileRef = D315E4A044E79055A1136257 /* CompressDialogController+Redraw.swift */; };
 		30CCA93D708CC8E752F138AF /* SettingsDefaults.swift in Sources */ = {isa = PBXBuildFile; fileRef = 016B3797F3DF99CE9525CAFB /* SettingsDefaults.swift */; };
 		3240B3FFA2FD048A1253448A /* FileSystemFolderProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A134098FF89E5ECA64D63CFF /* FileSystemFolderProvider.swift */; };
+		388FCC7610A997597CB40F01 /* EngineText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 614C655CA35768D06647D0FB /* EngineText.swift */; };
 		3A7CB0A771D41AF160FEB870 /* ArchiveDirectoryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F641477C3B2696804FE611C /* ArchiveDirectoryReader.swift */; };
 		3E71BFF1B3F044A7C561C058 /* CompressArgumentBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 333B236A6A675D150AD0B1AB /* CompressArgumentBuilder.swift */; };
 		4680454E41964798EC8D3865 /* NOTICE in CopyFiles */ = {isa = PBXBuildFile; fileRef = 91D0B85908D951E18BB85B51 /* NOTICE */; };
@@ -35,9 +38,12 @@
 		53AD61F9225D48CE36BFD37D /* OverwriteDialogController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA566F97BA14D7D981004A2 /* OverwriteDialogController.swift */; };
 		56D027F9EF487F43471AB475 /* PasswordDialogController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D2E1D953703AA854DABC524D /* PasswordDialogController.swift */; };
 		5A2FCDA0DDB0DD7389ABAC47 /* EditorPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB27ABDD164BC110538213DE /* EditorPane.swift */; };
+		68FF13A401BEC1B27813164A /* MainWindowController+Operations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F9F2B17AFDE370ABA6ABCD4 /* MainWindowController+Operations.swift */; };
 		6907D7B171CA1160104F2E4C /* SortEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D06C87AACD9A7C6B30BF2BCA /* SortEngine.swift */; };
 		74212859FB64253ECB70E4B5 /* FolderProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6BEB9BCBBF4EBB112C216AA2 /* FolderProvider.swift */; };
 		7531798E6210BBEB6605A6BA /* QuickActions.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 22B64E53061A9EFD3E051395 /* QuickActions.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		779C9EF9EB43195235191A9D /* ExtractDialogStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6602FE1D9054B88EF136CF4B /* ExtractDialogStore.swift */; };
+		7926EF528F3588FFE7CEAE1E /* CompressDialogController+Interface.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B443B76EDA900D2F53168D8 /* CompressDialogController+Interface.swift */; };
 		7C17ADDBC3D780F3F52CD729 /* MainWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F96A109FDB3EBF77FDEF8A40 /* MainWindowController.swift */; };
 		7D9FB8EA6ACAE39892E81BBE /* MainMenuBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99BDD5F12265C85FB91CA016 /* MainMenuBuilder.swift */; };
 		80C7D7C69A4C2DE83C184194 /* FoldersPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 604747FF973E724EC15FB080 /* FoldersPane.swift */; };
@@ -57,6 +63,7 @@
 		AA42F2485E1D2EFFAE97E876 /* ZIPCentralDirectoryRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8BB88AC24598BD198B423700 /* ZIPCentralDirectoryRecord.swift */; };
 		AAC13B55D3E7181996092EEF /* Requests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 074ACBADA4FBDAC321ABFDDA /* Requests.swift */; };
 		ACDAA9C127CE4A1107077427 /* PanelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 088A87C4D69A4F33992C667C /* PanelPreferences.swift */; };
+		B37FABF4FC98923AE0485421 /* CompressDialogController+Actions.swift in Sources */ = {isa = PBXBuildFile; fileRef = E84B1B4C3DD40FDD467533AC /* CompressDialogController+Actions.swift */; };
 		B3B404538A83197C4C6407FC /* ServicesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E916028BC84AD1C8348AA92 /* ServicesProvider.swift */; };
 		B5482C5965AF69A0DD2B9D07 /* LanguagePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E3C68A735930AB41267F9A7 /* LanguagePane.swift */; };
 		B7365212603B9960470E3CD5 /* PropertiesInspectorController.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1622E06953E275F31ACEFDE /* PropertiesInspectorController.swift */; };
@@ -158,6 +165,7 @@
 		0599A25BB6650467D28E0E9D /* TrashService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrashService.swift; sourceTree = "<group>"; };
 		074ACBADA4FBDAC321ABFDDA /* Requests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Requests.swift; sourceTree = "<group>"; };
 		088A87C4D69A4F33992C667C /* PanelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelPreferences.swift; sourceTree = "<group>"; };
+		0B3907173B851CE5EC6F99F1 /* CI-SETUP.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "CI-SETUP.md"; sourceTree = "<group>"; };
 		0C8D9A2F3C0D1EC034F67AB4 /* PreviewViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewViewController.swift; sourceTree = "<group>"; };
 		0E916028BC84AD1C8348AA92 /* ServicesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServicesProvider.swift; sourceTree = "<group>"; };
 		108E27F2CB585D4565F1230A /* ArchiveFolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveFolderProvider.swift; sourceTree = "<group>"; };
@@ -177,8 +185,10 @@
 		333B236A6A675D150AD0B1AB /* CompressArgumentBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressArgumentBuilder.swift; sourceTree = "<group>"; };
 		39EC82CB3AABAD194D9AC580 /* make-dmg.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "make-dmg.sh"; sourceTree = "<group>"; };
 		3F641477C3B2696804FE611C /* ArchiveDirectoryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveDirectoryReader.swift; sourceTree = "<group>"; };
+		3F9F2B17AFDE370ABA6ABCD4 /* MainWindowController+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainWindowController+Operations.swift"; sourceTree = "<group>"; };
 		4583501B1049B50851F414CE /* refresh-third-party-licenses.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "refresh-third-party-licenses.sh"; sourceTree = "<group>"; };
 		46DEF5EFE83B008A7B9A1AD5 /* PathSafety.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathSafety.swift; sourceTree = "<group>"; };
+		4A038B390D0A4C6DFB5EF105 /* ArchiveFormat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveFormat.swift; sourceTree = "<group>"; };
 		4BA93599B9A08B25710E1C99 /* ENGINE-PROTOCOL.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "ENGINE-PROTOCOL.md"; sourceTree = "<group>"; };
 		4ED6FF5EABD4603A1116BCC0 /* SevenZipSignatureReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SevenZipSignatureReader.swift; sourceTree = "<group>"; };
 		56819CE9C81AA397D2E30983 /* PathNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PathNormalizer.swift; sourceTree = "<group>"; };
@@ -186,10 +196,13 @@
 		5D4EC9DC21842CAB145CAD83 /* FinderRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FinderRequest.swift; sourceTree = "<group>"; };
 		5FD1B95713CECFF73396B324 /* FIDELITY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = FIDELITY.md; sourceTree = "<group>"; };
 		604747FF973E724EC15FB080 /* FoldersPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoldersPane.swift; sourceTree = "<group>"; };
+		614C655CA35768D06647D0FB /* EngineText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EngineText.swift; sourceTree = "<group>"; };
 		63AF7EA9663869AC2AE071A4 /* VERSION.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = VERSION.txt; sourceTree = "<group>"; };
 		63BF2F8BF532F8AC3799C383 /* Quarantine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Quarantine.swift; sourceTree = "<group>"; };
 		650DABA8F91E8D89444E4DB6 /* FileTypesPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileTypesPane.swift; sourceTree = "<group>"; };
+		6602FE1D9054B88EF136CF4B /* ExtractDialogStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtractDialogStore.swift; sourceTree = "<group>"; };
 		6A9FEB45092A8771E318822A /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		6B443B76EDA900D2F53168D8 /* CompressDialogController+Interface.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompressDialogController+Interface.swift"; sourceTree = "<group>"; };
 		6BEB9BCBBF4EBB112C216AA2 /* FolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderProvider.swift; sourceTree = "<group>"; };
 		6C2A87DC1C4E6D0BA63F5F98 /* ProcessRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProcessRunner.swift; sourceTree = "<group>"; };
 		6E3C68A735930AB41267F9A7 /* LanguagePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguagePane.swift; sourceTree = "<group>"; };
@@ -230,10 +243,12 @@
 		D06C87AACD9A7C6B30BF2BCA /* SortEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SortEngine.swift; sourceTree = "<group>"; };
 		D0CF81E7C4293E3D80EFF7CF /* LGPL-2.1.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "LGPL-2.1.txt"; sourceTree = "<group>"; };
 		D2E1D953703AA854DABC524D /* PasswordDialogController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PasswordDialogController.swift; sourceTree = "<group>"; };
+		D315E4A044E79055A1136257 /* CompressDialogController+Redraw.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompressDialogController+Redraw.swift"; sourceTree = "<group>"; };
 		D518FCC7C1C52123656383F6 /* DragController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DragController.swift; sourceTree = "<group>"; };
 		DE1E5BEF5FD19724F7FDF0BB /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = "<group>"; };
 		E00406B6F1C299540C19A07C /* verify-release.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "verify-release.sh"; sourceTree = "<group>"; };
 		E10043C20630C3ECA22788E3 /* ThreadPlanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThreadPlanner.swift; sourceTree = "<group>"; };
+		E84B1B4C3DD40FDD467533AC /* CompressDialogController+Actions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CompressDialogController+Actions.swift"; sourceTree = "<group>"; };
 		E9697F03A0B01CEBE45C6CFA /* PropID.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PropID.swift; sourceTree = "<group>"; };
 		EA26D409B708DED10323C431 /* ArchiveEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveEntry.swift; sourceTree = "<group>"; };
 		EAA0D3A045EEBFBC9456BCEE /* ProgressSheetController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressSheetController.swift; sourceTree = "<group>"; };
@@ -295,6 +310,7 @@
 			children = (
 				D518FCC7C1C52123656383F6 /* DragController.swift */,
 				F96A109FDB3EBF77FDEF8A40 /* MainWindowController.swift */,
+				3F9F2B17AFDE370ABA6ABCD4 /* MainWindowController+Operations.swift */,
 				00A0A314820C9ADAD7A942E4 /* PanelViewController.swift */,
 				EAA0D3A045EEBFBC9456BCEE /* ProgressSheetController.swift */,
 			);
@@ -315,6 +331,7 @@
 			isa = PBXGroup;
 			children = (
 				333B236A6A675D150AD0B1AB /* CompressArgumentBuilder.swift */,
+				614C655CA35768D06647D0FB /* EngineText.swift */,
 				8A30246BF36A1716D2834577 /* ExitCodeMapper.swift */,
 				6C2A87DC1C4E6D0BA63F5F98 /* ProcessRunner.swift */,
 				F811D3BE1304776747802D65 /* ProgressParser.swift */,
@@ -338,6 +355,7 @@
 			isa = PBXGroup;
 			children = (
 				CB9FEE2DCD9C98AE18737A27 /* ARCHITECTURE.md */,
+				0B3907173B851CE5EC6F99F1 /* CI-SETUP.md */,
 				C9423F09F19BAF3297560EEF /* DIVERGENCES.md */,
 				4BA93599B9A08B25710E1C99 /* ENGINE-PROTOCOL.md */,
 				5FD1B95713CECFF73396B324 /* FIDELITY.md */,
@@ -404,8 +422,12 @@
 			isa = PBXGroup;
 			children = (
 				7EA8E78B8DCA2DA5D978996D /* CompressDialogController.swift */,
+				E84B1B4C3DD40FDD467533AC /* CompressDialogController+Actions.swift */,
+				6B443B76EDA900D2F53168D8 /* CompressDialogController+Interface.swift */,
+				D315E4A044E79055A1136257 /* CompressDialogController+Redraw.swift */,
 				8E70D2F48517A639307DCE44 /* CompressDialogModel.swift */,
 				76E346242D8A91D508C47213 /* ExtractDialogController.swift */,
+				6602FE1D9054B88EF136CF4B /* ExtractDialogStore.swift */,
 				AAA566F97BA14D7D981004A2 /* OverwriteDialogController.swift */,
 				D2E1D953703AA854DABC524D /* PasswordDialogController.swift */,
 				C1622E06953E275F31ACEFDE /* PropertiesInspectorController.swift */,
@@ -453,6 +475,7 @@
 				19A6466866EECF5AE911B82B /* CLIEngine */,
 				04ABE54ECCA1C800D99DE916 /* Models */,
 				EFA4968618BF0E07C04CCB53 /* ArchiveEngine.swift */,
+				4A038B390D0A4C6DFB5EF105 /* ArchiveFormat.swift */,
 				7F3FBC1D782B44F96CF886B5 /* FormatCatalog.swift */,
 			);
 			path = ArchiveCore;
@@ -697,17 +720,23 @@
 				E657A52DEFEC77F5E3EAAA51 /* ArchiveEngine.swift in Sources */,
 				DFA48608B14DC26E9C91B1AD /* ArchiveEntry.swift in Sources */,
 				BA66F04E8555E4C8E754EA3F /* ArchiveFolderProvider.swift in Sources */,
+				0D068C1627A809DAC0A92342 /* ArchiveFormat.swift in Sources */,
 				87D45BD1BB0778C02870B495 /* ArchiveListing.swift in Sources */,
 				A2FCCA4E2E535E35447E3820 /* ByteFormatting.swift in Sources */,
 				DD9A588D599AFA217F317E40 /* ColumnModel.swift in Sources */,
 				3E71BFF1B3F044A7C561C058 /* CompressArgumentBuilder.swift in Sources */,
+				B37FABF4FC98923AE0485421 /* CompressDialogController+Actions.swift in Sources */,
+				7926EF528F3588FFE7CEAE1E /* CompressDialogController+Interface.swift in Sources */,
+				27AF978C79DDDA8614838681 /* CompressDialogController+Redraw.swift in Sources */,
 				DBDCCE3488DBE83CE4144D62 /* CompressDialogController.swift in Sources */,
 				4A2431C24D850C1C449B2531 /* CompressDialogModel.swift in Sources */,
 				1B2CDFEC53812ABB983774AC /* DragController.swift in Sources */,
 				5A2FCDA0DDB0DD7389ABAC47 /* EditorPane.swift in Sources */,
 				92B90D05D393D9230C90CD45 /* EngineLocator.swift in Sources */,
+				388FCC7610A997597CB40F01 /* EngineText.swift in Sources */,
 				232678E8618FE02D76CBA5E7 /* ExitCodeMapper.swift in Sources */,
 				C5F71E33794E2F4A6B2704B9 /* ExtractDialogController.swift in Sources */,
+				779C9EF9EB43195235191A9D /* ExtractDialogStore.swift in Sources */,
 				F76CECE2C54280580B9ADE19 /* FavoritesStore.swift in Sources */,
 				3240B3FFA2FD048A1253448A /* FileSystemFolderProvider.swift in Sources */,
 				E5DB9801E441A04DCB3BCCCA /* FileTypesPane.swift in Sources */,
@@ -719,6 +748,7 @@
 				21F6CA9A82B00AA099B18AB5 /* IntegrationPane.swift in Sources */,
 				B5482C5965AF69A0DD2B9D07 /* LanguagePane.swift in Sources */,
 				7D9FB8EA6ACAE39892E81BBE /* MainMenuBuilder.swift in Sources */,
+				68FF13A401BEC1B27813164A /* MainWindowController+Operations.swift in Sources */,
 				7C17ADDBC3D780F3F52CD729 /* MainWindowController.swift in Sources */,
 				53AD61F9225D48CE36BFD37D /* OverwriteDialogController.swift in Sources */,
 				ACDAA9C127CE4A1107077427 /* PanelPreferences.swift in Sources */,

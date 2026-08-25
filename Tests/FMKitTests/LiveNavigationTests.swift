@@ -15,18 +15,22 @@ import Testing
 import ArchiveCore
 @testable import FMKit
 
-func vendored7zzForNavigation() -> URL? {
+func vendored7zzForNavigation() -> URL {
     var dir = URL(fileURLWithPath: #filePath)
     for _ in 0..<3 { dir.deleteLastPathComponent() }
-    let candidate = dir.appendingPathComponent("vendor/bin/7zz")
-    return FileManager.default.isExecutableFile(atPath: candidate.path) ? candidate : nil
+    return dir.appendingPathComponent("vendor/bin/7zz")
 }
 
-@Suite("Live archive navigation", .enabled(if: vendored7zzForNavigation() != nil))
-struct LiveNavigationTests {
+/// Whether that binary has actually been built. The suite skips itself when it has not,
+/// so `vendored7zzForNavigation()` is only ever run against a real executable.
+func vendored7zzForNavigationIsBuilt() -> Bool {
+    FileManager.default.isExecutableFile(atPath: vendored7zzForNavigation().path)
+}
 
+@Suite("Live archive navigation", .enabled(if: vendored7zzForNavigationIsBuilt()))
+struct LiveNavigationTests {
     private var engine: SevenZipCLIEngine {
-        SevenZipCLIEngine(executableURL: vendored7zzForNavigation()!, timeZone: .gmt)
+        SevenZipCLIEngine(executableURL: vendored7zzForNavigation(), timeZone: .gmt)
     }
 
     /// Build a nested archive and hand back its URL plus a cleanup closure.
@@ -34,10 +38,10 @@ struct LiveNavigationTests {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("arcseven-nav-" + UUID().uuidString)
         let source = root.appendingPathComponent("src")
-        let fm = FileManager.default
-        try fm.createDirectory(at: source.appendingPathComponent("docs/img"), withIntermediateDirectories: true)
-        try fm.createDirectory(at: source.appendingPathComponent("code"), withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: root) }
+        let manager = FileManager.default
+        try manager.createDirectory(at: source.appendingPathComponent("docs/img"), withIntermediateDirectories: true)
+        try manager.createDirectory(at: source.appendingPathComponent("code"), withIntermediateDirectories: true)
+        defer { try? manager.removeItem(at: root) }
 
         try "readme".write(to: source.appendingPathComponent("readme.md"), atomically: true, encoding: .utf8)
         try "manual".write(to: source.appendingPathComponent("docs/manual.txt"), atomically: true, encoding: .utf8)
@@ -50,7 +54,7 @@ struct LiveNavigationTests {
         let archive = root.appendingPathComponent("demo.7z")
         var request = CompressRequest(
             archiveURL: archive,
-            inputs: try fm.contentsOfDirectory(at: source, includingPropertiesForKeys: nil),
+            inputs: try manager.contentsOfDirectory(at: source, includingPropertiesForKeys: nil),
             format: .sevenZip
         )
         request.pathMode = .relative
@@ -130,8 +134,8 @@ struct LiveNavigationTests {
             let code = try #require(top.first { $0.name == "code" })
             #expect(code.numericValue(for: .size) == nil)
             #expect(code.numericValue(for: .packedSize) == nil)
-            #expect(ColumnModel.displayText(for: code, column: .size) == "")
-            #expect(ColumnModel.displayText(for: code, column: .packedSize) == "")
+            #expect(ColumnModel.displayText(for: code, column: .size).isEmpty)
+            #expect(ColumnModel.displayText(for: code, column: .packedSize).isEmpty)
         }
     }
 }

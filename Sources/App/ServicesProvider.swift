@@ -60,7 +60,6 @@ public protocol ServicesProviderDelegate: AnyObject {
 /// isolation-checked at the ObjC boundary — nothing else may call them.
 @MainActor
 public final class ServicesProvider: NSObject {
-
     /// Where the work actually happens. Weak: the app owns both ends.
     public weak var delegate: (any ServicesProviderDelegate)? {
         didSet { flushPending() }

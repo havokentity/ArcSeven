@@ -32,6 +32,10 @@ import UniformTypeIdentifiers
 public enum OverwriteDecision: Sendable, Hashable, CaseIterable {
     case yes
     case yesToAll
+    // `no` is two characters, but it is the caption on the button and the other half of a
+    // four-case family — renaming it alone would break the `yes`/`no`/`yesToAll`/`noToAll`
+    // symmetry that makes this enum readable against 7zFM's dialog.
+    // swiftlint:disable:next identifier_name
     case no
     case noToAll
     case autoRename
@@ -60,7 +64,6 @@ public struct FileInfo: Sendable, Hashable {
 /// 7zFM's `Confirm File Replace`, presented as a sheet.
 @MainActor
 public final class OverwriteDialogController: NSObject {
-
     // MARK: Configuration
 
     private let existing: FileInfo

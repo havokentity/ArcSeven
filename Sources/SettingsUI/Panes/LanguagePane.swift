@@ -22,7 +22,6 @@
 import SwiftUI
 
 struct LanguagePane: View {
-
     @Bindable var store: SettingsStore
 
     /// Set when the user changes the picker, because the change cannot take effect until the

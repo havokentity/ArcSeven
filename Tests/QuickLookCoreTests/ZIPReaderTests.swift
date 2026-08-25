@@ -24,7 +24,6 @@ func vendored7zzForQuickLook() -> URL? {
 
 @Suite("Quick Look archive reader")
 struct QuickLookReaderTests {
-
     private func withScratch<T>(_ body: (URL) async throws -> T) async throws -> T {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("arcseven-ql-" + UUID().uuidString)
@@ -119,7 +118,7 @@ struct QuickLookReaderTests {
             // Deterministic pseudo-random: reproducible failures beat flaky ones.
             var seed: UInt64 = 0x2545_F491_4F6C_DD1D
             for index in 0..<bytes.count {
-                seed = seed &* 6364136223846793005 &+ 1442695040888963407
+                seed = seed &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
                 bytes[index] = UInt8(truncatingIfNeeded: seed >> 33)
             }
             try bytes.write(to: file)

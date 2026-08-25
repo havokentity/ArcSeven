@@ -13,7 +13,6 @@ import ArchiveCore
 
 @Suite("Support services")
 struct SupportServicesTests {
-
     private func withTemporaryDirectory(_ body: (URL) throws -> Void) throws {
         let manager = FileManager()
         let root = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)

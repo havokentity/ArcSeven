@@ -48,7 +48,6 @@ import Foundation
 /// Stateful by design: it remembers the last percentage, file count and path so a
 /// partial tick can be reported as a complete `ArchiveProgress`.
 public struct ProgressParser: Sendable {
-
     // MARK: State
 
     /// The operation being reported on, used to label item events.
@@ -73,7 +72,7 @@ public struct ProgressParser: Sendable {
         case log(String)
         case warning(ArchiveWarning)
         /// The token carried nothing worth reporting.
-        case none
+        case ignored
     }
 
     // MARK: Entry point
@@ -94,7 +93,7 @@ public struct ProgressParser: Sendable {
         results.reserveCapacity(tokens.count)
         for token in tokens {
             let output = consume(token)
-            if output != .none { results.append(output) }
+            if output != .ignored { results.append(output) }
         }
         return results
     }
@@ -102,7 +101,7 @@ public struct ProgressParser: Sendable {
     // MARK: Transient rows
 
     private mutating func consumeTransient(_ text: String) -> Output {
-        guard let tick = Self.parseProgressRow(text) else { return .none }
+        guard let tick = Self.parseProgressRow(text) else { return .ignored }
 
         if let percent = tick.percent { lastPercent = percent }
         if let count = tick.fileCount { lastFileCount = count }
@@ -125,7 +124,7 @@ public struct ProgressParser: Sendable {
 
     private mutating func consumeLine(_ text: String) -> Output {
         let trimmed = text.trimmingCharacters(in: .whitespaces)
-        guard !trimmed.isEmpty else { return .none }
+        guard !trimmed.isEmpty else { return .ignored }
 
         if let warning = Self.warning(from: trimmed) {
             return .warning(warning)

@@ -32,9 +32,9 @@ public enum QuarantineError: Error, LocalizedError, Hashable, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .readFailed(let path, _, let reason):
+        case let .readFailed(path, _, reason):
             "Could not read the quarantine attribute of '\(path)': \(reason)"
-        case .writeFailed(let path, _, let reason):
+        case let .writeFailed(path, _, reason):
             "Could not set the quarantine attribute of '\(path)': \(reason)"
         }
     }
@@ -52,7 +52,6 @@ public enum QuarantineError: Error, LocalizedError, Hashable, Sendable {
 /// than re-serialising these fields. Parsing is for showing the user where a file came
 /// from; the security-relevant path never depends on it being right.
 public struct QuarantineInfo: Hashable, Sendable {
-
     /// The value exactly as stored.
     public let rawValue: String
 
@@ -91,7 +90,6 @@ public struct QuarantineInfo: Hashable, Sendable {
 
 /// Reads and propagates `com.apple.quarantine`. Never removes it.
 public enum Quarantine {
-
     /// The attribute name. Spelled once.
     public static let attributeName = "com.apple.quarantine"
 
@@ -136,6 +134,12 @@ public enum Quarantine {
         guard let data = try rawValue(of: url), !data.isEmpty else { return nil }
         // The value is ASCII in practice; decoding leniently keeps a malformed value
         // readable rather than throwing on something we are only going to display.
+        //
+        // The failable String(bytes:encoding:) the rule asks for would turn a
+        // non-UTF-8 attribute into `nil`, i.e. report a quarantined file as not
+        // quarantined. Lossy decoding keeps the answer "yes, and here is what we could
+        // read of it", which is the only safe direction to be wrong in here.
+        // swiftlint:disable:next optional_data_string_conversion
         let text = String(decoding: data, as: UTF8.self)
         return QuarantineInfo(rawValue: text)
     }
@@ -143,7 +147,7 @@ public enum Quarantine {
     /// Whether the item carries the attribute. Swallows read errors: a caller asking this
     /// question wants a yes or no for a menu item, and "cannot tell" is a no.
     public static func isQuarantined(_ url: URL) -> Bool {
-        ((try? rawValue(of: url)) ?? nil) != nil
+        ((try? rawValue(of: url))) != nil
     }
 
     // MARK: - Writing

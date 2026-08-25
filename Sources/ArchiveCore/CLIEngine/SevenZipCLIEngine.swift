@@ -43,7 +43,6 @@ import Foundation
 
 /// Drives the bundled `7zz` binary.
 public struct SevenZipCLIEngine: ArchiveEngine {
-
     // MARK: Configuration
 
     /// Absolute path to the `7zz` executable.
@@ -69,86 +68,6 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     }
 
     public var identifier: String { "7zz-cli" }
-
-    // MARK: Switches
-
-    /// Switches applied to every invocation.
-    ///
-    /// Each one earns its place; see docs/ENGINE-PROTOCOL.md §3.
-    ///
-    /// - `-y` assume Yes. **Mandatory.** Any prompt with stdin closed makes `7zz`
-    ///   print "Break signaled" and exit 255, which is indistinguishable from a real
-    ///   cancellation without output sniffing.
-    /// - `-bb3` per-member log lines, which is what drives item events.
-    /// - `-bso1` log to stdout, `-bsp2` progress to stderr, `-bse2` errors to stderr.
-    ///   Splitting the streams is what lets the tokenizer treat stdout as pure
-    ///   newline-terminated text and stderr as backspace-painted progress.
-    /// - `-scsUTF-8` / `-sccUTF-8` UTF-8 for list files and console output.
-    static let commonSwitches = commonSwitches(passwordOnStdin: false)
-
-    /// Switches for every invocation.
-    ///
-    /// - Parameter passwordOnStdin: when `true`, `-y` is omitted so `7zz` will emit
-    ///   its "Enter password:" prompt and read the answer from our pipe. See
-    ///   ``passwordDelivery(for:)`` for why that matters.
-    static func commonSwitches(passwordOnStdin: Bool) -> [String] {
-        var switches = [
-            "-bb3",
-            "-bso1",
-            "-bsp2",
-            "-bse2",
-            "-scsUTF-8",
-            "-sccUTF-8",
-        ]
-        if !passwordOnStdin { switches.insert("-y", at: 0) }
-        return switches
-    }
-
-    /// Switches for a listing, which wants no progress painting at all.
-    static func listSwitches(passwordOnStdin: Bool) -> [String] {
-        var switches = ["-slt", "-bso1", "-bsp0", "-bse2", "-scsUTF-8", "-sccUTF-8"]
-        if !passwordOnStdin { switches.insert("-y", at: 0) }
-        return switches
-    }
-
-    // MARK: Password delivery
-
-    /// How a passphrase reaches `7zz` for a given operation.
-    ///
-    /// Verified empirically against the vendored 26.02 binary, and it is **not** what
-    /// the switch documentation implies:
-    ///
-    /// - A **bare `-p`** does not mean "read the password from stdin". It means an
-    ///   *empty* password, and it overrides the prompt. Using it on an encrypted
-    ///   archive fails with "Cannot open encrypted archive. Wrong password?".
-    /// - Omitting **both** `-y` and `-p` makes `7zz` print `Enter password:` and read
-    ///   the answer from stdin — a pipe works, no TTY required. This is the secure
-    ///   path: the passphrase never appears in the process table.
-    /// - The **creation** path has no such prompt. `7zz a` with no `-p` does not ask;
-    ///   it writes an **unencrypted** archive and exits **0**. The passphrase must go
-    ///   on argv as `-p<pw>`, where `ps` can see it, and the result must then be
-    ///   verified — see ``verifyEncryption(of:password:)``.
-    enum PasswordDelivery {
-        /// No passphrase involved; `-y` is safe.
-        case none
-        /// Prompt-driven, read from our pipe. `-y` must be omitted.
-        case stdin(String)
-        /// On argv. Visible in `ps`. Creation only.
-        case argv(String)
-
-        var usesStdin: Bool { if case .stdin = self { return true }; return false }
-
-        var stdinBytes: Data? {
-            guard case .stdin(let password) = self else { return nil }
-            return Data((password + "\n").utf8)
-        }
-    }
-
-    /// Delivery for a read operation (list, test, extract, readEntry).
-    static func readDelivery(_ password: String?) -> PasswordDelivery {
-        guard let password, !password.isEmpty else { return .none }
-        return .stdin(password)
-    }
 
     // MARK: Capabilities
 
@@ -313,7 +232,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         return runStreaming(
             operation: .compress,
             arguments: arguments,
-            delivery: .none,
+            delivery: .absent,
             path: request.archiveURL.path,
             afterSuccess: verify
         )
@@ -361,7 +280,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         switch request.source {
         case .files(let urls):
             arguments.append(contentsOf: urls.map(\.path))
-        case .archiveEntries(let archiveURL, let entryPaths):
+        case let .archiveEntries(archiveURL, entryPaths):
             // Hashing members means decompressing them, so this is an extract-to-stdout
             // with hashing rather than a plain `h` over files.
             arguments.append(archiveURL.path)
@@ -381,7 +300,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         if request.passes > 0 { arguments.append("-mmt\(request.passes)") }
         if let dictionary = request.dictionarySize { arguments.append("-md\(dictionary)") }
         if let threads = request.threads { arguments.append("-mmt\(threads)") }
-        return runStreaming(operation: .benchmark, arguments: arguments, delivery: .none, path: nil)
+        return runStreaming(operation: .benchmark, arguments: arguments, delivery: .absent, path: nil)
     }
 
     // MARK: Single-entry streaming
@@ -425,7 +344,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
                         case .standardError(let data):
                             stderrText.append(data)
                         case .finished(let completion):
-                            let lines = String(decoding: stderrText, as: UTF8.self)
+                            let lines = EngineText.decode(stderrText)
                                 .split(separator: "\n").map(String.init)
                             switch ExitCodeMapper.classify(
                                 exitCode: completion.exitCode,
@@ -448,7 +367,95 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             continuation.onTermination = { _ in task.cancel() }
         }
     }
+}
 
+// MARK: - Command construction
+
+extension SevenZipCLIEngine {
+    // MARK: Switches
+
+    /// Switches applied to every invocation.
+    ///
+    /// Each one earns its place; see docs/ENGINE-PROTOCOL.md §3.
+    ///
+    /// - `-y` assume Yes. **Mandatory.** Any prompt with stdin closed makes `7zz`
+    ///   print "Break signaled" and exit 255, which is indistinguishable from a real
+    ///   cancellation without output sniffing.
+    /// - `-bb3` per-member log lines, which is what drives item events.
+    /// - `-bso1` log to stdout, `-bsp2` progress to stderr, `-bse2` errors to stderr.
+    ///   Splitting the streams is what lets the tokenizer treat stdout as pure
+    ///   newline-terminated text and stderr as backspace-painted progress.
+    /// - `-scsUTF-8` / `-sccUTF-8` UTF-8 for list files and console output.
+    static let commonSwitches = commonSwitches(passwordOnStdin: false)
+
+    /// Switches for every invocation.
+    ///
+    /// - Parameter passwordOnStdin: when `true`, `-y` is omitted so `7zz` will emit
+    ///   its "Enter password:" prompt and read the answer from our pipe. See
+    ///   ``passwordDelivery(for:)`` for why that matters.
+    static func commonSwitches(passwordOnStdin: Bool) -> [String] {
+        var switches = [
+            "-bb3",
+            "-bso1",
+            "-bsp2",
+            "-bse2",
+            "-scsUTF-8",
+            "-sccUTF-8",
+        ]
+        if !passwordOnStdin { switches.insert("-y", at: 0) }
+        return switches
+    }
+
+    /// Switches for a listing, which wants no progress painting at all.
+    static func listSwitches(passwordOnStdin: Bool) -> [String] {
+        var switches = ["-slt", "-bso1", "-bsp0", "-bse2", "-scsUTF-8", "-sccUTF-8"]
+        if !passwordOnStdin { switches.insert("-y", at: 0) }
+        return switches
+    }
+
+    // MARK: Password delivery
+
+    /// How a passphrase reaches `7zz` for a given operation.
+    ///
+    /// Verified empirically against the vendored 26.02 binary, and it is **not** what
+    /// the switch documentation implies:
+    ///
+    /// - A **bare `-p`** does not mean "read the password from stdin". It means an
+    ///   *empty* password, and it overrides the prompt. Using it on an encrypted
+    ///   archive fails with "Cannot open encrypted archive. Wrong password?".
+    /// - Omitting **both** `-y` and `-p` makes `7zz` print `Enter password:` and read
+    ///   the answer from stdin — a pipe works, no TTY required. This is the secure
+    ///   path: the passphrase never appears in the process table.
+    /// - The **creation** path has no such prompt. `7zz a` with no `-p` does not ask;
+    ///   it writes an **unencrypted** archive and exits **0**. The passphrase must go
+    ///   on argv as `-p<pw>`, where `ps` can see it, and the result must then be
+    ///   verified — see ``verifyEncryption(of:password:)``.
+    enum PasswordDelivery {
+        /// No passphrase involved; `-y` is safe.
+        case absent
+        /// Prompt-driven, read from our pipe. `-y` must be omitted.
+        case stdin(String)
+        /// On argv. Visible in `ps`. Creation only.
+        case argv(String)
+
+        var usesStdin: Bool { if case .stdin = self { return true }; return false }
+
+        var stdinBytes: Data? {
+            guard case .stdin(let password) = self else { return nil }
+            return Data((password + "\n").utf8)
+        }
+    }
+
+    /// Delivery for a read operation (list, test, extract, readEntry).
+    static func readDelivery(_ password: String?) -> PasswordDelivery {
+        guard let password, !password.isEmpty else { return .absent }
+        return .stdin(password)
+    }
+}
+
+// MARK: - Running the child
+
+extension SevenZipCLIEngine {
     // MARK: The streaming core
 
     /// Spawn `7zz`, translate its output into events, and finish or throw.
@@ -466,34 +473,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
 
         return AsyncThrowingStream { continuation in
             let task = Task {
-                var parser = ProgressParser(operation: operation)
-                var outTokenizer = StreamTokenizer()
-                var errTokenizer = StreamTokenizer()
-                var warnings: [ArchiveWarning] = []
-                var stderrLines: [String] = []
-                var logLines: [String] = []
-                var itemCount = 0
-
-                func emit(_ outputs: [ProgressParser.Output]) {
-                    for output in outputs {
-                        switch output {
-                        case .progress(let progress):
-                            continuation.yield(.progress(progress))
-                        case .item(let item):
-                            itemCount += 1
-                            continuation.yield(.item(item))
-                        case .log(let line):
-                            logLines.append(line)
-                            continuation.yield(.log(line))
-                        case .warning(let warning):
-                            warnings.append(warning)
-                            continuation.yield(.warning(warning))
-                        case .none:
-                            break
-                        }
-                    }
-                }
-
+                var run = RunAccumulator(operation: operation)
                 continuation.yield(.started(operation))
 
                 do {
@@ -506,45 +486,17 @@ public struct SevenZipCLIEngine: ArchiveEngine {
                     ) {
                         switch event {
                         case .standardOutput(let data):
-                            emit(parser.consume(outTokenizer.consume(data)))
+                            Self.emit(run.consumeStandardOutput(data), to: continuation)
 
                         case .standardError(let data):
-                            let tokens = errTokenizer.consume(data)
-                            for token in tokens where token.isLine {
-                                stderrLines.append(token.text)
-                            }
-                            emit(parser.consume(tokens))
+                            Self.emit(run.consumeStandardError(data), to: continuation)
 
                         case .finished(let completion):
-                            emit(parser.consume(outTokenizer.finish()))
-                            let tail = errTokenizer.finish()
-                            for token in tail where token.isLine {
-                                stderrLines.append(token.text)
-                            }
-                            emit(parser.consume(tail))
-
-                            switch ExitCodeMapper.classify(
-                                exitCode: completion.exitCode,
-                                terminationSignal: completion.terminationSignal,
-                                // Both streams: the password prompt is written to the
-                                // stdout log, not to stderr. See list().
-                                stderrLines: stderrLines + logLines,
-                                warnings: warnings,
-                                path: path,
-                                wasCancelled: Task.isCancelled
-                            ) {
+                            Self.emit(run.finish(), to: continuation)
+                            switch run.outcome(for: completion, path: path) {
                             case .success:
                                 if let afterSuccess { try await afterSuccess() }
-                                continuation.yield(
-                                    .finished(
-                                        ArchiveOperationResult(
-                                            operation: operation,
-                                            warnings: warnings,
-                                            itemsProcessed: itemCount,
-                                            log: logLines
-                                        )
-                                    )
-                                )
+                                continuation.yield(.finished(run.result))
                                 continuation.finish()
                             case .failure(let error):
                                 continuation.finish(throwing: error)
@@ -556,6 +508,107 @@ public struct SevenZipCLIEngine: ArchiveEngine {
                 }
             }
             continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// Hand a batch of events to the consumer, in the order they were produced.
+    private static func emit(_ events: [ArchiveEvent], to continuation: ArchiveOperationStream.Continuation) {
+        for event in events { continuation.yield(event) }
+    }
+
+    // MARK: Run state
+
+    /// The state one streaming run builds up as it consumes the child's output.
+    ///
+    /// Lifted out of ``runStreaming(operation:arguments:delivery:path:afterSuccess:)``
+    /// so the run loop reads as "fold in a chunk, yield what it produced" instead of
+    /// as one long closure carrying seven mutable locals. Confined to the consuming
+    /// task, so there is nothing to share and nothing to lock.
+    private struct RunAccumulator {
+        let operation: ArchiveOperation
+        var parser: ProgressParser
+        var outTokenizer = StreamTokenizer()
+        var errTokenizer = StreamTokenizer()
+        var warnings: [ArchiveWarning] = []
+        var stderrLines: [String] = []
+        var logLines: [String] = []
+        var itemCount = 0
+
+        init(operation: ArchiveOperation) {
+            self.operation = operation
+            self.parser = ProgressParser(operation: operation)
+        }
+
+        /// Fold in a chunk of stdout, returning the events it produced.
+        mutating func consumeStandardOutput(_ data: Data) -> [ArchiveEvent] {
+            absorb(parser.consume(outTokenizer.consume(data)))
+        }
+
+        /// Fold in a chunk of stderr, keeping its complete lines for classification.
+        mutating func consumeStandardError(_ data: Data) -> [ArchiveEvent] {
+            absorb(parser.consume(recordingLines(errTokenizer.consume(data))))
+        }
+
+        /// Flush both tokenizers once the child has exited.
+        mutating func finish() -> [ArchiveEvent] {
+            var events = absorb(parser.consume(outTokenizer.finish()))
+            events += absorb(parser.consume(recordingLines(errTokenizer.finish())))
+            return events
+        }
+
+        /// What the caller should do with the finished child.
+        func outcome(for completion: ProcessRunner.Completion, path: String?) -> ExitCodeMapper.Outcome {
+            ExitCodeMapper.classify(
+                exitCode: completion.exitCode,
+                terminationSignal: completion.terminationSignal,
+                // Both streams: the password prompt is written to the
+                // stdout log, not to stderr. See list().
+                stderrLines: stderrLines + logLines,
+                warnings: warnings,
+                path: path,
+                wasCancelled: Task.isCancelled
+            )
+        }
+
+        /// What a successful run reports.
+        var result: ArchiveOperationResult {
+            ArchiveOperationResult(
+                operation: operation,
+                warnings: warnings,
+                itemsProcessed: itemCount,
+                log: logLines
+            )
+        }
+
+        /// Record what the parser produced and return the events to yield for it.
+        private mutating func absorb(_ outputs: [ProgressParser.Output]) -> [ArchiveEvent] {
+            var events: [ArchiveEvent] = []
+            for output in outputs {
+                switch output {
+                case .progress(let progress):
+                    events.append(.progress(progress))
+                case .item(let item):
+                    itemCount += 1
+                    events.append(.item(item))
+                case .log(let line):
+                    logLines.append(line)
+                    events.append(.log(line))
+                case .warning(let warning):
+                    warnings.append(warning)
+                    events.append(.warning(warning))
+                case .ignored:
+                    break
+                }
+            }
+            return events
+        }
+
+        /// Keep every complete line for the exit classifier, passing the tokens on.
+        private mutating func recordingLines(
+            _ tokens: [StreamTokenizer.Token]
+        ) -> [StreamTokenizer.Token] {
+            for token in tokens where token.isLine { stderrLines.append(token.text) }
+            return tokens
         }
     }
 

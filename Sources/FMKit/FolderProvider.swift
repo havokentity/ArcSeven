@@ -27,7 +27,6 @@ import ArchiveCore
 /// Conformers are `Sendable` and safe to hand between the panel actor and background
 /// loading tasks.
 public protocol FolderProvider: Sendable {
-
     /// What this level is, which drives the path bar and the column defaults.
     var kind: FolderKind { get }
 
@@ -78,7 +77,6 @@ public enum FolderKind: String, Sendable, Hashable, Codable, CaseIterable {
 /// Deliberately unified across levels: the table binds to this, not to `ArchiveEntry`
 /// or to a `URL`, which is what keeps the panel code free of level-specific branches.
 public struct FolderItem: Sendable, Hashable, Identifiable {
-
     /// Stable within a single folder listing.
     public var id: String { path }
 

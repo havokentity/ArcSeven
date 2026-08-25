@@ -19,7 +19,6 @@ import ArchiveCore
 #endif
 
 enum EngineLocator {
-
     /// Where the helper was found, for the About box and for diagnostics.
     struct Located {
         var url: URL

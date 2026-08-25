@@ -92,7 +92,6 @@ import Foundation
 /// A value type with no reference storage. Confine one instance to one stream —
 /// stdout and stderr each need their own, since they are independent rows.
 public struct StreamTokenizer: Sendable {
-
     // MARK: Token
 
     /// One unit of output.
@@ -143,7 +142,7 @@ public struct StreamTokenizer: Sendable {
             self.suppressBlankTransients = suppressBlankTransients
         }
 
-        public static let `default` = Options()
+        public static let `default` = Self()
     }
 
     // MARK: Stored state
@@ -239,7 +238,7 @@ public struct StreamTokenizer: Sendable {
     /// Tokenize a complete byte sequence in one call. Convenience for tests and for
     /// output that was captured whole.
     public static func tokenize(_ bytes: [UInt8], options: Options = .default) -> [Token] {
-        var tokenizer = StreamTokenizer(options: options)
+        var tokenizer = Self(options: options)
         var tokens = tokenizer.consume(bytes)
         tokens.append(contentsOf: tokenizer.finish())
         return tokens
@@ -325,7 +324,7 @@ public struct StreamTokenizer: Sendable {
     }
 
     private func currentRowText() -> String {
-        String(decoding: rowBytes, as: UTF8.self)
+        EngineText.decode(rowBytes)
     }
 
     private func containsNonWhitespace(_ bytes: [UInt8]) -> Bool {
@@ -391,12 +390,12 @@ public struct StreamTokenizer: Sendable {
 
     /// Decode the buffered sequence and write it as one cell.
     ///
-    /// `String(decoding:as:)` substitutes `U+FFFD` for anything malformed, which is
-    /// exactly the behaviour we want: an over-long encoding or a surrogate escapes as
-    /// a visible replacement character instead of corrupting the row.
+    /// ``EngineText/decode(_:)`` substitutes `U+FFFD` for anything malformed, which
+    /// is exactly the behaviour we want: an over-long encoding or a surrogate escapes
+    /// as a visible replacement character instead of corrupting the row.
     private mutating func completePartialScalar() {
         guard !partialScalar.isEmpty else { return }
-        let decoded = String(decoding: partialScalar, as: UTF8.self)
+        let decoded = EngineText.decode(partialScalar)
         partialScalar.removeAll(keepingCapacity: true)
         // A malformed sequence can decode to more than one replacement character;
         // each occupies its own cell, matching what a terminal would show.

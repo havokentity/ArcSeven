@@ -40,7 +40,6 @@ import Foundation
 /// Making it an actor instead would force `await` on every call site, including the
 /// synchronous `NSComboBox` data-source path that has to answer *now*.
 public final class FolderHistoryStore: @unchecked Sendable {
-
     /// The `UserDefaults` key. Mirrors the Windows value name `FM\FolderHistory`.
     public static let defaultsKey = "FM.FolderHistory"
 

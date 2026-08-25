@@ -25,7 +25,6 @@ import AppKit
 
 /// What the user answered in a password prompt.
 public struct PasswordPromptResult: Sendable, Hashable {
-
     /// The passphrase exactly as typed.
     ///
     /// Never trimmed: leading and trailing spaces are legal password characters and
@@ -51,7 +50,6 @@ public struct PasswordPromptResult: Sendable, Hashable {
 /// A modal sheet asking for an archive passphrase.
 @MainActor
 public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
-
     /// Which of the two jobs this prompt is doing.
     public enum Mode: Sendable, Hashable {
         /// Opening, listing, testing or extracting an archive that is already
@@ -244,7 +242,14 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
 
     // MARK: Layout
 
+    /// Assemble the sheet: style the text, wire the controls, then lay them out.
     private func buildLayout() {
+        styleLabels()
+        configureControls()
+        installContent(grid: makeFieldGrid(), buttons: makeButtonRow())
+    }
+
+    private func styleLabels() {
         headlineLabel.stringValue = mode == .unlock
             ? "Enter the password for this archive"
             : "Choose a password for this archive"
@@ -261,7 +266,9 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
         mismatchLabel.font = .systemFont(ofSize: 11)
         mismatchLabel.textColor = .systemRed
         mismatchLabel.lineBreakMode = .byTruncatingTail
+    }
 
+    private func configureControls() {
         for field in [passwordField, verifyField] {
             field.textDelegate = self
             field.translatesAutoresizingMaskIntoConstraints = false
@@ -286,7 +293,10 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
         cancelButton.action = #selector(cancelClicked(_:))
         cancelButton.bezelStyle = .rounded
         cancelButton.keyEquivalent = "\u{1b}"
+    }
 
+    /// The password rows. `Verify` and the mismatch line exist only in `.confirm`.
+    private func makeFieldGrid() -> NSGridView {
         let grid = NSGridView(views: [
             [label("Password:"), passwordField],
         ])
@@ -309,13 +319,19 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
         }
         grid.addRow(with: [NSGridCell.emptyContentView, showPasswordButton])
         grid.addRow(with: [NSGridCell.emptyContentView, keychainButton])
+        return grid
+    }
 
+    private func makeButtonRow() -> NSStackView {
         let spacer = NSView()
         spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
         let buttons = NSStackView(views: [spacer, cancelButton, okButton])
         buttons.orientation = .horizontal
         buttons.spacing = 12
+        return buttons
+    }
 
+    private func installContent(grid: NSGridView, buttons: NSStackView) {
         let stack = NSStackView(views: [headlineLabel, subtitleLabel, grid, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
@@ -364,7 +380,6 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
 /// the sheet cannot flinch by a pixel when the checkbox is clicked.
 @MainActor
 private final class RevealableSecureField: NSView, NSTextFieldDelegate {
-
     private let secureField = NSSecureTextField()
     private let plainField = NSTextField()
 

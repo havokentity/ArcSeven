@@ -16,7 +16,6 @@ import ArchiveCore
 
 @Suite("Column model")
 struct ColumnModelTests {
-
     // MARK: Fixtures
 
     private func file(
@@ -178,7 +177,7 @@ struct ColumnModelTests {
 
         for column in archiveColumns where column != .name {
             #expect(
-                ColumnModel.displayText(for: loaded, column: column) == "",
+                ColumnModel.displayText(for: loaded, column: column).isEmpty,
                 "\(column.rawValue) must be blank on the parent row"
             )
         }
@@ -189,7 +188,7 @@ struct ColumnModelTests {
         // The fixture's entry deliberately carries size 4096 and a Size property.
         let item = folder("docs", properties: [.size: "4096"])
         let text = ColumnModel.displayText(for: item, column: .size)
-        #expect(text == "")
+        #expect(text.isEmpty)
         #expect(text != "0")
     }
 
@@ -209,8 +208,8 @@ struct ColumnModelTests {
     @Test("A missing size is blank, not a placeholder")
     func missingSizeIsBlank() {
         let item = file("unknown.bin")           // no size anywhere
-        #expect(ColumnModel.displayText(for: item, column: .size) == "")
-        #expect(ColumnModel.displayText(for: item, column: .packedSize) == "")
+        #expect(ColumnModel.displayText(for: item, column: .size).isEmpty)
+        #expect(ColumnModel.displayText(for: item, column: .packedSize).isEmpty)
     }
 
     @Test("CRC is eight uppercase zero-padded hex digits")
@@ -232,23 +231,23 @@ struct ColumnModelTests {
         let fromProperties = file("a", properties: [.crc: "1A2B3C4D"])
         #expect(ColumnModel.displayText(for: fromProperties, column: .crc) == "1A2B3C4D")
 
-        #expect(ColumnModel.displayText(for: file("b"), column: .crc) == "")
+        #expect(ColumnModel.displayText(for: file("b"), column: .crc).isEmpty)
     }
 
     @Test("Encrypted shows + only for encrypted non-directories")
     func encryptedMarker() {
         #expect(ColumnModel.displayText(for: file("secret.txt", encrypted: true), column: .encrypted) == "+")
-        #expect(ColumnModel.displayText(for: file("plain.txt"), column: .encrypted) == "")
+        #expect(ColumnModel.displayText(for: file("plain.txt"), column: .encrypted).isEmpty)
 
         // A folder entry is never marked, even when the handler says it is encrypted:
         // there is no member data to encrypt, and a "+" there is misleading.
-        #expect(ColumnModel.displayText(for: folder("vault", encrypted: true), column: .encrypted) == "")
+        #expect(ColumnModel.displayText(for: folder("vault", encrypted: true), column: .encrypted).isEmpty)
 
         // A row with no archive entry at all (a plain disk file) cannot be encrypted.
         let diskRow = FolderItem(
             path: "/tmp/x.txt", name: "x.txt", isNavigable: false, isDirectory: false
         )
-        #expect(ColumnModel.displayText(for: diskRow, column: .encrypted) == "")
+        #expect(ColumnModel.displayText(for: diskRow, column: .encrypted).isEmpty)
     }
 
     @Test("A property the format never emitted renders blank, not a placeholder")
@@ -256,7 +255,7 @@ struct ColumnModelTests {
         let item = file("plain.txt")
         for column in [PropID.attributes, .method, .block, .comment, .hostOS] {
             let text = ColumnModel.displayText(for: item, column: column)
-            #expect(text == "", "\(column.rawValue) should be blank")
+            #expect(text.isEmpty, "\(column.rawValue) should be blank")
             #expect(text != "-")
             #expect(text != "n/a")
         }
@@ -271,7 +270,7 @@ struct ColumnModelTests {
         // heard of still renders, because the bag is consulted by default.
         #expect(ColumnModel.displayText(for: item, column: exotic) == "A1B2-C3D4")
         #expect(ColumnModel.displayText(for: item, column: .method) == "LZMA2:24")
-        #expect(ColumnModel.displayText(for: item, column: PropID("Never Emitted")) == "")
+        #expect(ColumnModel.displayText(for: item, column: PropID("Never Emitted")).isEmpty)
     }
 
     @Test("A timestamp with no parsed date falls back to the raw string")
@@ -280,7 +279,7 @@ struct ColumnModelTests {
         // handler's own text than to blank a column that clearly has a value.
         let item = file("a", properties: [.modified: "2026-01-02 03:04:05"])
         #expect(ColumnModel.displayText(for: item, column: .modified) == "2026-01-02 03:04:05")
-        #expect(ColumnModel.displayText(for: file("b"), column: .modified) == "")
+        #expect(ColumnModel.displayText(for: file("b"), column: .modified).isEmpty)
     }
 
     @Test("A parsed timestamp renders through the date formatter, not the raw string")

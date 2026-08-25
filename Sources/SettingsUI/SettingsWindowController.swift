@@ -34,14 +34,9 @@ import SwiftUI
 
 @MainActor
 public final class SettingsWindowController: NSWindowController {
-
     /// The one settings window. `Settings…` is a singleton command on macOS; a second copy
     /// would be two views onto one store with no way to tell them apart.
     public static let shared = SettingsWindowController()
-
-    /// Which pane was open last. Not a 7zFM behaviour — its property sheet only remembers the
-    /// page within a session — but expected of every Mac settings window.
-    private static let selectedPaneKey = "Settings.SelectedPane"
 
     private let store = SettingsStore.shared
     private let tabController = PaneTabViewController()
@@ -68,12 +63,16 @@ public final class SettingsWindowController: NSWindowController {
         for pane in Pane.allCases {
             tabController.addTabViewItem(makeTabViewItem(for: pane))
         }
-        tabController.onSelectionChange = { index in
-            UserDefaults.standard.set(index, forKey: Self.selectedPaneKey)
+        // Capture the store, not `self`: the callback outlives this initialiser and has no
+        // business holding the controller alive. Which pane was open last is window state, but
+        // it goes through the store because that is the only type that talks to the defaults
+        // domain.
+        tabController.onSelectionChange = { [store = self.store] index in
+            store.selectedPaneIndex = index
         }
         window.contentViewController = tabController
 
-        let stored = UserDefaults.standard.object(forKey: Self.selectedPaneKey) as? Int
+        let stored = store.selectedPaneIndex
         if let stored, tabController.tabViewItems.indices.contains(stored) {
             tabController.selectedTabViewItemIndex = stored
         }
@@ -176,8 +175,9 @@ public final class SettingsWindowController: NSWindowController {
 /// `NSTabViewController` is its own tab view's delegate and does real work in those callbacks,
 /// so the selected-pane hook is a subclass rather than a stolen delegate.
 private final class PaneTabViewController: NSTabViewController {
-
-    var onSelectionChange: ((Int) -> Void)?
+    /// `@MainActor` because the only thing it does is write main-actor-isolated state, and
+    /// `tabView(_:didSelect:)` — its one caller — is main-actor isolated already.
+    var onSelectionChange: (@MainActor (Int) -> Void)?
 
     override func tabView(_ tabView: NSTabView, didSelect tabViewItem: NSTabViewItem?) {
         super.tabView(tabView, didSelect: tabViewItem)

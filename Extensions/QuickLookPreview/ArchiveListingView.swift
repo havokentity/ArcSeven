@@ -25,7 +25,6 @@ import UniformTypeIdentifiers
 
 @MainActor
 final class ArchiveListingView: NSView {
-
     private static let nameColumn = NSUserInterfaceItemIdentifier("name")
     private static let sizeColumn = NSUserInterfaceItemIdentifier("size")
 
@@ -341,14 +340,12 @@ final class ArchiveListingView: NSView {
 // MARK: - Table data
 
 extension ArchiveListingView: NSTableViewDataSource {
-
     func numberOfRows(in tableView: NSTableView) -> Int {
         entries.count
     }
 }
 
 extension ArchiveListingView: NSTableViewDelegate {
-
     func tableView(
         _ tableView: NSTableView,
         viewFor tableColumn: NSTableColumn?,

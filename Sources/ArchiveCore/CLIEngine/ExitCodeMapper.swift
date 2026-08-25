@@ -32,7 +32,6 @@ import Foundation
 
 /// Turns a process exit status plus its diagnostic output into a result or an error.
 public enum ExitCodeMapper {
-
     // MARK: Named codes
 
     /// The exit statuses `7zz` documents.

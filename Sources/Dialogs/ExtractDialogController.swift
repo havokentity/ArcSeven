@@ -31,7 +31,6 @@ import ArchiveCore
 /// though an engine handed one would reject it.
 @MainActor
 public final class ExtractDialogController: NSObject {
-
     // MARK: Configuration
 
     /// The archive being extracted. Also the source of the default destination name
@@ -40,6 +39,9 @@ public final class ExtractDialogController: NSObject {
 
     /// Archive-relative paths the user had selected, or empty for the whole archive.
     private let selectedEntries: [String]
+
+    /// Everything this dialog remembers between runs. See `ExtractDialogStore`.
+    private let store = ExtractDialogStore()
 
     /// The path mode the caller is operating in, used as the initial selection.
     ///
@@ -179,7 +181,7 @@ public final class ExtractDialogController: NSObject {
 
         destinationCombo.usesDataSource = false
         destinationCombo.completes = false
-        destinationCombo.numberOfVisibleItems = Self.historyLimit
+        destinationCombo.numberOfVisibleItems = ExtractDialogStore.historyLimit
         destinationCombo.isEditable = true
         destinationCombo.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
@@ -241,65 +243,11 @@ public final class ExtractDialogController: NSObject {
     }
 
     private func buildLayout() -> NSView {
-        let passwordBox = NSView()
-        passwordBox.translatesAutoresizingMaskIntoConstraints = false
-        for field in [secureField, plainField] {
-            field.translatesAutoresizingMaskIntoConstraints = false
-            passwordBox.addSubview(field)
-            NSLayoutConstraint.activate([
-                field.leadingAnchor.constraint(equalTo: passwordBox.leadingAnchor),
-                field.trailingAnchor.constraint(equalTo: passwordBox.trailingAnchor),
-                field.topAnchor.constraint(equalTo: passwordBox.topAnchor),
-                field.bottomAnchor.constraint(equalTo: passwordBox.bottomAnchor),
-            ])
-        }
-
-        let destinationRow = NSStackView(views: [destinationCombo, browseButton])
-        destinationRow.orientation = .horizontal
-        destinationRow.spacing = 8
-        destinationRow.alignment = .firstBaseline
-
-        // Win32: two side-by-side group boxes plus a third for the password. macOS: one
-        // label column, controls flush left against it, groups separated by row spacing.
-        let grid = NSGridView(views: [
-            [Self.formLabel("Extract to:"), destinationRow],
-            [Self.formLabel("Path mode:"), pathModePopUp],
-            [Self.formLabel("Overwrite mode:"), overwriteModePopUp],
-            [Self.formLabel("Password:"), passwordBox],
-            [NSGridCell.emptyContentView, showPasswordCheck],
-            [NSGridCell.emptyContentView, eliminateRootCheck],
-            [NSGridCell.emptyContentView, restorePermissionsCheck],
-        ])
-        grid.translatesAutoresizingMaskIntoConstraints = false
-        grid.rowAlignment = .firstBaseline
-        grid.columnSpacing = 8
-        grid.rowSpacing = 10
-        grid.column(at: 0).xPlacement = .trailing
-        // `.leading`, not `.fill`: a filled column stretches the pop-ups and, worse, the
-        // check boxes to the full width of the widest row. An `NSButton` check box is
-        // clickable across its entire frame, so a stretched one toggles when the user
-        // clicks empty space 400 pt to the right of its label.
-        grid.column(at: 1).xPlacement = .leading
-        // `Show password` belongs to the field above it, not to the checkbox pair below,
-        // so it sits tight against the field and the pair is pushed away from both.
-        grid.row(at: 4).topPadding = -4
-        grid.row(at: 5).topPadding = 10
-
-        // Win32's OK / Cancel / Help sit bottom-right / bottom-right / bottom-right in a
-        // single run. macOS puts Help alone at the leading edge and the affirmative pair
-        // at the trailing edge, default rightmost. "OK" also becomes the verb "Extract":
-        // an action button on macOS names its action.
-        let spacer = NSView()
-        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
-        let buttonRow = NSStackView(views: [helpButton, spacer, cancelButton, extractButton])
-        buttonRow.orientation = .horizontal
-        buttonRow.spacing = 12
-        buttonRow.alignment = .centerY
-
-        let headerStack = NSStackView(views: [headerLabel, archiveLabel])
-        headerStack.orientation = .vertical
-        headerStack.alignment = .leading
-        headerStack.spacing = 2
+        let passwordBox = makePasswordBox()
+        let destinationRow = makeDestinationRow()
+        let grid = makeFormGrid(destinationRow: destinationRow, passwordBox: passwordBox)
+        let buttonRow = makeButtonRow()
+        let headerStack = makeHeaderStack()
 
         let root = NSStackView(views: [headerStack, grid, buttonRow])
         root.orientation = .vertical
@@ -330,6 +278,82 @@ public final class ExtractDialogController: NSObject {
         return content
     }
 
+    /// The two password fields stacked in one box, so hiding one does not move the row.
+    private func makePasswordBox() -> NSView {
+        let passwordBox = NSView()
+        passwordBox.translatesAutoresizingMaskIntoConstraints = false
+        for field in [secureField, plainField] {
+            field.translatesAutoresizingMaskIntoConstraints = false
+            passwordBox.addSubview(field)
+            NSLayoutConstraint.activate([
+                field.leadingAnchor.constraint(equalTo: passwordBox.leadingAnchor),
+                field.trailingAnchor.constraint(equalTo: passwordBox.trailingAnchor),
+                field.topAnchor.constraint(equalTo: passwordBox.topAnchor),
+                field.bottomAnchor.constraint(equalTo: passwordBox.bottomAnchor),
+            ])
+        }
+        return passwordBox
+    }
+
+    private func makeDestinationRow() -> NSStackView {
+        let destinationRow = NSStackView(views: [destinationCombo, browseButton])
+        destinationRow.orientation = .horizontal
+        destinationRow.spacing = 8
+        destinationRow.alignment = .firstBaseline
+        return destinationRow
+    }
+
+    /// Win32: two side-by-side group boxes plus a third for the password. macOS: one
+    /// label column, controls flush left against it, groups separated by row spacing.
+    private func makeFormGrid(destinationRow: NSStackView, passwordBox: NSView) -> NSGridView {
+        let grid = NSGridView(views: [
+            [Self.formLabel("Extract to:"), destinationRow],
+            [Self.formLabel("Path mode:"), pathModePopUp],
+            [Self.formLabel("Overwrite mode:"), overwriteModePopUp],
+            [Self.formLabel("Password:"), passwordBox],
+            [NSGridCell.emptyContentView, showPasswordCheck],
+            [NSGridCell.emptyContentView, eliminateRootCheck],
+            [NSGridCell.emptyContentView, restorePermissionsCheck],
+        ])
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        grid.rowAlignment = .firstBaseline
+        grid.columnSpacing = 8
+        grid.rowSpacing = 10
+        grid.column(at: 0).xPlacement = .trailing
+        // `.leading`, not `.fill`: a filled column stretches the pop-ups and, worse, the
+        // check boxes to the full width of the widest row. An `NSButton` check box is
+        // clickable across its entire frame, so a stretched one toggles when the user
+        // clicks empty space 400 pt to the right of its label.
+        grid.column(at: 1).xPlacement = .leading
+        // `Show password` belongs to the field above it, not to the checkbox pair below,
+        // so it sits tight against the field and the pair is pushed away from both.
+        grid.row(at: 4).topPadding = -4
+        grid.row(at: 5).topPadding = 10
+        return grid
+    }
+
+    /// Win32's OK / Cancel / Help sit bottom-right / bottom-right / bottom-right in a
+    /// single run. macOS puts Help alone at the leading edge and the affirmative pair
+    /// at the trailing edge, default rightmost. "OK" also becomes the verb "Extract":
+    /// an action button on macOS names its action.
+    private func makeButtonRow() -> NSStackView {
+        let spacer = NSView()
+        spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        let buttonRow = NSStackView(views: [helpButton, spacer, cancelButton, extractButton])
+        buttonRow.orientation = .horizontal
+        buttonRow.spacing = 12
+        buttonRow.alignment = .centerY
+        return buttonRow
+    }
+
+    private func makeHeaderStack() -> NSStackView {
+        let headerStack = NSStackView(views: [headerLabel, archiveLabel])
+        headerStack.orientation = .vertical
+        headerStack.alignment = .leading
+        headerStack.spacing = 2
+        return headerStack
+    }
+
     private static func formLabel(_ text: String) -> NSTextField {
         let label = NSTextField(labelWithString: text)
         label.alignment = .right
@@ -341,10 +365,7 @@ public final class ExtractDialogController: NSObject {
 
     /// Restore everything 7zFM persists for this dialog, then seed the destination.
     private func restoreState() {
-        let defaults = UserDefaults.standard
-
-        let history = (defaults.array(forKey: Self.historyKey) as? [String]) ?? []
-        destinationCombo.addItems(withObjectValues: Array(history.prefix(Self.historyLimit)))
+        destinationCombo.addItems(withObjectValues: store.destinationHistory)
 
         // The default destination is a folder beside the archive, named after it. 7zFM
         // strips exactly one extension, which is why `foo.tar.gz` proposes `foo.tar/`
@@ -352,54 +373,39 @@ public final class ExtractDialogController: NSObject {
         // the two-step is what makes nested tarballs land predictably.
         destinationCombo.stringValue = Self.normalizedDirectoryPath(Self.defaultDestination(for: archiveURL).path)
 
-        if let raw = defaults.string(forKey: Self.pathModeKey),
-           let stored = ExtractPathMode(rawValue: raw) {
+        if let stored = store.pathMode {
             pathMode = stored
         } else {
             selectPathMode(pathMode)
         }
 
-        if let raw = defaults.string(forKey: Self.overwriteModeKey),
-           let stored = OverwriteMode(rawValue: raw) {
-            select(stored)
-        } else {
-            select(.ask)
-        }
+        // Nothing stored, or something unreadable, means Ask — the mode that cannot
+        // destroy a file without saying so first.
+        select(store.overwriteMode ?? .ask)
 
-        // EXT-08: this is not the Extract dialog's own preference, it is Settings ▸ 7-Zip's,
-        // read through the same key. Deliberately a plain `bool(forKey:)` with no local
-        // fallback — the registration domain belongs to SettingsUI, so if the shipped
-        // default ever changes there, this checkbox follows without a second edit.
-        eliminateRootCheck.state = defaults.bool(forKey: Self.eliminateRootKey) ? .on : .off
-
-        restorePermissionsCheck.state = defaults.object(forKey: Self.restorePermissionsKey) == nil
-            ? .on
-            : (defaults.bool(forKey: Self.restorePermissionsKey) ? .on : .off)
+        eliminateRootCheck.state = store.eliminatesRootDuplication ? .on : .off
+        restorePermissionsCheck.state = store.restoresPOSIXPermissions ? .on : .off
         restoresPOSIXPermissions = restorePermissionsCheck.state == .on
 
-        showPasswordCheck.state = defaults.bool(forKey: Self.showPasswordKey) ? .on : .off
+        showPasswordCheck.state = store.showsPassword ? .on : .off
         applyPasswordVisibility()
     }
 
     private func persistState(destination: URL) {
-        let defaults = UserDefaults.standard
-
-        // MRU, most recent first, deduplicated, capped at 16 exactly as `kHistorySize`.
-        var history = (defaults.array(forKey: Self.historyKey) as? [String]) ?? []
-        let entry = Self.normalizedDirectoryPath(destination.path)
-        history.removeAll { $0 == entry }
-        history.insert(entry, at: 0)
-        defaults.set(Array(history.prefix(Self.historyLimit)), forKey: Self.historyKey)
-
-        defaults.set(currentPathMode.rawValue, forKey: Self.pathModeKey)
-        defaults.set(currentOverwriteMode.rawValue, forKey: Self.overwriteModeKey)
-        defaults.set(eliminateRootCheck.state == .on, forKey: Self.eliminateRootKey)
-        defaults.set(restorePermissionsCheck.state == .on, forKey: Self.restorePermissionsKey)
-        defaults.set(showPasswordCheck.state == .on, forKey: Self.showPasswordKey)
+        store.recordDestination(Self.normalizedDirectoryPath(destination.path))
+        store.setPathMode(currentPathMode)
+        store.setOverwriteMode(currentOverwriteMode)
+        store.setEliminatesRootDuplication(eliminateRootCheck.state == .on)
+        store.setRestoresPOSIXPermissions(restorePermissionsCheck.state == .on)
+        store.setShowsPassword(showPasswordCheck.state == .on)
     }
+}
 
-    // MARK: Actions
+// MARK: - Actions
 
+/// Split out of the class body only for length; `private` still reaches the stored
+/// controls above, because an extension in the same file is inside the same wall.
+extension ExtractDialogController {
     @objc private func browseForDestination(_ sender: Any?) {
         let open = NSOpenPanel()
         open.canChooseFiles = false
@@ -557,9 +563,11 @@ public final class ExtractDialogController: NSObject {
         guard standardised.path != "/" else { return nil }
         return standardised
     }
+}
 
-    // MARK: Static helpers
+// MARK: - Static helpers
 
+extension ExtractDialogController {
     /// EXT-01's caption. Only ever one archive here, so the `:` form always applies.
     private static func caption(for archiveURL: URL) -> String {
         "Extract : \(archiveURL.path)"
@@ -603,17 +611,4 @@ public final class ExtractDialogController: NSObject {
     private static var helpBookName: String? {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleHelpBookName") as? String
     }
-
-    /// `kHistorySize` in `ExtractDialog.cpp`.
-    private static let historyLimit = 16
-
-    private static let historyKey = "FM.Extract.PathHistory"
-    private static let pathModeKey = "FM.Extract.PathMode"
-    private static let overwriteModeKey = "FM.Extract.OverwriteMode"
-    /// Shared with Settings ▸ 7-Zip (EXT-08). Same string as `SettingsKey.elimDup`, which
-    /// SettingsUI documents as API precisely so leaf modules do not have to link it.
-    private static let eliminateRootKey = "Options.ElimDup"
-    private static let restorePermissionsKey = "FM.Extract.RestorePOSIXPermissions"
-    /// Shared with the Password dialog (PWD-02), which persists the same toggle.
-    private static let showPasswordKey = "FM.ShowPassword"
 }

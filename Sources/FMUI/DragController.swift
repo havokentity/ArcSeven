@@ -88,7 +88,6 @@ public struct PromisedArchiveMember: Sendable, Hashable {
 /// `NSTableView`'s data source and delegate; the actual decompression happens off it.
 @MainActor
 public final class DragController: NSObject {
-
     /// The engine every promise streams through.
     private let engine: any ArchiveEngine
 
@@ -136,7 +135,6 @@ public final class DragController: NSObject {
         for item: FolderItem,
         in provider: any FolderProvider
     ) -> (any NSPasteboardWriting)? {
-
         // A row that is already a file on disk: hand over the URL and get out of the way.
         // `NSURL` is the `NSPasteboardWriting` conformer (`URL` is a struct and has none),
         // so this bridge is the whole implementation. Finder then does its own thing -
@@ -211,7 +209,7 @@ public final class DragController: NSObject {
         let expiring = Set(promises.keys)
         sweepTask?.cancel()
         sweepTask = Task { [weak self] in
-            try? await Task.sleep(for: DragController.abandonedPromiseGrace)
+            try? await Task.sleep(for: Self.abandonedPromiseGrace)
             guard !Task.isCancelled else { return }
             self?.sweepUnclaimedPromises(among: expiring)
         }
@@ -272,7 +270,6 @@ public final class DragController: NSObject {
 /// below. Every stored property is either an immutable, `Sendable` `let` or guarded by
 /// `lock`, which is what `@unchecked Sendable` asserts here.
 private final class ArchiveMemberPromise: NSObject, NSFilePromiseProviderDelegate, @unchecked Sendable {
-
     private let engine: any ArchiveEngine
     private let archiveURL: URL
     private let entryPath: String
@@ -437,7 +434,6 @@ private final class ArchiveMemberPromise: NSObject, NSFilePromiseProviderDelegat
 /// braces: if this object is ever dropped without settling, the drag fails cleanly instead
 /// of hanging.
 private final class PromiseCompletion: @unchecked Sendable {
-
     private let lock = NSLock()
     private var handler: (@Sendable ((any Error)?) -> Void)?
 

@@ -12,7 +12,6 @@ import Testing
 
 @Suite("StreamTokenizer")
 struct StreamTokenizerTests {
-
     private func tokens(_ string: String) -> [StreamTokenizer.Token] {
         var tokenizer = StreamTokenizer()
         var out = tokenizer.consume(Array(string.utf8))
@@ -107,7 +106,7 @@ struct StreamTokenizerTests {
     func suppressesBlankTransients() {
         let raw = "    " + String(repeating: "\u{08}", count: 4) + "done\n"
         let result = tokens(raw)
-        #expect(result.filter { !$0.isLine && $0.text.trimmingCharacters(in: .whitespaces).isEmpty }.isEmpty)
+        #expect(!result.contains { !$0.isLine && $0.text.trimmingCharacters(in: .whitespaces).isEmpty })
         #expect(result.contains(.line("done")))
     }
 

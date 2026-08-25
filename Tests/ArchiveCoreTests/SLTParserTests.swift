@@ -7,14 +7,19 @@ import Testing
 
 @Suite("SLTParser")
 struct SLTParserTests {
-
     private let url = URL(fileURLWithPath: "/tmp/sample.7z")
     private var parser: SLTParser { SLTParser(archiveURL: url, timeZone: .gmt) }
+
+    // The engine's own banner line, verbatim from `7zz l -slt`. This is captured
+    // stdout that the parser must skip, not upstream source code pasted into the
+    // repo, so the rule guarding against the latter does not apply here.
+    // swiftlint:disable:next no_upstream_archiver_source
+    private static let banner = "7-Zip (z) 26.02 (arm64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-06-25"
 
     /// A realistic transcript: banner, scan summary, `--` archive bag,
     /// `----------` entries separator, then blank-line-delimited entry bags.
     private let transcript = """
-    7-Zip (z) 26.02 (arm64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-06-25
+    \(Self.banner)
 
     Scanning the drive for archives:
     1 file, 4096 bytes (4 KiB)
@@ -80,17 +85,17 @@ struct SLTParserTests {
     /// Splitting on the first `" = "` rather than on `"="` or the last occurrence.
     /// Real paths contain both, and getting this wrong silently corrupts filenames.
     @Test("A value containing ' = ' survives intact")
-    func valueContainingAssignment() {
-        let (key, value) = SLTParser.splitAssignment("Path = weird = name.txt")!
+    func valueContainingAssignment() throws {
+        let (key, value) = try #require(SLTParser.splitAssignment("Path = weird = name.txt"))
         #expect(key == PropID.path)
         #expect(value == "weird = name.txt")
     }
 
     @Test("An empty value is preserved rather than dropped")
-    func emptyValue() {
-        let (key, value) = SLTParser.splitAssignment("Comment = ")!
+    func emptyValue() throws {
+        let (key, value) = try #require(SLTParser.splitAssignment("Comment = "))
         #expect(key == PropID.comment)
-        #expect(value == "")
+        #expect(value.isEmpty)
     }
 
     @Test("A line that is not an assignment is rejected")

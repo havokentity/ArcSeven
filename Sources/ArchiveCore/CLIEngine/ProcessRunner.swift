@@ -28,7 +28,6 @@ import Foundation
 
 /// Runs a child process and streams its output.
 public enum ProcessRunner {
-
     // MARK: Types
 
     /// How a child finished.
@@ -79,12 +78,8 @@ public enum ProcessRunner {
             process.arguments = arguments
             if let environment { process.environment = environment }
 
-            let outPipe = Pipe()
-            let errPipe = Pipe()
-            let inPipe = Pipe()
-            process.standardOutput = outPipe
-            process.standardError = errPipe
-            process.standardInput = inPipe
+            let pipes = ChildPipes()
+            pipes.attach(to: process)
 
             // Completion needs TWO independent facts: the child has exited, and both
             // pipes have hit EOF. Emitting on either alone either truncates output or
@@ -93,21 +88,8 @@ public enum ProcessRunner {
                 continuation.yield(.finished(completion))
                 continuation.finish()
             }
-
-            // `terminationHandler`, never `waitUntilExit()`.
-            //
-            // `waitUntilExit()` blocks the calling thread on Process's own internal
-            // bookkeeping, and calling it from a dispatch queue while that bookkeeping
-            // is trying to run deadlocks — reproducibly, once several processes are in
-            // flight at once. The handler is the async-safe notification.
             process.terminationHandler = { finished in
-                let signalled = finished.terminationReason == .uncaughtSignal
-                completionGate.processExited(
-                    Completion(
-                        exitCode: finished.terminationStatus,
-                        terminationSignal: signalled ? finished.terminationStatus : 0
-                    )
-                )
+                completionGate.processExited(Self.completion(for: finished))
             }
 
             do {
@@ -117,66 +99,100 @@ public enum ProcessRunner {
                 return
             }
 
-            let pid = process.processIdentifier
-            let counter = ByteCounter()
-            let group = DispatchGroup()
-
-            // Blocking reads go on a DISPATCH queue, never on a Task.
-            //
-            // `Task.detached` still executes on the Swift cooperative thread pool,
-            // whose width is the core count. `FileHandle.availableData` blocks, so a
-            // handful of concurrent operations is enough to occupy every pool thread
-            // and deadlock the whole process — including the code that would have
-            // drained these pipes. Dispatch's global queues grow a thread per blocked
-            // work item, which is exactly what blocking I/O needs.
-            func pump(
-                _ handle: FileHandle,
-                _ wrap: @escaping @Sendable (Data) -> Event
-            ) {
-                DispatchQueue.global(qos: .userInitiated).async(group: group) {
-                    while true {
-                        let data = handle.availableData
-                        if data.isEmpty { break }
-                        if let byteLimit {
-                            let total = counter.add(UInt64(data.count))
-                            if total > byteLimit {
-                                let keep = Int(byteLimit &- (total &- UInt64(data.count)))
-                                if keep > 0 { continuation.yield(wrap(data.prefix(keep))) }
-                                break
-                            }
-                        }
-                        continuation.yield(wrap(data))
-                    }
-                }
-            }
-
-            pump(outPipe.fileHandleForReading, Event.standardOutput)
-            pump(errPipe.fileHandleForReading, Event.standardError)
-
-            // Feed stdin, then close it.
-            //
-            // Closing matters in both directions: `7zz` blocks forever on a prompt if
-            // the pipe stays open, and reports "Break signaled" (exit 255) if it is
-            // already closed when it wants input.
-            DispatchQueue.global(qos: .userInitiated).async {
-                let handle = inPipe.fileHandleForWriting
-                if let standardInput { try? handle.write(contentsOf: standardInput) }
-                try? handle.close()
-            }
+            let config = PumpConfig(
+                continuation: continuation,
+                group: DispatchGroup(),
+                counter: ByteCounter(),
+                byteLimit: byteLimit
+            )
+            pump(pipes.output, wrap: Event.standardOutput, config: config)
+            pump(pipes.error, wrap: Event.standardError, config: config)
+            feed(standardInput, into: pipes.input)
 
             // Both pipes at EOF: no output can be lost now.
-            group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+            config.group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
                 completionGate.pipesDrained()
             }
 
-            continuation.onTermination = { reason in
-                guard case .cancelled = reason else { return }
-                // SIGINT first: 7zz unwinds and deletes the partial archive it was
-                // writing. Escalate only if it does not go.
-                kill(pid, SIGINT)
-                DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.75) {
-                    if process.isRunning { kill(pid, SIGKILL) }
+            continuation.onTermination = cancellationHandler(for: process)
+        }
+    }
+
+    // MARK: Spawn steps
+
+    /// Read a finished child's exit status.
+    ///
+    /// Reached from `terminationHandler`, never from `waitUntilExit()`.
+    /// `waitUntilExit()` blocks the calling thread on Process's own internal
+    /// bookkeeping, and calling it from a dispatch queue while that bookkeeping is
+    /// trying to run deadlocks — reproducibly, once several processes are in flight at
+    /// once. The handler is the async-safe notification.
+    private static func completion(for finished: Process) -> Completion {
+        let signalled = finished.terminationReason == .uncaughtSignal
+        return Completion(
+            exitCode: finished.terminationStatus,
+            terminationSignal: signalled ? finished.terminationStatus : 0
+        )
+    }
+
+    /// Drain one pipe to EOF, yielding every chunk it produces.
+    ///
+    /// Blocking reads go on a DISPATCH queue, never on a Task.
+    ///
+    /// `Task.detached` still executes on the Swift cooperative thread pool, whose
+    /// width is the core count. `FileHandle.availableData` blocks, so a handful of
+    /// concurrent operations is enough to occupy every pool thread and deadlock the
+    /// whole process — including the code that would have drained these pipes.
+    /// Dispatch's global queues grow a thread per blocked work item, which is exactly
+    /// what blocking I/O needs.
+    private static func pump(
+        _ pipe: Pipe,
+        wrap: @escaping @Sendable (Data) -> Event,
+        config: PumpConfig
+    ) {
+        let handle = pipe.fileHandleForReading
+        DispatchQueue.global(qos: .userInitiated).async(group: config.group) {
+            while true {
+                let data = handle.availableData
+                if data.isEmpty { break }
+                if let byteLimit = config.byteLimit {
+                    let total = config.counter.add(UInt64(data.count))
+                    if total > byteLimit {
+                        let keep = Int(byteLimit &- (total &- UInt64(data.count)))
+                        if keep > 0 { config.continuation.yield(wrap(data.prefix(keep))) }
+                        break
+                    }
                 }
+                config.continuation.yield(wrap(data))
+            }
+        }
+    }
+
+    /// Feed stdin, then close it.
+    ///
+    /// Closing matters in both directions: `7zz` blocks forever on a prompt if the
+    /// pipe stays open, and reports "Break signaled" (exit 255) if it is already
+    /// closed when it wants input.
+    private static func feed(_ standardInput: Data?, into pipe: Pipe) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let handle = pipe.fileHandleForWriting
+            if let standardInput { try? handle.write(contentsOf: standardInput) }
+            try? handle.close()
+        }
+    }
+
+    /// What to do when the consumer stops iterating.
+    private static func cancellationHandler(
+        for process: Process
+    ) -> @Sendable (AsyncThrowingStream<Event, any Error>.Continuation.Termination) -> Void {
+        let pid = process.processIdentifier
+        return { reason in
+            guard case .cancelled = reason else { return }
+            // SIGINT first: 7zz unwinds and deletes the partial archive it was
+            // writing. Escalate only if it does not go.
+            kill(pid, SIGINT)
+            DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.75) {
+                if process.isRunning { kill(pid, SIGKILL) }
             }
         }
     }
@@ -186,7 +202,8 @@ public enum ProcessRunner {
     /// Run to completion and return the whole of both streams.
     ///
     /// For short, bounded output — version banners and listings. Anything that can
-    /// produce unbounded output must use ``stream(executableURL:arguments:environment:standardInput:readChunkSize:byteLimit:)``.
+    /// produce unbounded output must use
+    /// ``stream(executableURL:arguments:environment:standardInput:readChunkSize:byteLimit:)``.
     public static func runToCompletion(
         executableURL: URL,
         arguments: [String],
@@ -213,9 +230,35 @@ public enum ProcessRunner {
         return CapturedRun(
             exitCode: completion.exitCode,
             terminationSignal: completion.terminationSignal,
-            standardOutput: String(decoding: outBytes, as: UTF8.self),
-            standardError: String(decoding: errBytes, as: UTF8.self)
+            standardOutput: EngineText.decode(outBytes),
+            standardError: EngineText.decode(errBytes)
         )
+    }
+
+    // MARK: Child plumbing
+
+    /// The three pipes a child is wired to.
+    private struct ChildPipes {
+        let output = Pipe()
+        let error = Pipe()
+        let input = Pipe()
+
+        /// Wire these pipes to `process`.
+        func attach(to process: Process) {
+            process.standardOutput = output
+            process.standardError = error
+            process.standardInput = input
+        }
+    }
+
+    /// Everything the two pipe pumps share.
+    private struct PumpConfig {
+        let continuation: AsyncThrowingStream<Event, any Error>.Continuation
+        /// Both pumps join this group, so `notify` fires when both pipes hit EOF.
+        let group: DispatchGroup
+        /// Shared across both pipes: `byteLimit` caps the run, not each stream.
+        let counter: ByteCounter
+        let byteLimit: UInt64?
     }
 
     // MARK: Completion gate

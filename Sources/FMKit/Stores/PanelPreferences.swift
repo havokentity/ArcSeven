@@ -44,7 +44,6 @@ import ArchiveCore
 /// lock makes that read-modify-write atomic; the compiler cannot verify it, hence
 /// `@unchecked`.
 public final class PanelPreferences: @unchecked Sendable {
-
     /// Prefix of the per-kind key. Mirrors the Windows subkey `FM\Columns\<TypeID>`
     /// (FIDELITY.md PST-12), with `.` where the registry has `\`.
     public static let keyPrefix = "FM.Columns."

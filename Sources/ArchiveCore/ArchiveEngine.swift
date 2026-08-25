@@ -168,7 +168,8 @@ public typealias ArchiveOperationStream = AsyncThrowingStream<ArchiveEvent, any 
 public struct ArchiveOperationResult: Sendable {
     /// Extra output specific to certain operations.
     public enum Payload: Sendable {
-        case none
+        /// The operation produced nothing beyond the result itself.
+        case empty
         case listing(ArchiveListing)
         case hashes([HashResult])
         case benchmark(BenchmarkResult)
@@ -201,7 +202,7 @@ public struct ArchiveOperationResult: Sendable {
         itemsProcessed: Int = 0,
         log: [String] = [],
         duration: Duration = .zero,
-        payload: Payload = .none
+        payload: Payload = .empty
     ) {
         self.operation = operation
         self.warnings = warnings
@@ -424,7 +425,11 @@ public enum ArchiveError: Error, Sendable, Hashable {
     case encryptionVerificationFailed(String)
 
     /// Filesystem trouble outside the engine.
-    case io(String)
+    ///
+    /// Named for the concept, not trimmed to fit a length rule: this case is public
+    /// API that `FMKit` and `FMUI` already throw, so renaming it would break callers
+    /// this module does not own, and `ioError` would only restate the enum's name.
+    case io(String) // swiftlint:disable:this identifier_name
 }
 
 extension ArchiveError {

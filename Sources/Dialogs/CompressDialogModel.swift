@@ -31,7 +31,6 @@ import ArchiveCore
 /// redraws from it, so there is never a moment where two controls disagree about what
 /// the format supports.
 public struct CompressDialogModel: Sendable, Equatable {
-
     // MARK: - Stored state
 
     /// Full path of the archive to write, as typed. Tilde-expanded on OK, not before,
@@ -301,17 +300,39 @@ public struct CompressDialogModel: Sendable, Equatable {
         }
         guard let descriptor else { return }
 
-        // Level. 7-Zip's SetNearestSelectComboBox picks the highest offered value not
-        // greater than the desired one, so switching 7z(9) → gzip lands on gzip's 9 and
-        // 7z(4) → bzip2 lands on 3, never on "nothing selected".
-        if !descriptor.levels.contains(level) {
-            level = descriptor.levels.last(where: { $0 <= level })
-                ?? descriptor.levels.first
-                ?? .store
-        }
+        // The order below IS the dependency order; each step reads what the one above it
+        // settled. Splitting it up does not reorder anything.
+        reconcileLevel(with: descriptor)
+        reconcileMethodAndSFX(with: descriptor)
+        reconcileDictionaryAndWordSize()
+        reconcileSolidBlockSize()
+        reconcileThreads(with: descriptor)
 
-        // SFX before method: checking it re-filters the method combo, and a method the
-        // stub cannot decode has to be dropped before we validate the selection.
+        if !updateModeChoices.contains(updateMode) { updateMode = .addAndReplace }
+
+        reconcileEncryption(with: descriptor)
+
+        // `Encrypt file names` and the four macOS metadata switches are deliberately
+        // *not* cleared when the format cannot honour them. They are preferences, and a
+        // detour through gzip on the way to picking tar must not silently turn off
+        // "Store symbolic links" for good. The controls disable and keep showing the
+        // stored choice; `makeRequest` and `extraParameterTokens` mask each one against
+        // `availability`, so nothing unsupported can reach the command line.
+    }
+
+    /// 7-Zip's `SetNearestSelectComboBox` picks the highest offered value not greater
+    /// than the desired one, so switching 7z(9) → gzip lands on gzip's 9 and 7z(4) →
+    /// bzip2 lands on 3, never on "nothing selected".
+    private mutating func reconcileLevel(with descriptor: FormatCatalog.CreatableFormat) {
+        guard !descriptor.levels.contains(level) else { return }
+        level = descriptor.levels.last(where: { $0 <= level })
+            ?? descriptor.levels.first
+            ?? .store
+    }
+
+    /// SFX before method: checking it re-filters the method combo, and a method the stub
+    /// cannot decode has to be dropped before we validate the selection.
+    private mutating func reconcileMethodAndSFX(with descriptor: FormatCatalog.CreatableFormat) {
         if !descriptor.supportsSFX {
             createSelfExtracting = false
         }
@@ -327,8 +348,10 @@ public struct CompressDialogModel: Sendable, Equatable {
            !Self.selfExtractorMethods.contains(resolved) {
             createSelfExtracting = false
         }
+    }
 
-        // Dictionary and word size follow the resolved method.
+    /// Dictionary and word size follow the resolved method.
+    private mutating func reconcileDictionaryAndWordSize() {
         let dictionaries = dictionaryChoices
         if let bytes = dictionarySize.byteValue, !dictionaries.contains(bytes) {
             dictionarySize = .automatic
@@ -340,27 +363,31 @@ public struct CompressDialogModel: Sendable, Equatable {
             wordSize = .automatic
         }
         if words.isEmpty { wordSize = .automatic }
+    }
 
+    private mutating func reconcileSolidBlockSize() {
         let solids = solidChoices
         if solids.isEmpty {
             solidBlockSize = .automatic
         } else if !solids.contains(solidBlockSize) {
             solidBlockSize = .automatic
         }
+    }
 
-        // Threads. An explicit count survives a format change only if the new codec can
-        // still use it; otherwise fall back to automatic rather than silently clamping,
-        // because a clamped number looks like the user's choice and is not.
+    /// An explicit thread count survives a format change only if the new codec can still
+    /// use it; otherwise fall back to automatic rather than silently clamping, because a
+    /// clamped number looks like the user's choice and is not.
+    private mutating func reconcileThreads(with descriptor: FormatCatalog.CreatableFormat) {
         let ceiling = min(hardwareThreads * 2, FormatCatalog.maximumThreads(format: format, method: method))
         if let count = threads.intValue, count < 1 || count > ceiling {
             threads = .automatic
         }
         if !descriptor.supportsMultithreading { threads = .automatic }
+    }
 
-        if !updateModeChoices.contains(updateMode) { updateMode = .addAndReplace }
-
-        // Encryption. Clearing the password when the format cannot encrypt is what
-        // stops a hidden passphrase from reappearing on a later switch back to .7z.
+    /// Clearing the password when the format cannot encrypt is what stops a hidden
+    /// passphrase from reappearing on a later switch back to .7z.
+    private mutating func reconcileEncryption(with descriptor: FormatCatalog.CreatableFormat) {
         if !descriptor.supportsEncryption {
             password = ""
             verifyPassword = ""
@@ -368,12 +395,6 @@ public struct CompressDialogModel: Sendable, Equatable {
         if !descriptor.encryptionMethods.contains(encryptionMethod) {
             encryptionMethod = descriptor.encryptionMethods.first ?? .aes256
         }
-        // `Encrypt file names` and the four macOS metadata switches are deliberately
-        // *not* cleared when the format cannot honour them. They are preferences, and a
-        // detour through gzip on the way to picking tar must not silently turn off
-        // "Store symbolic links" for good. The controls disable and keep showing the
-        // stored choice; `makeRequest` and `extraParameterTokens` mask each one against
-        // `availability`, so nothing unsupported can reach the command line.
     }
 
     /// Select a format and rewrite the archive's extension to match (ADD-09).
@@ -410,11 +431,11 @@ public struct CompressDialogModel: Sendable, Equatable {
     /// Single-stream formats keep the whole original name and append (`report.pdf` →
     /// `report.pdf.gz`); container formats replace (`report.pdf` → `report.7z`).
     /// SFX forces `.exe` regardless.
-    private static func rewritingExtension(of path: String, for model: CompressDialogModel) -> String {
+    private static func rewritingExtension(of path: String, for model: Self) -> String {
         guard !path.isEmpty, let descriptor = model.descriptor else { return path }
-        let ns = path as NSString
-        let directory = ns.deletingLastPathComponent
-        var name = ns.lastPathComponent
+        let nsPath = path as NSString
+        let directory = nsPath.deletingLastPathComponent
+        var name = nsPath.lastPathComponent
         guard !name.isEmpty else { return path }
 
         let target = model.createSelfExtracting ? "exe" : descriptor.mainExtension
@@ -433,9 +454,11 @@ public struct CompressDialogModel: Sendable, Equatable {
         }
         return directory.isEmpty ? name : (directory as NSString).appendingPathComponent(name)
     }
+}
 
-    // MARK: - Format traits that the catalogue does not carry
+// MARK: - Format traits that the catalogue does not carry
 
+extension CompressDialogModel {
     /// Codecs a 7-Zip self-extractor stub can decode (ADD-28).
     private static let selfExtractorMethods: Set<CompressionMethod> = [.copy, .lzma, .lzma2, .ppmd]
 
@@ -464,7 +487,6 @@ public struct CompressDialogModel: Sendable, Equatable {
     /// preset labels, and `650M - CD` has to parse as a single 650 MiB volume because
     /// the hyphen terminates the sequence *successfully* rather than being an error.
     public enum VolumeSizeGrammar {
-
         /// The preset list, verbatim, including the descriptive tails that the grammar
         /// swallows. The capacities are the conservative ones 7-Zip ships — 4092 MiB
         /// for FAT32 rather than the theoretical 4096, 4480 for a single-layer DVD.
@@ -528,9 +550,11 @@ public struct CompressDialogModel: Sendable, Equatable {
             return sizes
         }
     }
+}
 
-    // MARK: - Memory estimate
+// MARK: - Memory estimate
 
+extension CompressDialogModel {
     /// What the read-only "Memory usage" rows show.
     public struct MemoryEstimate: Sendable, Equatable {
         /// Bytes the encoder is expected to need, or `nil` when it cannot be guessed.
@@ -628,9 +652,11 @@ public struct CompressDialogModel: Sendable, Equatable {
 
         return MemoryEstimate(compressing: compressing, decompressing: decompressing)
     }
+}
 
-    // MARK: - Validation
+// MARK: - Validation
 
+extension CompressDialogModel {
     /// Why OK cannot proceed. Messages are 7-Zip's own, verbatim (ADD-38).
     public enum ValidationFailure: Error, LocalizedError, Equatable, Sendable {
         case incorrectArchivePath
@@ -715,9 +741,11 @@ public struct CompressDialogModel: Sendable, Equatable {
         }
         _ = try VolumeSizeGrammar.parse(volumeText)
     }
+}
 
-    // MARK: - Emission
+// MARK: - Emission
 
+extension CompressDialogModel {
     /// Extra `7zz` switches beyond what `CompressRequest`'s structured fields cover.
     ///
     /// Two sources, in 7-Zip's precedence order — the macOS metadata switches first,

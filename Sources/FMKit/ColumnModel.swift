@@ -43,7 +43,6 @@ public struct PanelColumn: Sendable, Hashable, Identifiable {
 
 /// The columns for one folder type.
 public struct ColumnModel: Sendable, Hashable {
-
     public private(set) var columns: [PanelColumn]
 
     public init(columns: [PanelColumn]) {

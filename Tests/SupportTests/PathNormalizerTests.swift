@@ -10,7 +10,6 @@ import Testing
 
 @Suite("PathNormalizer")
 struct PathNormalizerTests {
-
     /// `café` with a precomposed U+00E9 - what a Windows-made archive carries.
     private let precomposed = "caf\u{00E9}.txt"
     /// `café` as `e` + U+0301 - what readdir hands back on HFS+.

@@ -101,7 +101,6 @@ import os
 ///   FinderSync` below is dropped with a warning and every `FI…` symbol goes undefined. See
 ///   the integration note at the end of this file.
 final class FinderSyncExtension: FIFinderSync {
-
     private static let log = Logger(
         subsystem: "com.havokentity.ArcSeven.FinderSync",
         category: "handoff"

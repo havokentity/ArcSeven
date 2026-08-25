@@ -6,7 +6,6 @@ import Testing
 
 @Suite("ProgressParser")
 struct ProgressParserTests {
-
     @Test("A full progress row decodes every field")
     func fullRow() {
         let row = ProgressParser.parseProgressRow(" 16% 9 + docs/manual.pdf")
@@ -71,16 +70,16 @@ struct ProgressParserTests {
     @Test("Diagnostic lines become warnings")
     func warnings() {
         var parser = ProgressParser(operation: .compress)
-        guard case .warning(let w) = parser.consume(.line("WARNING: Cannot open file: locked.db")) else {
+        guard case .warning(let opened) = parser.consume(.line("WARNING: Cannot open file: locked.db")) else {
             Issue.record("expected a warning"); return
         }
-        #expect(w.message.contains("locked.db"))
+        #expect(opened.message.contains("locked.db"))
 
         var scanner = ProgressParser(operation: .compress)
-        guard case .warning(let s) = scanner.consume(.line("Cannot open file 'missing.txt'")) else {
+        guard case .warning(let scanned) = scanner.consume(.line("Cannot open file 'missing.txt'")) else {
             Issue.record("expected a scan warning"); return
         }
-        #expect(s.kind == .scan)
+        #expect(scanned.kind == .scan)
     }
 
     @Test("Ordinary output is passed through as log")

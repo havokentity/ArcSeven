@@ -17,7 +17,6 @@ import Foundation
 
 /// Byte-count rendering.
 public enum ByteFormatting {
-
     /// The exact count with digit grouping: `1,048,576` in en-US, `1 048 576` in fr-FR,
     /// `10,48,576` in en-IN, whose grouping is not in threes at all. The separator and
     /// the grouping *shape* are the user's, which is also what the Windows original does

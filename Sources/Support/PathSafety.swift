@@ -37,7 +37,6 @@ import Foundation
 
 /// Why a destination was refused.
 public enum PathSafetyError: Error, LocalizedError, Hashable, Sendable {
-
     /// The entry path was empty, or nothing survived stripping - `"/"`, `"."`, `"C:"`.
     /// Never treated as "the root itself", which would overwrite the destination folder.
     case emptyEntryPath(entryPath: String)
@@ -62,9 +61,9 @@ public enum PathSafetyError: Error, LocalizedError, Hashable, Sendable {
             "The archive contains an entry with no usable name."
         case .parentTraversal(let entryPath):
             "Refusing to extract '\(entryPath)': the name escapes the destination folder."
-        case .escapesRoot(let entryPath, let resolved):
+        case let .escapesRoot(entryPath, resolved):
             "Refusing to extract '\(entryPath)': it resolves to '\(resolved)', outside the destination folder."
-        case .symlinkedComponent(let entryPath, let component):
+        case let .symlinkedComponent(entryPath, component):
             "Refusing to extract '\(entryPath)': '\(component)' is a symbolic link."
         case .rootUnavailable(let root):
             "The destination folder '\(root)' is not available."
@@ -74,10 +73,8 @@ public enum PathSafetyError: Error, LocalizedError, Hashable, Sendable {
 
 /// Resolves archive entry names to destinations that are provably inside a root.
 public enum PathSafety {
-
     /// Tuning for the one case where strictness has a real cost.
     public struct Options: Hashable, Sendable {
-
         /// Allow the *last* component to be an existing symbolic link.
         ///
         /// Off by default, because an extractor that opens the leaf for writing follows

@@ -10,7 +10,6 @@ import Testing
 
 @Suite("PathSafety")
 struct PathSafetyTests {
-
     // MARK: - Fixtures
 
     /// A real directory on a real volume: the containment proof is a filesystem

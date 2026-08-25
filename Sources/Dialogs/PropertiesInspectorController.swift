@@ -29,7 +29,6 @@ import FMKit
 /// A two-column Name / Value inspector for an archive and, optionally, one member.
 @MainActor
 public final class PropertiesInspectorController: NSViewController {
-
     // MARK: State
 
     private var listing: ArchiveListing
@@ -137,7 +136,7 @@ public final class PropertiesInspectorController: NSViewController {
 
     // MARK: View construction
 
-    public override func loadView() {
+    override public func loadView() {
         configureTable()
 
         copyButton.target = self
@@ -220,7 +219,7 @@ public final class PropertiesInspectorController: NSViewController {
         scrollView.borderType = .noBorder
     }
 
-    public override func viewDidAppear() {
+    override public func viewDidAppear() {
         super.viewDidAppear()
         view.window?.makeFirstResponder(tableView)
     }
@@ -288,16 +287,15 @@ public final class PropertiesInspectorController: NSViewController {
 // MARK: - Rows
 
 extension PropertiesInspectorController {
-
     /// One line of the inspector.
-    fileprivate enum Row {
+    private enum Row {
         /// A section heading, drawn as a group row and copied as 7zFM's rule.
         case section(String)
         /// A `Name` / `Value` pair.
         case property(Property)
     }
 
-    fileprivate struct Property {
+    private struct Property {
         /// The property's display name — `PropID.displayName`, which *is* 7-Zip's
         /// own name for it, so an exotic key reads exactly as its handler spelt it.
         var name: String
@@ -307,9 +305,9 @@ extension PropertiesInspectorController {
     }
 
     /// 7zFM's between-sections rule, reproduced verbatim in copied text.
-    fileprivate static let sectionRule = "------------------------"
+    private static let sectionRule = "------------------------"
 
-    fileprivate static func panelTitle(listing: ArchiveListing, entry: ArchiveEntry?) -> String {
+    private static func panelTitle(listing: ArchiveListing, entry: ArchiveEntry?) -> String {
         if let entry { return "\(entry.name) — Properties" }
         return "\(listing.url.lastPathComponent) — Properties"
     }
@@ -319,7 +317,7 @@ extension PropertiesInspectorController {
     /// Item first, then the archive, matching 7zFM's assembly order (item props →
     /// separator → archive-level props, PRP-05). The item is what the user is
     /// looking at; the archive is context.
-    fileprivate static func buildRows(listing: ArchiveListing, entry: ArchiveEntry?) -> [Row] {
+    private static func buildRows(listing: ArchiveListing, entry: ArchiveEntry?) -> [Row] {
         var rows: [Row] = []
 
         if let entry {
@@ -430,7 +428,7 @@ extension PropertiesInspectorController {
     /// PRP-06: values are collapsed to a single line and truncated past 1024
     /// characters. A comment or an ACL can run to kilobytes, and one row per
     /// property is what makes the list scannable.
-    fileprivate static func elide(_ value: String) -> String {
+    private static func elide(_ value: String) -> String {
         var single = value
         if single.contains(where: \.isNewline) {
             single = single.split(whereSeparator: \.isNewline).joined(separator: " ")
@@ -438,76 +436,76 @@ extension PropertiesInspectorController {
         guard single.count > 1024 else { return single }
         return single.prefix(1024) + " ..."
     }
-}
 
-// MARK: - Bag assembly
+    // MARK: Bag assembly
 
-/// Accumulates `Name` / `Value` rows and remembers which properties have already
-/// been shown, so the handler's own bag can be poured in afterwards without
-/// producing a second row for anything the typed fields already covered.
-private struct PropertyBagBuilder {
-    private(set) var rows: [PropertiesInspectorController.Property] = []
-    private var emitted: Set<PropID> = []
+    /// Accumulates `Name` / `Value` rows and remembers which properties have already
+    /// been shown, so the handler's own bag can be poured in afterwards without
+    /// producing a second row for anything the typed fields already covered.
+    private struct PropertyBagBuilder {
+        private(set) var rows: [Property] = []
+        private var emitted: Set<PropID> = []
 
-    /// Add a typed value under a real property identifier. A `nil` or empty value
-    /// adds nothing *and does not mark the property as shown*, so the handler's bag
-    /// still gets its chance to supply one.
-    mutating func add(_ property: PropID, _ value: String?) {
-        guard let value, !value.isEmpty else { return }
-        emitted.insert(property)
-        rows.append(.init(name: property.displayName, value: value))
-    }
-
-    /// Add a row that has no `PropID` — a computed total, a warning.
-    mutating func add(name: String, _ value: String?) {
-        guard let value, !value.isEmpty else { return }
-        rows.append(.init(name: name, value: value))
-    }
-
-    /// Pour in every remaining key of a handler's property bag.
-    ///
-    /// Empty values are kept, not skipped: an empty string means the handler emitted
-    /// the key with no value, which is a different fact from not emitting it at all,
-    /// and the panel exists to report facts rather than tidy them.
-    mutating func addRemainder(of bag: [PropID: String]) {
-        for property in Self.ordered(Array(bag.keys)) where !emitted.contains(property) {
+        /// Add a typed value under a real property identifier. A `nil` or empty value
+        /// adds nothing *and does not mark the property as shown*, so the handler's bag
+        /// still gets its chance to supply one.
+        mutating func add(_ property: PropID, _ value: String?) {
+            guard let value, !value.isEmpty else { return }
             emitted.insert(property)
-            rows.append(.init(
-                name: property.displayName,
-                value: Self.displayValue(for: property, raw: bag[property] ?? "")
-            ))
+            rows.append(.init(name: property.displayName, value: value))
         }
-    }
 
-    /// Well-known properties in 7-Zip's own declaration order, then anything
-    /// unrecognised, alphabetically. Same rule as
-    /// `ArchiveListing.availableEntryProperties`, so the inspector and the column
-    /// picker agree about ordering.
-    private static func ordered(_ keys: [PropID]) -> [PropID] {
-        let present = Set(keys)
-        var result = PropID.wellKnown.filter { present.contains($0) }
-        let extras = present.subtracting(result).map(\.rawValue).sorted().map(PropID.init(rawValue:))
-        result.append(contentsOf: extras)
-        return result
-    }
+        /// Add a row that has no `PropID` — a computed total, a warning.
+        mutating func add(name: String, _ value: String?) {
+            guard let value, !value.isEmpty else { return }
+            rows.append(.init(name: name, value: value))
+        }
 
-    /// Render a raw bag value according to what kind of value the property is.
-    ///
-    /// Deliberately conservative: only byte counts and checksums are touched.
-    /// Timestamps, attribute strings and 7-Zip's `+`/`-` booleans are already in the
-    /// form 7-Zip prints them, and re-formatting a value we may not fully understand
-    /// — the exotic-property case this panel exists for — would be worse than
-    /// passing it through.
-    private static func displayValue(for property: PropID, raw: String) -> String {
-        switch property.valueKind {
-        case .byteCount:
-            let trimmed = raw.trimmingCharacters(in: .whitespaces)
-            guard let bytes = UInt64(trimmed) else { return raw }
-            return ColumnModel.groupedByteCount(bytes)
-        case .checksum:
-            return raw.uppercased()
-        default:
-            return raw
+        /// Pour in every remaining key of a handler's property bag.
+        ///
+        /// Empty values are kept, not skipped: an empty string means the handler emitted
+        /// the key with no value, which is a different fact from not emitting it at all,
+        /// and the panel exists to report facts rather than tidy them.
+        mutating func addRemainder(of bag: [PropID: String]) {
+            for property in Self.ordered(Array(bag.keys)) where !emitted.contains(property) {
+                emitted.insert(property)
+                rows.append(.init(
+                    name: property.displayName,
+                    value: Self.displayValue(for: property, raw: bag[property] ?? "")
+                ))
+            }
+        }
+
+        /// Well-known properties in 7-Zip's own declaration order, then anything
+        /// unrecognised, alphabetically. Same rule as
+        /// `ArchiveListing.availableEntryProperties`, so the inspector and the column
+        /// picker agree about ordering.
+        private static func ordered(_ keys: [PropID]) -> [PropID] {
+            let present = Set(keys)
+            var result = PropID.wellKnown.filter { present.contains($0) }
+            let extras = present.subtracting(result).map(\.rawValue).sorted().map(PropID.init(rawValue:))
+            result.append(contentsOf: extras)
+            return result
+        }
+
+        /// Render a raw bag value according to what kind of value the property is.
+        ///
+        /// Deliberately conservative: only byte counts and checksums are touched.
+        /// Timestamps, attribute strings and 7-Zip's `+`/`-` booleans are already in the
+        /// form 7-Zip prints them, and re-formatting a value we may not fully understand
+        /// — the exotic-property case this panel exists for — would be worse than
+        /// passing it through.
+        private static func displayValue(for property: PropID, raw: String) -> String {
+            switch property.valueKind {
+            case .byteCount:
+                let trimmed = raw.trimmingCharacters(in: .whitespaces)
+                guard let bytes = UInt64(trimmed) else { return raw }
+                return ColumnModel.groupedByteCount(bytes)
+            case .checksum:
+                return raw.uppercased()
+            default:
+                return raw
+            }
         }
     }
 }
@@ -519,7 +517,6 @@ extension PropertiesInspectorController: NSTableViewDataSource {
 }
 
 extension PropertiesInspectorController: NSTableViewDelegate {
-
     public func tableView(_ tableView: NSTableView, isGroupRow row: Int) -> Bool {
         guard rows.indices.contains(row), case .section = rows[row] else { return false }
         return true
@@ -603,7 +600,6 @@ extension PropertiesInspectorController: NSTableViewDelegate {
 // MARK: - Panel lifetime
 
 extension PropertiesInspectorController: NSWindowDelegate {
-
     public func windowWillClose(_ notification: Notification) {
         // Detach from the document window first: a child window that is closed while
         // still attached leaves the parent holding a reference to a hidden window,

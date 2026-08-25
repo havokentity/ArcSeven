@@ -15,22 +15,26 @@ import Foundation
 import Testing
 @testable import ArchiveCore
 
-/// The staged universal binary, or `nil` when it has not been built.
+/// Where the staged universal binary lives, built or not.
 ///
 /// Free-standing rather than a static member: a `@Suite` trait cannot reference the
 /// type it is attached to without the macro expansion becoming circular.
-func vendoredSevenZipBinary() -> URL? {
+func vendoredSevenZipBinary() -> URL {
     var dir = URL(fileURLWithPath: #filePath)
     for _ in 0..<3 { dir.deleteLastPathComponent() }
-    let candidate = dir.appendingPathComponent("vendor/bin/7zz")
-    return FileManager.default.isExecutableFile(atPath: candidate.path) ? candidate : nil
+    return dir.appendingPathComponent("vendor/bin/7zz")
 }
 
-@Suite("Live 7zz engine", .enabled(if: vendoredSevenZipBinary() != nil))
-struct LiveEngineTests {
+/// Whether that binary has actually been built. The suite skips itself when it has not,
+/// so `vendoredSevenZipBinary()` is only ever run against a real executable.
+func vendoredSevenZipBinaryIsBuilt() -> Bool {
+    FileManager.default.isExecutableFile(atPath: vendoredSevenZipBinary().path)
+}
 
+@Suite("Live 7zz engine", .enabled(if: vendoredSevenZipBinaryIsBuilt()))
+struct LiveEngineTests {
     private var engine: SevenZipCLIEngine {
-        SevenZipCLIEngine(executableURL: vendoredSevenZipBinary()!, timeZone: .gmt)
+        SevenZipCLIEngine(executableURL: vendoredSevenZipBinary(), timeZone: .gmt)
     }
 
     /// A scratch directory that cleans up after itself.
@@ -186,7 +190,7 @@ struct LiveEngineTests {
             ) {
                 received.append(chunk)
             }
-            #expect(String(decoding: received, as: UTF8.self) == payload)
+            #expect(String(bytes: received, encoding: .utf8) == payload)
         }
     }
 

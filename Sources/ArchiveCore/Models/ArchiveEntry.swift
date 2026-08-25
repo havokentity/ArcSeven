@@ -190,11 +190,11 @@ extension ArchiveEntry {
             public let rawValue: UInt32
             public init(rawValue: UInt32) { self.rawValue = rawValue }
 
-            public static let readOnly  = DOSFlags(rawValue: 1 << 0) // R
-            public static let hidden    = DOSFlags(rawValue: 1 << 1) // H
-            public static let system    = DOSFlags(rawValue: 1 << 2) // S
-            public static let directory = DOSFlags(rawValue: 1 << 3) // D
-            public static let archive   = DOSFlags(rawValue: 1 << 4) // A
+            public static let readOnly  = Self(rawValue: 1 << 0) // R
+            public static let hidden    = Self(rawValue: 1 << 1) // H
+            public static let system    = Self(rawValue: 1 << 2) // S
+            public static let directory = Self(rawValue: 1 << 3) // D
+            public static let archive   = Self(rawValue: 1 << 4) // A
         }
 
         /// The unmodified `Attributes` value, kept for the Properties inspector.
@@ -216,7 +216,7 @@ extension ArchiveEntry {
 
         public init(from decoder: any Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            self = Attributes.parse(try container.decode(String.self, forKey: .raw))
+            self = Self.parse(try container.decode(String.self, forKey: .raw))
         }
 
         public func encode(to encoder: any Encoder) throws {
@@ -247,8 +247,8 @@ extension ArchiveEntry {
 
         /// Parse an `Attributes` value. Never fails: unrecognised shapes are kept
         /// verbatim in ``raw`` with no flags set.
-        public static func parse(_ raw: String) -> Attributes {
-            var result = Attributes(raw: raw)
+        public static func parse(_ raw: String) -> Self {
+            var result = Self(raw: raw)
             for token in raw.split(separator: " ", omittingEmptySubsequences: true) {
                 if let mode = parsePOSIXModeString(token) {
                     result.posixFileType = token.first
@@ -337,12 +337,16 @@ extension ArchiveEntry {
             guard let value = text(key) else { return nil }
             return UInt64(value.trimmingCharacters(in: .whitespaces))
         }
-        func flag(_ key: PropID) -> Bool? {
-            guard let value = text(key) else { return nil }
+        // `+`/`-` property flags. A missing or unrecognised value is not the
+        // handler saying "false", it is the handler saying nothing, so the caller
+        // supplies what to believe instead. `@autoclosure` keeps that fallback as
+        // lazy as the `??` it replaces.
+        func flag(_ key: PropID, or fallback: @autoclosure () -> Bool) -> Bool {
+            guard let value = text(key) else { return fallback() }
             switch value {
             case "+": return true
             case "-": return false
-            default: return nil
+            default: return fallback()
             }
         }
         func date(_ key: PropID) -> Date? {
@@ -358,7 +362,7 @@ extension ArchiveEntry {
 
         // `Folder = +` is authoritative where the handler emits it (zip). The 7z
         // handler does not, so fall back to the `D` attribute flag (res_3 §4a.4).
-        let isDirectory = flag(PropID.isFolder) ?? attributes.isDirectory
+        let isDirectory = flag(PropID.isFolder, or: attributes.isDirectory)
 
         var crcValue: UInt32?
         if let raw = text(PropID.crc) {
@@ -373,8 +377,10 @@ extension ArchiveEntry {
         let method = text(PropID.method)
         // A member is encrypted when the handler says so; when it stays silent, a
         // `7zAES` stage in the codec chain says so just as reliably.
-        let encrypted = flag(PropID.encrypted)
-            ?? (method.map { $0.localizedCaseInsensitiveContains("AES") } ?? false)
+        let encrypted = flag(
+            PropID.encrypted,
+            or: method.map { $0.localizedCaseInsensitiveContains("AES") } ?? false
+        )
 
         self.init(
             path: Self.normalisePath(rawPath),

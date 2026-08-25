@@ -8,7 +8,6 @@ import ArchiveCore
 
 @Suite("Archive tree")
 struct ArchiveTreeTests {
-
     /// A listing whose members are files only — no directory entries at all. This is
     /// what `zip -D`, most tars, and naive writers produce, and it is the case that
     /// breaks implementations which assume directories are always present.
@@ -26,7 +25,7 @@ struct ArchiveTreeTests {
     func rootFiles() {
         let items = ArchiveFolderProvider.children(of: "", in: listing(["a.txt", "b.txt"]))
         #expect(Set(items.map(\.name)) == ["a.txt", "b.txt"])
-        let noneAreDirectories = items.filter(\.isDirectory).isEmpty
+        let noneAreDirectories = !items.contains(where: \.isDirectory)
         #expect(noneAreDirectories)
     }
 
@@ -46,10 +45,10 @@ struct ArchiveTreeTests {
 
     @Test("Descending shows only that level's children")
     func descend() {
-        let l = listing(["docs/manual.pdf", "docs/img/logo.png", "readme.md"])
-        let docs = ArchiveFolderProvider.children(of: "docs", in: l)
+        let tree = listing(["docs/manual.pdf", "docs/img/logo.png", "readme.md"])
+        let docs = ArchiveFolderProvider.children(of: "docs", in: tree)
         #expect(Set(docs.map(\.name)) == ["manual.pdf", "img"])
-        let img = ArchiveFolderProvider.children(of: "docs/img", in: l)
+        let img = ArchiveFolderProvider.children(of: "docs/img", in: tree)
         #expect(img.map(\.name) == ["logo.png"])
         #expect(img.first?.path == "docs/img/logo.png")
     }
@@ -57,8 +56,8 @@ struct ArchiveTreeTests {
     /// A real directory entry and a synthesised one must not both appear.
     @Test("A real directory entry is not duplicated by a synthesised one")
     func noDuplicateDirectories() {
-        let l = listing(["docs", "docs/manual.pdf"], directories: ["docs"])
-        let items = ArchiveFolderProvider.children(of: "", in: l)
+        let tree = listing(["docs", "docs/manual.pdf"], directories: ["docs"])
+        let items = ArchiveFolderProvider.children(of: "", in: tree)
         #expect(items.filter { $0.name == "docs" }.count == 1)
         #expect(items.first { $0.name == "docs" }?.isDirectory == true)
     }
@@ -86,10 +85,10 @@ struct ArchiveTreeTests {
     /// `doc` must not match `docs/...`. Prefix comparison has to be separator-aware.
     @Test("A prefix does not match a longer sibling name")
     func prefixIsNotSubstring() {
-        let l = listing(["docs/a.txt", "doc/b.txt"])
-        let doc = ArchiveFolderProvider.children(of: "doc", in: l)
+        let tree = listing(["docs/a.txt", "doc/b.txt"])
+        let doc = ArchiveFolderProvider.children(of: "doc", in: tree)
         #expect(doc.map(\.name) == ["b.txt"])
-        let docs = ArchiveFolderProvider.children(of: "docs", in: l)
+        let docs = ArchiveFolderProvider.children(of: "docs", in: tree)
         #expect(docs.map(\.name) == ["a.txt"])
     }
 
@@ -102,10 +101,10 @@ struct ArchiveTreeTests {
 
     @Test("Deeply nested paths resolve at every level")
     func deepNesting() {
-        let l = listing(["a/b/c/d/e.txt"])
-        #expect(ArchiveFolderProvider.children(of: "", in: l).map(\.name) == ["a"])
-        #expect(ArchiveFolderProvider.children(of: "a", in: l).map(\.name) == ["b"])
-        #expect(ArchiveFolderProvider.children(of: "a/b/c", in: l).map(\.name) == ["d"])
-        #expect(ArchiveFolderProvider.children(of: "a/b/c/d", in: l).map(\.name) == ["e.txt"])
+        let tree = listing(["a/b/c/d/e.txt"])
+        #expect(ArchiveFolderProvider.children(of: "", in: tree).map(\.name) == ["a"])
+        #expect(ArchiveFolderProvider.children(of: "a", in: tree).map(\.name) == ["b"])
+        #expect(ArchiveFolderProvider.children(of: "a/b/c", in: tree).map(\.name) == ["d"])
+        #expect(ArchiveFolderProvider.children(of: "a/b/c/d", in: tree).map(\.name) == ["e.txt"])
     }
 }

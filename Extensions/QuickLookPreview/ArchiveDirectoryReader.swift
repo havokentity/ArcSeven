@@ -15,7 +15,6 @@
 import Foundation
 
 enum ArchiveDirectoryReader {
-
     /// Parse an archive's directory.
     ///
     /// `async` and free of any actor: a `nonisolated` async function does NOT inherit its

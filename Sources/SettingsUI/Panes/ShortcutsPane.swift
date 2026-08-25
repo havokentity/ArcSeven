@@ -28,77 +28,88 @@
 import SwiftUI
 
 struct ShortcutsPane: View {
-
     @Bindable var store: SettingsStore
 
     var body: some View {
         Form {
-            Section {
-                Picker(selection: $store.keymapPreset) {
-                    ForEach(KeymapPreset.allCases) { preset in
-                        Text(preset.title).tag(preset)
-                    }
-                } label: {
-                    Text("Keyboard shortcuts:")
-                }
-                .pickerStyle(.radioGroup)
-            } header: {
-                Text("Preset")
-            } footer: {
-                Footnote(presetExplanation)
-            }
-
-            Section("7-Zip Classic Adds") {
-                Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
-                    ForEach(Self.classicChords, id: \.chord) { row in
-                        GridRow {
-                            Text(row.chord)
-                                .font(.body.monospaced())
-                                .gridColumnAlignment(.leading)
-                                .frame(minWidth: 64, alignment: .leading)
-                            Text(row.command)
-                            Text(row.note)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-                .font(.callout)
-                .opacity(store.keymapPreset == .finder ? 0.55 : 1)
-
-                Footnote(
-                    """
-                    …plus the rest of the function-key row, ⌃F3–⌃F7 for sorting, ⌥0–⌥9 for the \
-                    ten favourite folders, the numeric keypad’s select/deselect/invert family, \
-                    and ⌃A ⌃C ⌃X ⌃V ⌃N ⌃R ⌃Z. All of them file-list scope only.
-                    """
-                )
-            }
-
-            Section("Custom Bindings") {
-                LabeledContent("Overrides:") {
-                    Text(store.customBindingCount == 0
-                         ? "None recorded yet"
-                         : "\(store.customBindingCount) changed")
-                    .foregroundStyle(.secondary)
-                }
-                Button("Reset Custom Bindings…") {
-                    store.resetCustomBindings()
-                }
-                .disabled(store.customBindingCount == 0)
-
-                Footnote(
-                    """
-                    Custom starts as a copy of whichever preset is active when you first change \
-                    a binding, and stores only the differences — so a shortcut you changed in \
-                    this version still inherits every command added in the next one. Record a \
-                    binding by selecting a command in the menu bar with this preset active. \
-                    System shortcuts such as ⌘␣ and ⇧⌘3 cannot be bound in any preset.
-                    """
-                )
-            }
+            presetSection
+            classicAddsSection
+            customBindingsSection
         }
         .formStyle(.grouped)
         .settingsPaneFrame()
+    }
+
+    // MARK: Sections
+
+    private var presetSection: some View {
+        Section {
+            Picker(selection: $store.keymapPreset) {
+                ForEach(KeymapPreset.allCases) { preset in
+                    Text(preset.title).tag(preset)
+                }
+            } label: {
+                Text("Keyboard shortcuts:")
+            }
+            .pickerStyle(.radioGroup)
+        } header: {
+            Text("Preset")
+        } footer: {
+            Footnote(presetExplanation)
+        }
+    }
+
+    private var classicAddsSection: some View {
+        Section("7-Zip Classic Adds") {
+            Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
+                ForEach(Self.classicChords, id: \.chord) { row in
+                    GridRow {
+                        Text(row.chord)
+                            .font(.body.monospaced())
+                            .gridColumnAlignment(.leading)
+                            .frame(minWidth: 64, alignment: .leading)
+                        Text(row.command)
+                        Text(row.note)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            .font(.callout)
+            .opacity(store.keymapPreset == .finder ? 0.55 : 1)
+
+            Footnote(
+                """
+                …plus the rest of the function-key row, ⌃F3–⌃F7 for sorting, ⌥0–⌥9 for the \
+                ten favourite folders, the numeric keypad’s select/deselect/invert family, \
+                and ⌃A ⌃C ⌃X ⌃V ⌃N ⌃R ⌃Z. All of them file-list scope only.
+                """
+            )
+        }
+    }
+
+    private var customBindingsSection: some View {
+        Section("Custom Bindings") {
+            LabeledContent("Overrides:") {
+                Text(store.customBindingCount == 0
+                     ? "None recorded yet"
+                     : "\(store.customBindingCount) changed")
+                .foregroundStyle(.secondary)
+            }
+            Button("Reset Custom Bindings…") {
+                store.resetCustomBindings()
+            }
+            .disabled(store.customBindingCount == 0)
+
+            Footnote(
+                """
+                Custom starts as a copy of whichever preset is active when you first change \
+                a binding, and stores only the differences — so a shortcut you changed in \
+                this version still inherits every command added in the next one. Record a \
+                binding by selecting a command in the menu bar with this preset active. \
+                System shortcuts such as ⌘␣ and ⇧⌘3 cannot be bound in any preset.
+                """
+            )
+        }
     }
 
     private var presetExplanation: String {

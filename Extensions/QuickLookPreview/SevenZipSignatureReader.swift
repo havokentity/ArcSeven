@@ -27,7 +27,6 @@
 import Foundation
 
 enum SevenZipSignatureReader {
-
     /// `7z\xBC\xAF\x27\x1C`. The six bytes that begin every 7z archive.
     static let magic: [UInt8] = [0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C]
 
@@ -157,7 +156,6 @@ enum SevenZipSignatureReader {
 /// to be a `static let`, which under Swift 6 strict concurrency is one more shared global to
 /// justify for no gain.
 enum CRC32 {
-
     static func checksum(_ bytes: ArraySlice<UInt8>) -> UInt32 {
         var crc: UInt32 = 0xFFFF_FFFF
         for byte in bytes {

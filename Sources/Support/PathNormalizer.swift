@@ -44,7 +44,6 @@ import Foundation
 /// Nothing here decides *whether* a path is safe to write - that is ``PathSafety``, which
 /// is the only authority on containment. This type is about spelling.
 public enum PathNormalizer {
-
     // MARK: - Unicode form
 
     /// The form names are compared, sorted, matched and collision-checked in: NFC.

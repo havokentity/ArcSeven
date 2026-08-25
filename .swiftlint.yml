@@ -259,10 +259,21 @@ custom_rules:
   trademark_possessive_seven_zip:
     name: "Possessive or official-sounding reference to 7-Zip"
     message: >-
-      References to 7-Zip must be nominative and descriptive - "compatible with 7-Zip",
-      "a reimplementation of the 7-Zip File Manager". Never possessive, never "official",
-      never implying affiliation or endorsement.
-    regex: '7-?Zip(''|’)s|official\s+7-?Zip|7-?Zip\s+for\s+(Mac|macOS)|powered\s+by\s+7-?Zip'
+      References to 7-Zip must not imply affiliation, endorsement or authorship.
+      "compatible with 7-Zip" and "a reimplementation of the 7-Zip File Manager" are
+      fine. "official 7-Zip", "7-Zip for Mac", "powered by 7-Zip" and "endorsed by"
+      are not - they claim a relationship that does not exist.
+    #
+    # Deliberately NOT matching the possessive "7-Zip's".
+    #
+    # It fired 44 times, every one of them ordinary descriptive prose about upstream
+    # behaviour: "7-Zip's method table", "7-Zip's default", "the naming rules 7-Zip
+    # uses". That is nominative fair use and it is how you describe another product in
+    # English - "Photoshop's layers panel" does not imply you are Adobe. The trademark
+    # risk lives in claiming to BE 7-Zip or to be blessed by it, which is what the
+    # alternatives below actually catch. A rule that cries wolf 44 times gets disabled
+    # wholesale, and then it protects nothing.
+    regex: 'official\s+7-?Zip|7-?Zip\s+for\s+(Mac|macOS)|powered\s+by\s+7-?Zip|endorsed\s+by\s+7-?Zip|7-?Zip\s*(Inc|LLC|Ltd)'
     severity: error
 
   no_hardcoded_engine_path:

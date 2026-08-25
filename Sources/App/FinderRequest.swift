@@ -55,7 +55,6 @@ public enum FinderRequestAction: String, Codable, Sendable, Hashable, CaseIterab
 /// file system path through that is a lossy game nobody needs to play. ``urls`` converts
 /// on the reading side.
 public struct FinderRequest: Codable, Sendable, Hashable {
-
     /// Identifies the request, names its file on disk, and is what a wake-up ping
     /// carries so the app can go straight to it instead of scanning.
     public var id: UUID
@@ -99,7 +98,6 @@ public struct FinderRequest: Codable, Sendable, Hashable {
 /// case in particular must never be reported as "extraction failed", because the fix is
 /// a provisioning one and the user's archive is fine.
 public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
-
     /// No app group container. The entitlement is missing from the running binary's
     /// signature, or the container has not been provisioned for this user yet.
     case appGroupUnavailable(identifier: String)
@@ -125,11 +123,11 @@ public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
             "The shared container '\(identifier)' is not available to this build of ArcSeven."
         case .notFound(let id):
             "The Finder request \(id.uuidString) is no longer available."
-        case .unreadable(let id, let reason):
+        case let .unreadable(id, reason):
             "The Finder request \(id.uuidString) could not be read: \(reason)"
-        case .malformed(let id, let reason):
+        case let .malformed(id, reason):
             "The Finder request \(id.uuidString) is not readable by this version: \(reason)"
-        case .writeFailed(let id, let reason):
+        case let .writeFailed(id, reason):
             "The Finder request \(id.uuidString) could not be handed to ArcSeven: \(reason)"
         }
     }
@@ -153,7 +151,6 @@ public enum FinderRequestError: Error, LocalizedError, Hashable, Sendable {
 /// ``FinderRequestError/notFound(id:)`` — which is precisely the exactly-once guarantee
 /// this transport needs, without a lock file, a database, or a daemon.
 public enum FinderRequestStore {
-
     // MARK: Identity
 
     /// The app group, unprefixed. This is the name as it appears in the developer

@@ -18,7 +18,6 @@
 import SwiftUI
 
 struct FoldersPane: View {
-
     @Bindable var store: SettingsStore
 
     var body: some View {

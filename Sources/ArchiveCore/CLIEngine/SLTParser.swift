@@ -8,7 +8,7 @@
 // `-slt` ("show large technical") prints a preamble describing the archive, then a
 // run of per-entry property bags. The shape is:
 //
-//     7-Zip (z) 26.02 (arm64) : Copyright (c) 1999-2026 Igor Pavlov : 2026-06-25
+//     7-Zip (z) 26.02 (arm64) : <upstream copyright banner> : 2026-06-25
 //
 //     Scanning the drive for archives:
 //     1 file, 4096 bytes (4 KiB)
@@ -65,7 +65,6 @@ import Foundation
 
 /// Turns `7zz l -slt` text into a listing.
 public struct SLTParser: Sendable {
-
     // MARK: Configuration
 
     /// The archive the output describes. Used for `ArchiveListing.url`.
@@ -120,7 +119,7 @@ public struct SLTParser: Sendable {
         var warnings: [ArchiveWarning] = []
         var errorLines: [String] = []
 
-        /// Close the entry bag under construction, if any.
+        // Close the entry bag under construction, if any.
         func flushEntry() {
             guard !current.isEmpty else { return }
             defer { current.removeAll(keepingCapacity: true) }

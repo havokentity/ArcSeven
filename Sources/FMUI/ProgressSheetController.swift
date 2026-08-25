@@ -15,7 +15,6 @@ import AppKit
 /// A modal sheet showing the progress of one operation.
 @MainActor
 public final class ProgressSheetController: NSObject {
-
     private let panel = NSPanel(
         contentRect: NSRect(x: 0, y: 0, width: 420, height: 168),
         styleMask: [.titled],
