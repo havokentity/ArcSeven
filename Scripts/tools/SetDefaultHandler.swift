@@ -8,9 +8,17 @@
 // `LSSetDefaultRoleHandlerForContentType` writes. This tool writes it, and can put it
 // back.
 //
+// ⚠️  macOS asks the user to confirm EVERY type, one modal dialog each.
+//
+//     There are 25 types here, so `set` means 25 dialogs to click through. That is the
+//     system's doing, not ours — there is no supported batch API and no way to suppress
+//     it — but it is a genuinely unpleasant surprise if nobody warned you. `set` now
+//     says so and waits for confirmation before it starts.
+//
 // Usage:
-//   SetDefaultHandler set                 -> ArcSeven becomes the default
+//   SetDefaultHandler set                 -> ArcSeven becomes the default (25 dialogs)
 //   SetDefaultHandler set <bundle-id>     -> something else becomes the default
+//   SetDefaultHandler set --yes           -> skip this tool's own confirmation
 //   SetDefaultHandler show                -> print the current handler for each type
 
 import Foundation
@@ -90,9 +98,29 @@ case "show":
     }
 
 case "set":
-    let target = arguments.count > 1 ? arguments[1] : arcSeven
+    let positional = arguments.dropFirst().filter { $0 != "--yes" }
+    let target = positional.first ?? arcSeven
+    let assumeYes = arguments.contains("--yes")
+
+    // Warn BEFORE the first dialog, not after the twenty-fifth.
+    let alreadyMine = claimed.filter { currentHandler(for: $0) == target }.count
+    let toChange = claimed.count - alreadyMine
+    if toChange == 0 {
+        print("All \(claimed.count) types already open with \(target). Nothing to do.")
+        exit(0)
+    }
+    print("This will change \(toChange) file type(s) to open with \(target).")
+    print("macOS will ask you to confirm EACH ONE — expect \(toChange) dialogs.")
+    print("To undo later:  SetDefaultHandler set <previous-bundle-id>")
+    if !assumeYes {
+        print("Continue? [y/N] ", terminator: "")
+        let answer = readLine()?.trimmingCharacters(in: .whitespaces).lowercased() ?? ""
+        guard answer == "y" || answer == "yes" else { print("Cancelled."); exit(0) }
+    }
+
     var failures = 0
-    for type in claimed {
+    // Skip types already pointing at the target: each one avoided is one dialog avoided.
+    for type in claimed where currentHandler(for: type) != target {
         let status = LSSetDefaultRoleHandlerForContentType(type as CFString, .viewer, target as CFString)
         if status != noErr {
             // A type no handler has ever registered for can legitimately fail; report it
@@ -101,7 +129,8 @@ case "set":
             failures += 1
         }
     }
-    print("Set \(claimed.count - failures)/\(claimed.count) types to \(target).")
+    print("Set \(toChange - failures)/\(toChange) changed type(s) to \(target).")
+    print("LaunchServices takes a moment to flush — re-run `show` if it still reads the old handler.")
     if failures > 0 { print("\(failures) failed - those types may have no registered handler.") }
 
 default:

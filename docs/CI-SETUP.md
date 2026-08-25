@@ -83,3 +83,28 @@ Release.
 release as the DMG. That is how the LGPL-2.1 §4 source offer is discharged — "equivalent
 access to copy the source code from the same place". Do not remove that step, and do not
 publish a release where it failed. See `NOTICE` and `docs/RELEASING.md`.
+
+---
+
+## Making ArcSeven the default archive app
+
+```bash
+swiftc -O -o .build/setdefault Scripts/tools/SetDefaultHandler.swift
+.build/setdefault show     # what opens each type today
+.build/setdefault set      # claim them for ArcSeven
+```
+
+**macOS asks you to confirm every type, one modal dialog each.** There are 25, so expect
+25 clicks. That is the system's behaviour — there is no supported batch API and no way to
+suppress the prompt. The tool warns and asks before it starts, and skips any type that
+already points at the target, so re-running it is a no-op rather than another 25 dialogs.
+
+To hand them back:
+
+```bash
+.build/setdefault set com.aone.keka
+```
+
+Six declared types are deliberately never claimed: `public.data` (matches every file with
+no better type), `.dmg`, `.pkg`, `.msi`, `.jar` and `.war`. Each of those double-clicks is
+*doing something* rather than *looking inside*, and taking them over would be hostile.
