@@ -215,7 +215,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         }
         arguments.append("--")
         arguments.append(request.archiveURL.path)
-        arguments.append(contentsOf: request.inputs.map(\.path))
+        arguments.append(contentsOf: Self.inputArguments(for: request))
 
         let wantsEncryption = !(request.encryption?.password ?? "").isEmpty
         let archiveURL = request.archiveURL
@@ -464,6 +464,7 @@ extension SevenZipCLIEngine {
         arguments: [String],
         delivery: PasswordDelivery,
         path: String?,
+        currentDirectory: URL? = nil,
         afterSuccess: (@Sendable () async throws -> Void)? = nil
     ) -> ArchiveOperationStream {
         let executable = executableURL
@@ -482,7 +483,8 @@ extension SevenZipCLIEngine {
                         arguments: arguments,
                         environment: env,
                         standardInput: stdin,
-                        readChunkSize: chunk
+                        readChunkSize: chunk,
+                        currentDirectory: currentDirectory
                     ) {
                         switch event {
                         case .standardOutput(let data):
@@ -609,6 +611,28 @@ extension SevenZipCLIEngine {
         ) -> [StreamTokenizer.Token] {
             for token in tokens where token.isLine { stderrLines.append(token.text) }
             return tokens
+        }
+    }
+
+    /// The input paths to hand `7zz`, relative to `baseDirectory` when there is one.
+    ///
+    /// `7zz a` stores every input under the path it was GIVEN. Passing absolute paths
+    /// stores absolute paths, which is why adding into a subfolder needs both a working
+    /// directory AND relative inputs — the working directory alone changes nothing if the
+    /// arguments are still absolute.
+    ///
+    /// An input outside `baseDirectory` cannot be expressed relatively, so it keeps its
+    /// absolute path rather than being silently mangled into a `../..` chain that would
+    /// store a nonsense member name.
+    static func inputArguments(for request: CompressRequest) -> [String] {
+        guard let base = request.baseDirectory?.standardizedFileURL else {
+            return request.inputs.map(\.path)
+        }
+        let basePath = base.path.hasSuffix("/") ? base.path : base.path + "/"
+        return request.inputs.map { input in
+            let path = input.standardizedFileURL.path
+            guard path.hasPrefix(basePath) else { return path }
+            return String(path.dropFirst(basePath.count))
         }
     }
 

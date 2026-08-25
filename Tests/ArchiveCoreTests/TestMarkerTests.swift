@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Rajesh D'Monte
 
+import Foundation
 import Testing
 @testable import ArchiveCore
 
@@ -31,5 +32,52 @@ struct TestMarkerTests {
         #expect(items.allSatisfy { $0.action == .tested })
         #expect(items.contains { $0.path == "code/" })
         #expect(items.contains { $0.path == "readme.md" })
+    }
+}
+
+@Suite("Compress input paths")
+struct CompressInputPathTests {
+    /// With no base directory, inputs keep their absolute paths — which is what stores a
+    /// member at its full path, and is the historical behaviour.
+    @Test("Absolute paths are used when there is no base directory")
+    func noBaseDirectory() {
+        let request = CompressRequest(
+            archiveURL: URL(fileURLWithPath: "/tmp/a.7z"),
+            inputs: [URL(fileURLWithPath: "/tmp/src/readme.md")],
+            format: .sevenZip
+        )
+        #expect(SevenZipCLIEngine.inputArguments(for: request) == ["/tmp/src/readme.md"])
+    }
+
+    /// A base directory is how a member gets placed at `docs/img/logo.png` rather than
+    /// at its absolute path. Both halves are required: the working directory AND the
+    /// relative argument.
+    @Test("Inputs are relativised against the base directory")
+    func relativised() {
+        var request = CompressRequest(
+            archiveURL: URL(fileURLWithPath: "/tmp/a.7z"),
+            inputs: [
+                URL(fileURLWithPath: "/tmp/stage/docs/img/logo.png"),
+                URL(fileURLWithPath: "/tmp/stage/readme.md"),
+            ],
+            format: .sevenZip
+        )
+        request.baseDirectory = URL(fileURLWithPath: "/tmp/stage")
+        #expect(SevenZipCLIEngine.inputArguments(for: request)
+                == ["docs/img/logo.png", "readme.md"])
+    }
+
+    /// An input outside the base directory cannot be expressed relatively. It keeps its
+    /// absolute path rather than becoming a `../..` chain that would store a nonsense
+    /// member name.
+    @Test("An input outside the base directory keeps its absolute path")
+    func outsideBase() {
+        var request = CompressRequest(
+            archiveURL: URL(fileURLWithPath: "/tmp/a.7z"),
+            inputs: [URL(fileURLWithPath: "/elsewhere/other.txt")],
+            format: .sevenZip
+        )
+        request.baseDirectory = URL(fileURLWithPath: "/tmp/stage")
+        #expect(SevenZipCLIEngine.inputArguments(for: request) == ["/elsewhere/other.txt"])
     }
 }

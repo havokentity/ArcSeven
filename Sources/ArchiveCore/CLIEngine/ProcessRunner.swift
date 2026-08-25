@@ -70,13 +70,19 @@ public enum ProcessRunner {
         environment: [String: String]? = nil,
         standardInput: Data? = nil,
         readChunkSize: Int = 64 * 1024,
-        byteLimit: UInt64? = nil
+        byteLimit: UInt64? = nil,
+        currentDirectory: URL? = nil
     ) -> AsyncThrowingStream<Event, any Error> {
         AsyncThrowingStream { continuation in
             let process = Process()
             process.executableURL = executableURL
             process.arguments = arguments
             if let environment { process.environment = environment }
+            // Working directory, not a cosmetic detail: `7zz a` stores each input under
+            // the path it was GIVEN, so the only way to place a member at
+            // `docs/img/logo.png` inside the archive is to run from a directory where the
+            // input really is at `docs/img/logo.png`.
+            if let currentDirectory { process.currentDirectoryURL = currentDirectory }
 
             let pipes = ChildPipes()
             pipes.attach(to: process)
@@ -208,7 +214,8 @@ public enum ProcessRunner {
         executableURL: URL,
         arguments: [String],
         environment: [String: String]? = nil,
-        standardInput: Data? = nil
+        standardInput: Data? = nil,
+        currentDirectory: URL? = nil
     ) async throws -> CapturedRun {
         var outBytes = Data()
         var errBytes = Data()
@@ -218,7 +225,8 @@ public enum ProcessRunner {
             executableURL: executableURL,
             arguments: arguments,
             environment: environment,
-            standardInput: standardInput
+            standardInput: standardInput,
+            currentDirectory: currentDirectory
         ) {
             switch event {
             case .standardOutput(let data): outBytes.append(data)
