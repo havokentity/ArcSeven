@@ -18,7 +18,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # This repository's default branch is `master`, not `main`. Listing only `main` is
+    # how a workflow ends up never running at all while looking perfectly correct.
+    branches: [master, main]
     paths-ignore:
       - "docs/**"
       - "**/*.md"
@@ -157,7 +159,9 @@ jobs:
             Extensions/QuickLookPreview/Info.plist \
             Extensions/QuickLookPreview/QuickLookPreview.entitlements \
             Extensions/QuickActions/Info.plist \
-            Extensions/QuickActions/QuickActions.entitlements
+            Extensions/QuickActions/QuickActions.entitlements \
+            Extensions/FinderSync/Info.plist \
+            Extensions/FinderSync/FinderSync.entitlements
           do
             echo "--- $plist"
             plutil -lint "$plist"
