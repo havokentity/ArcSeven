@@ -121,20 +121,72 @@ final class FinderSyncExtension: FIFinderSync {
         "cab", "arj", "lzh", "cpio", "rpm", "deb", "dmg", "wim", "zst",
     ]
 
-    /// The directories this extension claims. See the header note on `directoryURLs`.
-    private static let claimedDirectoryURLs: Set<URL> = [
-        URL(fileURLWithPath: "/", isDirectory: true),
-        URL(fileURLWithPath: "/Volumes", isDirectory: true),
-    ]
+    /// Every directory this extension claims.
+    ///
+    /// **A claim does not cross a mount point.** Claiming `/` covers the boot volume and
+    /// nothing else; claiming `/Volumes` covers that directory but NOT the separate
+    /// filesystems mounted inside it. Reported from real use: the menu appeared
+    /// everywhere except on an external drive under `/Volumes/…`, which is exactly the
+    /// case a naive `["/", "/Volumes"]` claim misses.
+    ///
+    /// So every mounted volume is claimed individually, and the set is refreshed when
+    /// volumes come and go — a drive plugged in after launch would otherwise stay
+    /// unclaimed for the lifetime of the extension.
+    ///
+    /// `skipHiddenVolumes` keeps the system's own firmlinked volumes
+    /// (`/System/Volumes/VM`, `Preboot`, `Update`, …) out of the set. Claiming those
+    /// buys nothing — the user never browses them — and each claim costs Finder work.
+    private static func currentClaimedDirectoryURLs() -> Set<URL> {
+        var claimed: Set<URL> = [
+            URL(fileURLWithPath: "/", isDirectory: true),
+            URL(fileURLWithPath: "/Volumes", isDirectory: true),
+        ]
+        let mounted = FileManager.default.mountedVolumeURLs(
+            includingResourceValuesForKeys: [.volumeIsBrowsableKey],
+            options: [.skipHiddenVolumes]
+        ) ?? []
+        for volume in mounted {
+            // A non-browsable volume is one Finder itself will not show.
+            let browsable = (try? volume.resourceValues(forKeys: [.volumeIsBrowsableKey]))?
+                .volumeIsBrowsable ?? true
+            if browsable { claimed.insert(volume) }
+        }
+        return claimed
+    }
 
     // MARK: Lifecycle
 
     override init() {
         super.init()
-        FIFinderSyncController.default().directoryURLs = Self.claimedDirectoryURLs
+        refreshClaimedDirectories()
+
+        // Volumes mounted after launch must be claimed too, or plugging in a drive
+        // silently loses the menu until the extension is restarted.
+        let notifications = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
+            notifications.addObserver(
+                forName: name,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.refreshClaimedDirectories()
+            }
+        }
+
         Self.log.debug(
             "ArcSeven Finder extension loaded from \(Bundle.main.bundlePath, privacy: .public)"
         )
+    }
+
+    deinit {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+    }
+
+    /// Recompute and apply the claim set.
+    private func refreshClaimedDirectories() {
+        let claimed = Self.currentClaimedDirectoryURLs()
+        FIFinderSyncController.default().directoryURLs = claimed
+        Self.log.debug("claiming \(claimed.count, privacy: .public) directories")
     }
 
     // Badging is not implemented, on purpose. ArcSeven syncs nothing, so

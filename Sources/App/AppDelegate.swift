@@ -26,6 +26,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// once the window is up.
     private var pendingURLs: [URL] = []
 
+    /// Finder actions that arrived before the window existed.
+    ///
+    /// Clicking "Compress with ArcSeven" on a file when the app is NOT running launches
+    /// it, and the `arcseven://` URL is delivered before `applicationDidFinishLaunching`
+    /// has built the window. Dropping it there means the app opens and visibly does
+    /// nothing — which is exactly what happened. The request has already been consumed
+    /// from the shared container by then, so it cannot simply be re-read later; it is
+    /// held here and replayed once there is a window to act on.
+    private var pendingActions: [(action: FinderRequestAction, urls: [URL])] = []
+
     /// Serves the right-click ▸ Services entries declared in Info.plist.
     ///
     /// Held for the process lifetime: AppKit keeps only an unowned reference through
@@ -59,9 +69,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         // Replay anything Finder handed us before the window existed.
-        let queued = pendingURLs
+        let queuedURLs = pendingURLs
         pendingURLs.removeAll()
-        for url in queued { controller.openDocument(at: url) }
+        for url in queuedURLs { controller.openDocument(at: url) }
+
+        let queuedActions = pendingActions
+        pendingActions.removeAll()
+        for queued in queuedActions { perform(queued.action, on: queued.urls) }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
@@ -110,7 +124,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Route a Finder or Services action into the window controller.
     private func perform(_ action: FinderRequestAction, on urls: [URL]) {
-        guard let controller = windowController, let first = urls.first else { return }
+        guard let first = urls.first else { return }
+        guard let controller = windowController else {
+            // Cold launch: no window yet. Queue rather than drop — the request has
+            // already been removed from the shared container and is not recoverable.
+            pendingActions.append((action, urls))
+            return
+        }
         NSApp.activate(ignoringOtherApps: true)
         switch action {
         case .open:

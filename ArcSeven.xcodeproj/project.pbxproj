@@ -121,10 +121,15 @@
 		3CDED68EF65F528FBB671662 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Helpers;
-			dstSubfolderSpec = 1;
+			dstPath = Legal;
+			dstSubfolderSpec = 7;
 			files = (
-				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
+				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
+				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
+				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
+				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
+				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
+				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -144,15 +149,10 @@
 		DAD6661C6AD7DA74B203F630 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Legal;
-			dstSubfolderSpec = 7;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
 			files = (
-				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
-				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
-				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
-				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
-				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
-				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
+				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
