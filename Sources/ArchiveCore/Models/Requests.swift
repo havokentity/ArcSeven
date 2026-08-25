@@ -185,11 +185,12 @@ public struct ExtractRequest: Sendable, Hashable {
     /// Members to extract, as archive-relative paths. `nil` or empty means
     /// everything.
     ///
-    /// - Important: Currently passed as argv, NOT through an `@listfile`. `ARG_MAX` on
-    ///   macOS is roughly 1 MiB, so a selection of many thousands of long paths can blow
-    ///   through it and surface as an opaque `E2BIG` spawn failure. An earlier version of
-    ///   this comment claimed the listfile was already in use; it never was. Switching to
-    ///   `-i@list` with `-scsUTF-8` is tracked for 0.1.2.
+    /// Small selections go on argv. Past `SelectionListFile.threshold` they are written to
+    /// a temporary list file and passed as `-i@file`, because `ARG_MAX` on macOS is roughly
+    /// 1 MiB and a few thousand long paths otherwise fail with an opaque `E2BIG`.
+    ///
+    /// Until 0.1.2 this comment claimed the list file was already in use. It was not — the
+    /// note describing the hazard sat directly above the code walking into it.
     public var selectedEntries: [String]?
 
     /// Force a handler instead of content sniffing.

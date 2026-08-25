@@ -145,6 +145,85 @@ struct LiveEngineTests {
         }
     }
 
+    @Test("An encrypted multi-volume archive verifies against its first volume")
+    func encryptedMultiVolume() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("big.bin")
+            try Data(repeating: 0x5A, count: 300_000).write(to: source)
+            let archive = dir.appendingPathComponent("split.7z")
+
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.encryption = CompressRequest.EncryptionOptions(password: "correct horse")
+            request.volumeSizes = [100_000]
+
+            // The bug: verification listed `split.7z`, which -v never creates. 7zz exited 2
+            // with errno=2, so this call threw and the user was told an archive that had
+            // been written correctly, and encrypted correctly, had failed.
+            _ = try await drain(engine.compress(request))
+
+            let first = dir.appendingPathComponent("split.7z.001")
+            #expect(FileManager.default.fileExists(atPath: first.path))
+            #expect(!FileManager.default.fileExists(atPath: archive.path),
+                    "-v writes numbered volumes and no base archive")
+
+            let listing = try await engine.list(
+                ListRequest(archiveURL: first, password: "correct horse")
+            )
+            #expect(listing.isEncrypted)
+        }
+    }
+
+    /// Exercises the list-file path against the real binary. The unit tests prove the file
+    /// is written correctly; only 7zz can prove it is READ correctly — that `-i@file` is
+    /// honoured, that `-scsUTF-8` makes it UTF-8, and that a selection which would have
+    /// died with E2BIG on argv now extracts exactly the members asked for.
+    ///
+    /// The selection is taken from a real listing rather than assumed, because how members
+    /// are named depends on the compress request that produced them.
+    @Test("A selection too large for argv extracts through a list file")
+    func largeSelectionExtracts() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("src", isDirectory: true)
+            try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+
+            let count = 3000
+            for index in 0..<count {
+                let name = "a-fairly-long-member-name-to-eat-argument-space-\(index).txt"
+                try "\(index)".write(to: source.appendingPathComponent(name),
+                                     atomically: true, encoding: .utf8)
+            }
+            // A non-ASCII member: proves the list file round-trips as UTF-8 rather than
+            // being read in some OEM code page, where it would silently fail to match.
+            let unicode = "café-ünïcode-🗜.txt"
+            try "u".write(to: source.appendingPathComponent(unicode),
+                          atomically: true, encoding: .utf8)
+
+            let archive = dir.appendingPathComponent("many.7z")
+            var compress = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            compress.baseDirectory = dir
+            _ = try await drain(engine.compress(compress))
+
+            let listing = try await engine.list(ListRequest(archiveURL: archive))
+            let members = listing.entries.filter { !$0.isDirectory }.map(\.path)
+            #expect(members.count == count + 1, "archive should hold every file written")
+
+            let budget = members.reduce(0) { $0 + $1.utf8.count + 1 }
+            #expect(budget > SelectionListFile.threshold, "selection must exercise the list file")
+
+            let destination = dir.appendingPathComponent("out", isDirectory: true)
+            var request = ExtractRequest(archiveURL: archive, destinationURL: destination)
+            request.selectedEntries = members
+            request.overwriteMode = .overwrite
+            _ = try await drain(engine.extract(request))
+
+            let extractedRoot = destination.appendingPathComponent("src")
+            let extracted = try FileManager.default.contentsOfDirectory(atPath: extractedRoot.path)
+            #expect(extracted.count == members.count,
+                    "expected \(members.count) members, got \(extracted.count)")
+            #expect(extracted.contains(unicode), "the non-ASCII member must survive the list file")
+        }
+    }
+
     @Test("A wrong password is reported as a password problem")
     func wrongPassword() async throws {
         try await withTemporaryDirectory { dir in

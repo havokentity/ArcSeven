@@ -152,15 +152,26 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
         if request.pathMode == .absolutePaths { arguments.append("-spf2") }
         if request.keepBrokenFiles { arguments.append("-tzip:kb") }
+        // A large selection cannot go on argv: ARG_MAX is 1 MiB and posix_spawn fails
+        // with an opaque E2BIG well before the user thinks they have selected "a lot".
+        // The list-file switch has to precede `--`, hence the ordering here.
+        let selection: SelectionListFile.Prepared
+        do {
+            selection = try SelectionListFile.prepare(request.selectedEntries)
+        } catch {
+            return Self.failedStream(.extract, error)
+        }
+        arguments.append(contentsOf: selection.switches)
         arguments.append("--")
         arguments.append(request.archiveURL.path)
-        if let selected = request.selectedEntries { arguments.append(contentsOf: selected) }
+        arguments.append(contentsOf: selection.arguments)
 
         return runStreaming(
             operation: .extract,
             arguments: arguments,
             delivery: delivery,
-            path: request.archiveURL.path
+            path: request.archiveURL.path,
+            temporaryFiles: selection.temporaryFiles
         )
     }
 
@@ -169,15 +180,26 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         var arguments = ["t"]
         arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
+        // A large selection cannot go on argv: ARG_MAX is 1 MiB and posix_spawn fails
+        // with an opaque E2BIG well before the user thinks they have selected "a lot".
+        // The list-file switch has to precede `--`, hence the ordering here.
+        let selection: SelectionListFile.Prepared
+        do {
+            selection = try SelectionListFile.prepare(request.selectedEntries)
+        } catch {
+            return Self.failedStream(.test, error)
+        }
+        arguments.append(contentsOf: selection.switches)
         arguments.append("--")
         arguments.append(request.archiveURL.path)
-        if let selected = request.selectedEntries { arguments.append(contentsOf: selected) }
+        arguments.append(contentsOf: selection.arguments)
 
         return runStreaming(
             operation: .test,
             arguments: arguments,
             delivery: delivery,
-            path: request.archiveURL.path
+            path: request.archiveURL.path,
+            temporaryFiles: selection.temporaryFiles
         )
     }
 
@@ -218,7 +240,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         arguments.append(contentsOf: Self.inputArguments(for: request))
 
         let wantsEncryption = !(request.encryption?.password ?? "").isEmpty
-        let archiveURL = request.archiveURL
+        let archiveURL = Self.verificationTarget(for: request)
         let encryptionPassword = request.encryption?.password
         let engine = self
 
@@ -471,6 +493,7 @@ extension SevenZipCLIEngine {
         delivery: PasswordDelivery,
         path: String?,
         currentDirectory: URL? = nil,
+        temporaryFiles: [URL] = [],
         afterSuccess: (@Sendable () async throws -> Void)? = nil
     ) -> ArchiveOperationStream {
         let executable = executableURL
@@ -515,7 +538,10 @@ extension SevenZipCLIEngine {
                     continuation.finish(throwing: error)
                 }
             }
-            continuation.onTermination = { _ in task.cancel() }
+            continuation.onTermination = { _ in
+                task.cancel()
+                for url in temporaryFiles { try? FileManager.default.removeItem(at: url) }
+            }
         }
     }
 
@@ -642,7 +668,32 @@ extension SevenZipCLIEngine {
         }
     }
 
+    /// A stream that fails immediately, for errors raised before the child is spawned.
+    static func failedStream(
+        _ operation: ArchiveOperation, _ error: any Error
+    ) -> ArchiveOperationStream {
+        AsyncThrowingStream { continuation in
+            continuation.yield(.started(operation))
+            continuation.finish(throwing: error)
+        }
+    }
+
     // MARK: Encryption verification
+
+    /// The path to re-list when checking that encryption took.
+    ///
+    /// With `-v`, 7zz writes `archive.7z.001`, `archive.7z.002`, ... and never creates
+    /// `archive.7z` itself. Listing the base name then exits 2 with
+    /// `errno=2 : No such file or directory`, so verification threw and every encrypted
+    /// multi-volume compression was reported to the user as a failure — despite having
+    /// succeeded, and despite the volumes being correctly encrypted.
+    ///
+    /// The first volume is always `.001`: 7-Zip pads to three digits and only widens past
+    /// 999, so the first piece keeps that name for any split count.
+    static func verificationTarget(for request: CompressRequest) -> URL {
+        guard !request.volumeSizes.isEmpty else { return request.archiveURL }
+        return URL(fileURLWithPath: request.archiveURL.path + ".001")
+    }
 
     /// Re-list a freshly created archive and confirm it really is encrypted.
     ///
