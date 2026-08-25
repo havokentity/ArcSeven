@@ -122,10 +122,15 @@
 		3CDED68EF65F528FBB671662 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Helpers;
-			dstSubfolderSpec = 1;
+			dstPath = Legal;
+			dstSubfolderSpec = 7;
 			files = (
-				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
+				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
+				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
+				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
+				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
+				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
+				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -145,15 +150,10 @@
 		DAD6661C6AD7DA74B203F630 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Legal;
-			dstSubfolderSpec = 7;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
 			files = (
-				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
-				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
-				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
-				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
-				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
-				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
+				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -184,6 +184,7 @@
 		2C0BCDA5314932F42663BFA6 /* bootstrap.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = bootstrap.sh; sourceTree = "<group>"; };
 		2CCBCB270A7E9B4968483E07 /* notarize.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = notarize.sh; sourceTree = "<group>"; };
 		333B236A6A675D150AD0B1AB /* CompressArgumentBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressArgumentBuilder.swift; sourceTree = "<group>"; };
+		33A82A6A1ECA72D2D36624D6 /* preflight.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = preflight.sh; sourceTree = "<group>"; };
 		39EC82CB3AABAD194D9AC580 /* make-dmg.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "make-dmg.sh"; sourceTree = "<group>"; };
 		3F641477C3B2696804FE611C /* ArchiveDirectoryReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveDirectoryReader.swift; sourceTree = "<group>"; };
 		3F9F2B17AFDE370ABA6ABCD4 /* MainWindowController+Operations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MainWindowController+Operations.swift"; sourceTree = "<group>"; };
@@ -218,6 +219,7 @@
 		84EBAC7B1995F88FBD0485BD /* SettingsPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsPane.swift; sourceTree = "<group>"; };
 		862E54B251C2C8D5A3B3D027 /* ZIPDirectoryLocator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZIPDirectoryLocator.swift; sourceTree = "<group>"; };
 		8A30246BF36A1716D2834577 /* ExitCodeMapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExitCodeMapper.swift; sourceTree = "<group>"; };
+		8A6A6D0A16F0E8EAE1927BFD /* install-git-hooks.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "install-git-hooks.sh"; sourceTree = "<group>"; };
 		8BB88AC24598BD198B423700 /* ZIPCentralDirectoryRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZIPCentralDirectoryRecord.swift; sourceTree = "<group>"; };
 		8E70D2F48517A639307DCE44 /* CompressDialogModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompressDialogModel.swift; sourceTree = "<group>"; };
 		8FBBCD2D0D590D05D61737DA /* ArchiveListingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveListingView.swift; sourceTree = "<group>"; };
@@ -549,10 +551,12 @@
 				7087C9153BDE295183846C02 /* icon */,
 				39153B252C2B91B7127190F6 /* tools */,
 				2C0BCDA5314932F42663BFA6 /* bootstrap.sh */,
+				8A6A6D0A16F0E8EAE1927BFD /* install-git-hooks.sh */,
 				A10F9485B31405A0AA3EA3D0 /* install-local.sh */,
 				39EC82CB3AABAD194D9AC580 /* make-dmg.sh */,
 				FDCA18C2CFAEE964B84C363D /* make-icon.sh */,
 				2CCBCB270A7E9B4968483E07 /* notarize.sh */,
+				33A82A6A1ECA72D2D36624D6 /* preflight.sh */,
 				4583501B1049B50851F414CE /* refresh-third-party-licenses.sh */,
 				7D61041C6BAFE5BA53AD8EE3 /* sign.sh */,
 				E00406B6F1C299540C19A07C /* verify-release.sh */,

@@ -154,6 +154,9 @@ final class FinderSyncExtension: FIFinderSync {
         return claimed
     }
 
+    /// Tokens for the mount/unmount observers, so `deinit` can actually remove them.
+    private var volumeObservers: [any NSObjectProtocol] = []
+
     // MARK: Lifecycle
 
     override init() {
@@ -164,13 +167,16 @@ final class FinderSyncExtension: FIFinderSync {
         // silently loses the menu until the extension is restarted.
         let notifications = NSWorkspace.shared.notificationCenter
         for name in [NSWorkspace.didMountNotification, NSWorkspace.didUnmountNotification] {
-            notifications.addObserver(
-                forName: name,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                self?.refreshClaimedDirectories()
-            }
+            // Keep the token. `addObserver(forName:object:queue:using:)` returns an opaque
+            // observer that is NOT `self`, and `removeObserver(self)` therefore does not
+            // remove it — the block outlives this object and fires on a deallocated
+            // instance. Storing the tokens and removing them individually is the only
+            // thing that actually unregisters a block-based observer.
+            volumeObservers.append(
+                notifications.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    self?.refreshClaimedDirectories()
+                }
+            )
         }
 
         Self.log.debug(
@@ -179,7 +185,8 @@ final class FinderSyncExtension: FIFinderSync {
     }
 
     deinit {
-        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        let notifications = NSWorkspace.shared.notificationCenter
+        for observer in volumeObservers { notifications.removeObserver(observer) }
     }
 
     /// Recompute and apply the claim set.
