@@ -28,6 +28,12 @@ public protocol PanelViewControllerDelegate: AnyObject {
     func panelDidChangeLocation(_ panel: PanelViewController)
     func panelDidChangeSelection(_ panel: PanelViewController)
     func panel(_ panel: PanelViewController, didFailWith error: any Error)
+
+    /// Files were dropped onto the panel. `target` is the directory row they landed
+    /// on; `nil` means they were dropped into the level being shown. What the drop
+    /// MEANS — a disk copy, or compressing into an archive — is the delegate's call,
+    /// because the panel deliberately does not know what its provider is.
+    func panel(_ panel: PanelViewController, didReceiveDroppedFiles urls: [URL], onto target: FolderItem?)
 }
 
 @MainActor
@@ -181,6 +187,11 @@ public final class PanelViewController: NSViewController {
         // must not delete it.
         tableView.setDraggingSourceOperationMask(.copy, forLocal: false)
         tableView.setDraggingSourceOperationMask(.copy, forLocal: true)
+
+        // Dropping IN. Only `.fileURL`: files from Finder or from the other panel.
+        // Promise-only drags (a member dragged out of another archive) carry no file
+        // URL and are refused — the bytes do not exist on disk to insert.
+        tableView.registerForDraggedTypes([.fileURL])
         tableView.headerView = NSTableHeaderView()
 
         scrollView.documentView = tableView
@@ -505,6 +516,56 @@ extension PanelViewController: NSTableViewDataSource {
         operation: NSDragOperation
     ) {
         dragController.dragSessionEnded()
+    }
+
+    // MARK: Dropping in
+
+    /// Decide whether a drag may land here, and where it would land.
+    ///
+    /// A drop ON a directory row means "into that folder". Everything else — a file
+    /// row, the ".." row, a between-rows gap, the space below the last row — is
+    /// retargeted to the whole table (`row: -1`), which highlights the panel and
+    /// means "into the level being shown".
+    public func tableView(
+        _ tableView: NSTableView,
+        validateDrop info: any NSDraggingInfo,
+        proposedRow row: Int,
+        proposedDropOperation dropOperation: NSTableView.DropOperation
+    ) -> NSDragOperation {
+        guard info.draggingPasteboard.canReadObject(
+            forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]
+        ) else { return [] }
+
+        if dropOperation == .on, rows.indices.contains(row),
+           rows[row].isDirectory, !rows[row].isParentRow {
+            tableView.setDropRow(row, dropOperation: .on)
+        } else {
+            tableView.setDropRow(-1, dropOperation: .on)
+        }
+        // Always a copy from the user's side: dropping into an archive compresses a
+        // copy of the source, and must never consume the original.
+        return .copy
+    }
+
+    public func tableView(
+        _ tableView: NSTableView,
+        acceptDrop info: any NSDraggingInfo,
+        row: Int,
+        dropOperation: NSTableView.DropOperation
+    ) -> Bool {
+        let urls = info.draggingPasteboard.readObjects(
+            forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]
+        ) as? [URL] ?? []
+        guard !urls.isEmpty else { return false }
+
+        // Row → target folder. Anything that is not a real directory row — including
+        // the whole-table -1 that validateDrop set — means the level being shown.
+        var target: FolderItem?
+        if rows.indices.contains(row), rows[row].isDirectory, !rows[row].isParentRow {
+            target = rows[row]
+        }
+        delegate?.panel(self, didReceiveDroppedFiles: urls, onto: target)
+        return true
     }
 
     public func tableView(_ tableView: NSTableView, didClick tableColumn: NSTableColumn) {

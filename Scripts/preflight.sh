@@ -34,13 +34,26 @@ BUILD_OUT="$(swift build 2>&1 || true)"
 case "$BUILD_OUT" in (*"Build complete"*) ok "builds" ;; (*) bad "swift build" ;; esac
 
 step "swift test"
+# Match the FINAL run summary, not "passed after".
+#
+# "passed after" appears on every individual SUITE line — including the suites that
+# passed inside a run that FAILED. Matching it reported swift test as ok while five
+# tests were failing, which is the worst possible bug in a pre-push gate: it does not
+# fail loudly, it waves broken code through. The only line that speaks for the whole run
+# is "Test run with N tests in M suites passed".
 TEST_OUT="$(swift test 2>&1 || true)"
-case "$TEST_OUT" in
-  (*"passed after"*)
-    ok "$(printf '%s\n' "$TEST_OUT" | grep -oE 'Test run with [0-9]+ tests in [0-9]+ suites passed' | head -1)" ;;
+TEST_SUMMARY="$(printf '%s\n' "$TEST_OUT" | grep -oE 'Test run with [0-9]+ tests in [0-9]+ suites (passed|failed)' | tail -1)"
+case "$TEST_SUMMARY" in
+  (*" passed")
+    ok "$TEST_SUMMARY" ;;
+  (*" failed")
+    bad "$TEST_SUMMARY"
+    printf '%s\n' "$TEST_OUT" | grep -E "✘" | head -12 ;;
   (*)
-    bad "swift test"
-    printf '%s\n' "$TEST_OUT" | grep -E "✘|error:" | head -10 ;;
+    # No summary at all means the run did not complete — a crash, a hang that was
+    # killed, or a compile failure. Never treat an absent summary as success.
+    bad "swift test produced no run summary (did it build?)"
+    printf '%s\n' "$TEST_OUT" | grep -E "error:|✘" | head -12 ;;
 esac
 
 step "swiftlint --strict"
@@ -67,6 +80,25 @@ for config in Debug Release; do
     grep -E "error:" ".build/preflight-$config.log" | sort -u | head -10
   fi
 done
+
+# Unregister the throwaway app bundles this script just built.
+#
+# macOS registers any .app it notices, and each one becomes its own row in
+# System Settings > Login Items & Extensions offering ITS copy of the Finder and Quick
+# Look extensions. Building two configurations on every push therefore accumulates
+# duplicate rows pointing at directories that will be deleted — and the user is invited
+# to enable an extension living inside a build folder. Deleting the directory does not
+# help: Launch Services keeps the record until the path is explicitly unregistered.
+LSREG="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [ -x "$LSREG" ]; then
+  for config in Debug Release; do
+    built="$ROOT/.build/preflight-$config/Build/Products/$config/ArcSeven.app"
+    # Both spellings: /tmp is a symlink to /private/tmp and LS records whichever it saw.
+    "$LSREG" -u "$built" >/dev/null 2>&1 || true
+    "$LSREG" -u "/private${built#/private}" >/dev/null 2>&1 || true
+  done
+fi
+rm -rf "$ROOT/.build/preflight-Debug" "$ROOT/.build/preflight-Release"
 
 echo
 if [ "$FAILED" -eq 0 ]; then

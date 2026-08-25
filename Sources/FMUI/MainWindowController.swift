@@ -107,16 +107,26 @@ public final class MainWindowController: NSWindowController {
     /// One place for the pattern so every action gets cancellation, warning reporting
     /// and error handling identically. Cancelling the task tears down the child
     /// process group; `7zz` unwinds and removes a partial archive.
+    ///
+    /// `onSettled` fires exactly once on EVERY exit — finished, thrown, cancelled,
+    /// even no-window — so a caller can release resources the operation was reading.
+    /// It is declared after `completion` so existing trailing-closure call sites
+    /// still bind their closure to `completion`.
     func run(
         operation: ArchiveOperationStream,
         title: String,
-        completion: @escaping @MainActor (ArchiveOperationResult) -> Void
+        completion: @escaping @MainActor (ArchiveOperationResult) -> Void,
+        onSettled: (@MainActor () -> Void)? = nil
     ) {
-        guard let window else { return }
+        guard let window else {
+            onSettled?()
+            return
+        }
         let progress = ProgressSheetController(title: title)
         progress.present(in: window)
 
         let task = Task { @MainActor in
+            defer { onSettled?() }
             do {
                 for try await event in operation {
                     switch event {
@@ -418,6 +428,130 @@ extension MainWindowController: PanelViewControllerDelegate {
         // password" rather than dumping a raw engine message.
         reportFailure(error)
     }
+
+    /// Files dropped onto a panel: a copy on disk, an insertion inside an archive.
+    public func panel(_ panel: PanelViewController, didReceiveDroppedFiles urls: [URL], onto target: FolderItem?) {
+        if let archive = panel.provider as? ArchiveFolderProvider {
+            // Into the folder row the drop landed on, else the level being shown.
+            let subPath = if let target, target.isDirectory { target.path } else { archive.subPath }
+            insertIntoArchive(urls, into: archive, at: subPath, shownIn: panel)
+        } else {
+            copyDroppedFiles(urls, onto: target, in: panel)
+        }
+    }
+}
+
+// MARK: - Files coming in
+
+/// The reverse of `DragController`: files arriving IN a panel, by drop or by the Add
+/// button while an archive is open. In an extension so the controller body stays
+/// inside its size budget.
+extension MainWindowController {
+    /// A drop onto a disk level: a Finder-style copy into the shown directory, or
+    /// into the folder row the drop landed on.
+    private func copyDroppedFiles(_ urls: [URL], onto target: FolderItem?, in panel: PanelViewController) {
+        let destination: URL
+        if let target, target.isDirectory, let url = target.url {
+            destination = url
+        } else if let shown = (panel.provider as? FileSystemFolderProvider)?.directoryURL {
+            destination = shown
+        } else {
+            return    // the volumes / root levels are not writable drop targets
+        }
+
+        let manager = FileManager.default
+        var failures: [String] = []
+        for url in urls {
+            let landing = destination.appendingPathComponent(url.lastPathComponent)
+            // A file dropped back onto its own folder is a no-op, not an error.
+            guard landing.standardizedFileURL != url.standardizedFileURL else { continue }
+            do { try manager.copyItem(at: url, to: landing) } catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+        }
+        for other in panels { other.reload() }
+        if !failures.isEmpty {
+            presentMessage("Some items could not be copied",
+                           failures.prefix(5).joined(separator: "\n"))
+        }
+    }
+
+    /// Insert files into an archive open in a panel, landing under `destinationSubPath`.
+    ///
+    /// The shared tail of both routes in: a drop onto the panel, and Add while a level
+    /// of the archive is showing. An encrypted archive prompts for the password FIRST:
+    /// `7zz` rewrites the whole archive on update, so it must be able to read the
+    /// existing members, not merely encrypt the new ones.
+    private func insertIntoArchive(
+        _ files: [URL],
+        into archive: ArchiveFolderProvider,
+        at destinationSubPath: String,
+        shownIn panel: PanelViewController
+    ) {
+        guard !files.isEmpty else { return }
+        guard archive.listing.isEncrypted else {
+            runInsertion(files, into: archive, at: destinationSubPath, password: nil, shownIn: panel)
+            return
+        }
+        promptForPassword(archiveName: archive.archiveURL.lastPathComponent) { [weak self] result in
+            guard let self, let result else { return }
+            runInsertion(files, into: archive, at: destinationSubPath, password: result.password, shownIn: panel)
+        }
+    }
+
+    /// Plan, compress, clean up, reopen — the insertion itself.
+    ///
+    /// The planner stages a symlink tree when the destination is below the archive
+    /// root, because `7zz a` stores every input under the path it was given; the
+    /// staged tree is what makes `docs/img/logo.png` land at `docs/img/logo.png`.
+    private func runInsertion(
+        _ files: [URL],
+        into archive: ArchiveFolderProvider,
+        at destinationSubPath: String,
+        password: String?,
+        shownIn panel: PanelViewController
+    ) {
+        let plan: ArchiveInsertionPlan
+        do {
+            plan = try ArchiveInsertionPlanner.plan(
+                adding: files, to: archive.archiveURL, at: destinationSubPath,
+                format: archive.listing.format, password: password
+            )
+        } catch {
+            // Covers `.archiveInsideItself` — the archive dropped into itself — whose
+            // message names the problem; nothing was staged that needs undoing.
+            presentMessage("Cannot add to \(archive.archiveURL.lastPathComponent)",
+                           error.localizedDescription)
+            return
+        }
+
+        run(
+            operation: engine.compress(plan.request),
+            title: "Updating \(archive.archiveURL.lastPathComponent)",
+            completion: { [weak self] _ in
+                // The listing is now stale; reopen so the new members appear.
+                self?.reopenArchive(archive, in: panel)
+            },
+            // On EVERY exit, success or not: the staging directory must outlive the
+            // run — `7zz` reads the inputs through its symlinks — and no longer.
+            onSettled: { plan.cleanUp() }
+        )
+    }
+
+    /// Add while a level of an archive is showing: choose items, insert them at this
+    /// level. (On disk, Add keeps its create-an-archive dialog — see `addToArchive`.)
+    private func addIntoOpenArchive(_ archive: ArchiveFolderProvider, shownIn panel: PanelViewController) {
+        guard let window else { return }
+        let openPanel = NSOpenPanel()
+        openPanel.canChooseFiles = true
+        openPanel.canChooseDirectories = true
+        openPanel.allowsMultipleSelection = true
+        openPanel.prompt = "Add"
+        let inside = archive.subPath.isEmpty ? "" : "/" + archive.subPath
+        openPanel.message = "Add to \(archive.archiveURL.lastPathComponent)\(inside)"
+        openPanel.beginSheetModal(for: window) { [weak self] response in
+            guard let self, response == .OK else { return }
+            insertIntoArchive(openPanel.urls, into: archive, at: archive.subPath, shownIn: panel)
+        }
+    }
 }
 
 // MARK: - Window delegate
@@ -482,7 +616,14 @@ extension MainWindowController {
     private func perform(_ action: ToolbarAction) {
         guard let panel = activePanel else { return }
         switch action {
-        case .add:     addToArchive(from: panel)
+        case .add:
+            // Viewing an archive, Add means "insert into THIS archive at THIS
+            // level"; on disk it keeps addToArchive's create-an-archive dialog.
+            if let archive = panel.provider as? ArchiveFolderProvider {
+                addIntoOpenArchive(archive, shownIn: panel)
+            } else {
+                addToArchive(from: panel)
+            }
         case .extract: extractSelection(from: panel)
         case .test:    testArchive(from: panel)
         case .delete:  deleteSelection(from: panel)

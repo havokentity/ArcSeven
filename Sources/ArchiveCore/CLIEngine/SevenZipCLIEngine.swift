@@ -234,6 +234,12 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             arguments: arguments,
             delivery: .absent,
             path: request.archiveURL.path,
+            // Run from baseDirectory when the caller set one. `inputArguments(for:)`
+            // hands 7zz paths RELATIVE to it, so without this the child resolves them
+            // against OUR working directory and reports
+            // "docs/img : errno=2 : No such file or directory" — a scan warning, not an
+            // error, so the operation "succeeds" having added nothing at all.
+            currentDirectory: request.baseDirectory,
             afterSuccess: verify
         )
     }
