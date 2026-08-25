@@ -81,6 +81,42 @@ for config in Debug Release; do
   fi
 done
 
+step "Sparkle configuration lands in the app bundle"
+# Sparkle reads its settings from the HOST APP's Info.plist. Through 0.1.1 this whole
+# block sat in QuickLookPreview's plist instead, where nothing ever read it: the shipped
+# app had no feed URL and could not check for an update even once. Reading project.yml
+# would not have caught it - the keys were present and correctly spelled, just attached
+# to the wrong target - so this asserts against the BUILT bundle.
+SPARKLE_APP=".build/preflight-Release/Build/Products/Release/ArcSeven.app"
+if [ -d "$SPARKLE_APP" ]; then
+  sparkle_missing=""
+  for key in SUPublicEDKey SUFeedURL; do
+    if ! /usr/bin/plutil -extract "$key" raw "$SPARKLE_APP/Contents/Info.plist" >/dev/null 2>&1; then
+      sparkle_missing="$sparkle_missing $key"
+    fi
+  done
+  # An extension carrying these keys is the symptom of the original bug: they were moved,
+  # not copied, so a reappearance means someone put them back on the wrong target.
+  sparkle_strays=0
+  while IFS= read -r plist; do
+    for key in SUPublicEDKey SUFeedURL; do
+      if /usr/bin/plutil -extract "$key" raw "$plist" >/dev/null 2>&1; then
+        sparkle_strays=$((sparkle_strays + 1))
+      fi
+    done
+  done < <(/usr/bin/find "$SPARKLE_APP/Contents/PlugIns" -name Info.plist 2>/dev/null)
+
+  if [ -n "$sparkle_missing" ]; then
+    bad "app bundle is missing:$sparkle_missing (auto-update is dead without these)"
+  elif [ "$sparkle_strays" -ne 0 ]; then
+    bad "$sparkle_strays Sparkle key(s) on an app extension - they belong on the app"
+  else
+    ok "SUPublicEDKey and SUFeedURL present on the app, absent from extensions"
+  fi
+else
+  bad "no Release bundle to check for Sparkle keys"
+fi
+
 # Unregister the throwaway app bundles this script just built.
 #
 # macOS registers any .app it notices, and each one becomes its own row in
