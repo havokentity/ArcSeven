@@ -21,6 +21,11 @@ import Dialogs
 #if canImport(Support)   // module-guard
 import Support
 #endif
+import os
+
+private let quarantineLog = Logger(
+    subsystem: "com.havokentity.ArcSeven", category: "quarantine"
+)
 
 extension MainWindowController {
     // MARK: Operations
@@ -141,6 +146,7 @@ extension MainWindowController {
             operation: engine.extract(request),
             title: "Extracting \(request.archiveURL.lastPathComponent)"
         ) { [weak self] result in
+            Self.propagateQuarantine(from: request)
             self?.reportSuccess(
                 result,
                 title: "Extraction complete",
@@ -148,6 +154,87 @@ extension MainWindowController {
                 reveal: request.destinationURL
             )
         }
+    }
+
+    /// Carry `com.apple.quarantine` from the archive onto everything unpacked from it.
+    ///
+    /// An archive downloaded from the internet is quarantined; the files inside it are
+    /// not, because the kernel never saw them arrive. Extracting without re-marking them
+    /// hands the user a Gatekeeper bypass: a `.app` inside a downloaded `.zip` would
+    /// launch with no prompt at all. `docs/SECURITY.md` §6 promises this behaviour, and
+    /// until 0.1.1 the promise was false - `Quarantine.propagate` existed, was correct,
+    /// and was never called from anywhere.
+    ///
+    /// Best-effort by design. A failure here must not turn a successful extraction into a
+    /// user-visible error, but it is worth a log line, because the silent version of this
+    /// is exactly the bug being fixed.
+    private static func propagateQuarantine(from request: ExtractRequest) {
+        do {
+            let marked = try Quarantine.propagate(
+                from: request.archiveURL, toTreeAt: request.destinationURL
+            )
+            if marked > 0 {
+                quarantineLog.debug("propagated to \(marked, privacy: .public) item(s)")
+            }
+        } catch {
+            quarantineLog.error("propagation failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    // MARK: Conflict pre-scan
+
+    /// Every FILE the request will actually write.
+    ///
+    /// Two things this has to get right, both of which it previously got wrong and both
+    /// of which cost users their data in 0.1.0:
+    ///
+    /// * A selected row can be a DIRECTORY. Skipping directory entries meant selecting a
+    ///   folder and extracting it checked nothing at all — the members inside it were
+    ///   never considered, so a full folder of existing files was overwritten in silence.
+    ///   A selected directory now expands to every member beneath it.
+    /// * An empty selection means "everything", which is already handled by falling back
+    ///   to the whole listing.
+    static func filesAffected(
+        by request: ExtractRequest,
+        in listing: ArchiveListing
+    ) -> [ArchiveEntry] {
+        guard let selected = request.selectedEntries, !selected.isEmpty else {
+            return listing.entries.filter { !$0.isDirectory }
+        }
+        let selectedSet = Set(selected)
+        // A member is affected when it IS a selected path, or lives under a selected
+        // directory. Compared with a trailing separator so that selecting "doc" does not
+        // sweep in "docs/..." — a prefix test without it silently over-selects.
+        let directoryPrefixes = selected.map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        return listing.entries.filter { entry in
+            guard !entry.isDirectory else { return false }
+            if selectedSet.contains(entry.path) { return true }
+            return directoryPrefixes.contains { entry.path.hasPrefix($0) }
+        }
+    }
+
+    /// Where `entry` will land on disk, under this request's PATH MODE.
+    ///
+    /// The mode is the whole point. `.noPaths` runs `7zz e`, which FLATTENS every member
+    /// to its basename — so probing the full stored path looks for a file that cannot
+    /// exist, finds no conflict, and lets the extraction proceed over the top of the
+    /// user's data. Resolution still goes through the zip-slip guard rather than joining
+    /// paths by hand.
+    static func extractionDestination(
+        of entry: ArchiveEntry,
+        under request: ExtractRequest
+    ) -> URL? {
+        let relative: String
+        switch request.pathMode {
+        case .noPaths:
+            relative = (entry.path as NSString).lastPathComponent
+        case .fullPaths, .currentPaths, .absolutePaths:
+            relative = entry.path
+        }
+        guard !relative.isEmpty else { return nil }
+        return try? PathSafety.resolvedDestination(
+            root: request.destinationURL, entryPath: relative
+        )
     }
 
     /// Ask about the first conflicting file, then apply the answer to the whole run.
@@ -160,15 +247,11 @@ extension MainWindowController {
         in listing: ArchiveListing,
         completion: @escaping @MainActor (ExtractRequest?) -> Void
     ) {
-        let candidates = request.selectedEntries ?? listing.entries.map(\.path)
         let manager = FileManager.default
-
         var conflict: (existing: URL, entry: ArchiveEntry)?
-        for path in candidates {
-            guard let entry = listing.entry(atPath: path), !entry.isDirectory else { continue }
-            // Resolve through the zip-slip guard rather than joining paths naively.
-            guard let destination = try? PathSafety.resolvedDestination(
-                root: request.destinationURL, entryPath: path
+        for entry in Self.filesAffected(by: request, in: listing) {
+            guard let destination = Self.extractionDestination(
+                of: entry, under: request
             ) else { continue }
             if manager.fileExists(atPath: destination.path) {
                 conflict = (destination, entry)

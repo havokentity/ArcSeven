@@ -20,6 +20,34 @@ calls M1.
 
 Nothing yet.
 
+## [0.1.1] - 2026-08-25
+
+**Security and data-loss fixes. 0.1.0 has been withdrawn — do not use it.**
+
+### Fixed
+
+- **Extraction destroyed existing files without asking.** "Ask before overwrite" — the
+  default — silently overwrote. `-y` is required to keep the child process from blocking
+  on a prompt it has no terminal for, but `-y` answers *yes* to overwrite questions, and
+  the `.ask` case emitted no `-ao*` switch to override it. It now maps to `-aos` (skip),
+  so the engine fails safe even if the UI's pre-scan misses a conflict.
+- **The overwrite pre-scan missed most conflicts.** It ignored selected *directories*
+  entirely, so extracting a selected folder never prompted; and it always probed the
+  member's full path, so "no pathnames" extraction — which flattens everything onto the
+  destination root — checked addresses the files would never be written to. Both are
+  fixed, and directory selections now expand to their member files.
+- **Quarantine was never propagated.** `docs/SECURITY.md` §6 stated that
+  `com.apple.quarantine` is carried from the archive onto every extracted file. The code
+  to do it existed and was correct, but nothing ever called it, so extracting a
+  downloaded archive produced unquarantined files — a Gatekeeper bypass for anything
+  shipped inside an archive. It is now wired into extraction and covered by tests.
+
+### Changed
+
+- `ExtractRequest.selectedEntries` documented itself as being passed through an
+  `@listfile`. It is passed as argv. The comment now says so, and notes the `ARG_MAX`
+  ceiling that follows from it; the listfile is tracked for 0.1.2.
+
 ## [0.1.0] - 2026-08-25
 
 First release: a notarised, stapled, universal (arm64 + x86_64) DMG, with the 7-Zip 26.02

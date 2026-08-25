@@ -691,9 +691,24 @@ extension SevenZipCLIEngine {
         }
     }
 
+    /// The `-ao*` switch for an overwrite mode.
+    ///
+    /// `.ask` maps to `-aos` (SKIP), and that choice is load-bearing.
+    ///
+    /// It previously emitted NOTHING, on the reasoning that `-y` "already forces a
+    /// decision". It does — it answers YES. So an extraction the user had explicitly set
+    /// to "Ask before overwrite" destroyed their files with no prompt, reported
+    /// "Everything is Ok", and exited 0. That shipped in 0.1.0.
+    ///
+    /// The engine cannot ask anyone anything: `7zz` has no interactive channel once it is
+    /// running, which is why the UI resolves conflicts up front and is supposed to hand
+    /// down a concrete mode. `.ask` arriving here therefore means the UI failed to
+    /// resolve it — a bug — and the only safe reading of "the user wanted to be asked and
+    /// nobody asked them" is DO NOT TOUCH THEIR FILES. Skipping loses nothing: the
+    /// archive still holds every member, and the user can extract again.
     static func overwriteSwitch(_ mode: OverwriteMode) -> [String] {
         switch mode {
-        case .ask: []                       // -y already forces a decision; see .overwrite
+        case .ask: ["-aos"]
         case .overwrite: ["-aoa"]
         case .skip: ["-aos"]
         case .autoRename: ["-aou"]
