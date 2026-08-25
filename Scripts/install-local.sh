@@ -39,8 +39,12 @@ command -v xcodegen >/dev/null || die "xcodegen not found — brew install xcode
 ok "project regenerated"
 
 step "Building $CONFIG"
+# -destination generic/platform=macOS forces a UNIVERSAL build. Without it xcodebuild
+# targets the active destination and honours ONLY_ACTIVE_ARCH, silently producing an
+# arm64-only binary that fails on Intel.
 (cd "$REPO_ROOT" && xcodebuild \
   -project ArcSeven.xcodeproj -scheme ArcSeven -configuration "$CONFIG" \
+  -destination 'generic/platform=macOS' \
   -derivedDataPath "$DERIVED" build >/dev/null) || die "build failed"
 BUILT="$DERIVED/Build/Products/$CONFIG/ArcSeven.app"
 [ -d "$BUILT" ] || die "no bundle at $BUILT"

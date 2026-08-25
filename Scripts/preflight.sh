@@ -28,14 +28,20 @@ else
 fi
 
 step "swift build"
-swift build 2>&1 | tail -3 | grep -q "Build complete" && ok "builds" || bad "swift build"
+# Capture rather than pipe into `grep -q`: under pipefail, grep exiting early SIGPIPEs
+# the producer and the pipeline reports 141 even on success.
+BUILD_OUT="$(swift build 2>&1 || true)"
+case "$BUILD_OUT" in (*"Build complete"*) ok "builds" ;; (*) bad "swift build" ;; esac
 
 step "swift test"
-if swift test 2>&1 | grep -q "Test run with .* passed"; then
-  ok "$(swift test 2>&1 | grep -oE 'Test run with [0-9]+ tests in [0-9]+ suites passed' | head -1)"
-else
-  bad "swift test"
-fi
+TEST_OUT="$(swift test 2>&1 || true)"
+case "$TEST_OUT" in
+  (*"passed after"*)
+    ok "$(printf '%s\n' "$TEST_OUT" | grep -oE 'Test run with [0-9]+ tests in [0-9]+ suites passed' | head -1)" ;;
+  (*)
+    bad "swift test"
+    printf '%s\n' "$TEST_OUT" | grep -E "✘|error:" | head -10 ;;
+esac
 
 step "swiftlint --strict"
 if command -v swiftlint >/dev/null; then

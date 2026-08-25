@@ -198,8 +198,8 @@ jobs:
             Extensions/QuickLookPreview/QuickLookPreview.entitlements \
             Extensions/QuickActions/Info.plist \
             Extensions/QuickActions/QuickActions.entitlements \
-            Extensions/FinderSync/Info.plist \
-            Extensions/FinderSync/FinderSync.entitlements
+            Extensions/ArcSevenFinder/Info.plist \
+            Extensions/ArcSevenFinder/ArcSevenFinder.entitlements
           do
             echo "--- $plist"
             plutil -lint "$plist"

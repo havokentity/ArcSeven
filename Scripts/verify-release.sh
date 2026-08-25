@@ -21,6 +21,34 @@
 
 set -euo pipefail
 
+# sandbox_state <entitlements-xml> -> "on" | "off" | "absent"
+#
+# Greping for the key name alone is wrong in both directions: the main app DECLARES
+# com.apple.security.app-sandbox and sets it to <false/>, which a name-only match reports
+# as sandboxed; and an extension could ship the key set to false and be reported as
+# correctly sandboxed. Read the value.
+sandbox_state() {
+    local ents="$1" tmp state
+    case "$ents" in
+        *com.apple.security.app-sandbox*) ;;
+        *) printf 'absent'; return 0 ;;
+    esac
+    tmp="$(mktemp -t arcseven-ents)"
+    printf '%s' "$ents" > "$tmp"
+    # PlistBuddy, not `plutil -extract`. plutil treats "." as a KEY-PATH SEPARATOR, so
+    # `-extract com.apple.security.app-sandbox` looks for a nested com > apple > security
+    # dictionary and reports "No value at that key path" for a key that is plainly there.
+    # PlistBuddy separates with ":" and so handles dotted key names literally.
+    state="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.security.app-sandbox' "$tmp" 2>/dev/null || true)"
+    rm -f "$tmp"
+    case "$state" in
+        true|1|YES) printf 'on' ;;
+        false|0|NO) printf 'off' ;;
+        *) printf 'absent' ;;
+    esac
+}
+
+
 SCRIPT_NAME="$(basename "$0")"
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -224,11 +252,10 @@ check_app() {
     else
         pass "no com.apple.security.cs.* entitlements (correct — same-Team-ID signing is enough)"
     fi
-    if printf '%s' "$ents" | grep -q 'com.apple.security.app-sandbox'; then
-        warn "the main app is sandboxed — arbitrary-directory browsing will not work"
-    else
-        pass "main app is not sandboxed (required for a two-pane file manager)"
-    fi
+    case "$(sandbox_state "$ents")" in
+        on)  warn "the main app is sandboxed — arbitrary-directory browsing will not work" ;;
+        *)   pass "main app is not sandboxed (required for a two-pane file manager)" ;;
+    esac
 
     local ext ext_ents appex_count=0
     if [ -d "$app/Contents/PlugIns" ]; then
@@ -236,11 +263,11 @@ check_app() {
             [ -n "$ext" ] || continue
             appex_count=$((appex_count + 1))
             ext_ents="$(codesign --display --entitlements :- "$ext" 2>/dev/null || true)"
-            if printf '%s' "$ext_ents" | grep -q 'com.apple.security.app-sandbox'; then
-                pass "$(basename "$ext") is sandboxed"
-            else
-                fail "$(basename "$ext") is NOT sandboxed — app extensions must be"
-            fi
+            case "$(sandbox_state "$ext_ents")" in
+                on) pass "$(basename "$ext") is sandboxed" ;;
+                off) fail "$(basename "$ext") declares app-sandbox but sets it FALSE" ;;
+                *)  fail "$(basename "$ext") is NOT sandboxed — app extensions must be" ;;
+            esac
         done < <(find "$app/Contents/PlugIns" -maxdepth 1 -name '*.appex' -type d -print)
     fi
     [ "$appex_count" -eq 0 ] && note "no app extensions in this build"

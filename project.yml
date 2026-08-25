@@ -217,7 +217,14 @@ targets:
           copyFiles:
             destination: resources
             subpath: Legal
+      # `type: folder` makes this a folder REFERENCE, copied wholesale with its structure
+      # intact. Without it Xcode copies the contents FLATTENED, so
+      # THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt lands as Legal/LICENSE.txt right next to
+      # our own GPL LICENSE — two differently-licensed files with confusingly similar
+      # names and nothing saying which covers what. Scripts/verify-release.sh checks for
+      # the directory precisely because the flattened form is misleading.
       - path: THIRD_PARTY_LICENSES
+        type: folder
         optional: true
         buildPhase:
           copyFiles:
@@ -230,8 +237,6 @@ targets:
       - target: ArcSevenFinder
         embed: true
         codeSign: false
-      - target: QuickActions
-        embed: true
         codeSign: false
 
     entitlements:
@@ -757,19 +762,19 @@ targets:
         SKIP_INSTALL: YES
         LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
     sources:
-      - path: Extensions/FinderSync
+      - path: Extensions/ArcSevenFinder
         excludes:
           - "Info.plist"
-          - "FinderSync.entitlements"
+          - "ArcSevenFinder.entitlements"
     entitlements:
-      path: Extensions/FinderSync/FinderSync.entitlements
+      path: Extensions/ArcSevenFinder/ArcSevenFinder.entitlements
       properties:
         com.apple.security.app-sandbox: true
         com.apple.security.files.user-selected.read-only: true
         com.apple.security.application-groups:
           - HAMH7N3PJR.group.com.havokentity.ArcSeven
     info:
-      path: Extensions/FinderSync/Info.plist
+      path: Extensions/ArcSevenFinder/Info.plist
       properties:
         CFBundleName: $(PRODUCT_NAME)
         CFBundleDisplayName: ArcSeven Finder Extension
@@ -785,62 +790,3 @@ targets:
           NSExtensionPointIdentifier: com.apple.FinderSync
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).FinderSyncExtension
 
-  QuickActions:
-    type: app-extension
-    platform: macOS
-    deploymentTarget: "14.0"
-    settings:
-      base:
-        PRODUCT_NAME: QuickActions
-        PRODUCT_BUNDLE_IDENTIFIER: com.havokentity.ArcSeven.QuickActions
-        SKIP_INSTALL: YES
-        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../../../../Frameworks"
-    sources:
-      - path: Extensions/QuickActions
-        excludes:
-          - "Info.plist"
-          - "QuickActions.entitlements"
-    entitlements:
-      path: Extensions/QuickActions/QuickActions.entitlements
-      properties:
-        com.apple.security.app-sandbox: true
-        com.apple.security.files.user-selected.read-write: true
-        com.apple.security.application-groups:
-          - HAMH7N3PJR.group.com.havokentity.ArcSeven
-    info:
-      path: Extensions/QuickActions/Info.plist
-      properties:
-        CFBundleName: $(PRODUCT_NAME)
-        CFBundleDisplayName: ArcSeven Quick Actions
-        CFBundleExecutable: $(EXECUTABLE_NAME)
-        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
-        CFBundleInfoDictionaryVersion: "6.0"
-        CFBundlePackageType: XPC!
-        CFBundleShortVersionString: $(MARKETING_VERSION)
-        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        NSHumanReadableCopyright: >-
-          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
-        NSExtension:
-          NSExtensionPointIdentifier: com.apple.appintents-extension
-
-# ---------------------------------------------------------------------------------------
-# Schemes
-# ---------------------------------------------------------------------------------------
-# Unit tests are not attached here on purpose: ArchiveCore and FMKit are AppKit-free and
-# are tested by `swift test` against Package.swift, which needs neither Xcode nor a
-# signing identity and therefore works on pull requests from forks.
-schemes:
-  ArcSeven:
-    build:
-      targets:
-        ArcSeven: all
-        QuickLookPreview: all
-        QuickActions: all
-    run:
-      config: Debug
-    profile:
-      config: Release
-    analyze:
-      config: Debug
-    archive:
-      config: Release

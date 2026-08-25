@@ -84,8 +84,15 @@ info "output:   $DMG"
 step "Checking the app signature"
 codesign --verify --strict --verbose=2 "$APP" \
     || die "the app is not validly signed — run Scripts/sign.sh before building the image"
-codesign --display --verbose=2 "$APP" 2>&1 | grep -q 'flags=.*runtime' \
-    || die "the app is signed without the hardened runtime — notarization would reject it"
+# Capture first, then test. Piping a slow producer into `grep -q` is a trap under
+# `set -o pipefail`: grep exits the instant it matches, the write end SIGPIPEs codesign,
+# and the pipeline reports 141 — so a CORRECT signature is reported as a missing hardened
+# runtime. This exact line blocked every release until it was traced.
+APP_SIGN_INFO="$(codesign --display --verbose=2 "$APP" 2>&1 || true)"
+case "$APP_SIGN_INFO" in
+    *"flags="*runtime*) ;;
+    *) die "the app is signed without the hardened runtime — notarization would reject it" ;;
+esac
 info "signature and hardened runtime OK"
 
 # ------------------------------------------------------------- staging ------
@@ -173,7 +180,9 @@ if [ "$SKIP_DMG_SIGN" = "1" ]; then
     printf '%s: warning: an unsigned image cannot be notarized.\n' "$SCRIPT_NAME" >&2
 else
     step "Signing the image"
-    if ! security find-identity -v -p codesigning 2>/dev/null | grep -qF "$CODESIGN_IDENTITY"; then
+    # Same SIGPIPE hazard as above: capture, then match.
+    DMG_IDENTITY_LIST="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    if ! printf '%s\n' "$DMG_IDENTITY_LIST" | grep -qF "$CODESIGN_IDENTITY"; then
         die "identity not found in the keychain: $CODESIGN_IDENTITY"
     fi
     codesign --force --sign "$CODESIGN_IDENTITY" --timestamp "$DMG"

@@ -20,6 +20,7 @@
 # That script also re-fetches https://www.7-zip.org/license.txt and fails loudly
 # if the upstream license text has changed since this record was written.
 
+7-Zip version: 26.02
 Component:             7-Zip console program ("7zz"), macOS build
 Upstream version:      26.02
 Upstream released:     2026-06-25

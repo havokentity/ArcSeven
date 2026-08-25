@@ -27,7 +27,11 @@ SCRIPT_NAME="$(basename "$0")"
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Rajesh DMonte (HAMH7N3PJR)}"
-ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR:-$REPO_ROOT/Resources/Entitlements}"
+# Entitlements live next to the code they belong to, not in a central directory:
+# Extensions/<Name>/<Name>.entitlements and Sources/App/Resources/ArcSeven.entitlements.
+# That is what project.yml points at, so a central copy would be a second source of truth
+# that drifts. ENTITLEMENTS_DIR is still honoured as an override and is searched first.
+ENTITLEMENTS_DIR="${ENTITLEMENTS_DIR:-}"
 CODESIGN_KEYCHAIN="${CODESIGN_KEYCHAIN:-}"
 DO_VERIFY=1
 DO_XATTR_CLEAN=1
@@ -110,8 +114,28 @@ entitlements_for() {
     local base
     base="$(basename "$1")"
     base="${base%.*}"
-    if [ -f "$ENTITLEMENTS_DIR/$base.entitlements" ]; then
+    # 1. explicit override directory, when given
+    if [ -n "$ENTITLEMENTS_DIR" ] && [ -f "$ENTITLEMENTS_DIR/$base.entitlements" ]; then
         printf '%s' "$ENTITLEMENTS_DIR/$base.entitlements"
+        return 0
+    fi
+    # 2. beside the extension's own sources
+    if [ -f "$REPO_ROOT/Extensions/$base/$base.entitlements" ]; then
+        printf '%s' "$REPO_ROOT/Extensions/$base/$base.entitlements"
+        return 0
+    fi
+    # 3. the app itself
+    if [ -f "$REPO_ROOT/Sources/App/Resources/$base.entitlements" ]; then
+        printf '%s' "$REPO_ROOT/Sources/App/Resources/$base.entitlements"
+        return 0
+    fi
+    # 4. last resort: any entitlements file whose name matches, wherever it lives.
+    #    Kept as a safety net, but the directory, the product and the entitlements file
+    #    are deliberately all named the same thing so it should never be needed.
+    local found
+    found="$(find "$REPO_ROOT/Extensions" "$REPO_ROOT/Sources" -name "$base.entitlements" 2>/dev/null | head -n 1)"
+    if [ -n "$found" ]; then
+        printf '%s' "$found"
     fi
 }
 
