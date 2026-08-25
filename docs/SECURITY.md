@@ -126,9 +126,24 @@ every extracted file. ArcSeven never removes it.
 ### 7. Untrusted archive metadata in the UI
 
 Member paths, comments and method strings are attacker-controlled. They are rendered
-as text only — never interpreted as markup, format strings, or shell input. Paths
-containing control characters, right-to-left overrides, or newlines are displayed
-with those characters escaped, so a member cannot disguise its extension.
+as text only — never interpreted as markup, format strings, or shell input.
+
+**Mitigation.** `PathNormalizer.displaySafe` replaces C0/C1 control characters and the
+bidi control scalars (`U+200E`, `U+200F`, `U+202A`–`U+202E`, `U+2066`–`U+2069`) with
+visible `\u{XXXX}` escapes. Without it, `invoice\u{202E}gnp.exe` renders as
+`invoice exe.png`: the name really does end in `.exe`, and everything after the
+override is drawn reversed. That is the RLO spoof, and it is used in the wild.
+
+Only the explicit bidi *control* scalars are escaped, never ordinary right-to-left
+letters — an Arabic or Hebrew filename must keep rendering as itself. Escaping RTL
+script would break real names and stop nothing, since the attack needs no RTL letters.
+
+**Applied at:** the file panel's Name column, and the Properties inspector's title and
+item heading. Window titles built from the archive's own filename on disk are not
+escaped; that name comes from the file system, not from archive contents.
+
+Through 0.1.2 this section asserted the escaping already happened. It did not — the
+panel rendered `item.name` verbatim.
 
 ### 8. Malformed archives crashing a decoder
 

@@ -19,6 +19,9 @@
 // that `⌘C` copies, so a pasted property dump matches 7zFM's byte for byte.
 
 import AppKit
+#if canImport(Support)   // module-guard
+import Support
+#endif
 #if canImport(ArchiveCore)   // module-guard
 import ArchiveCore
 #endif
@@ -352,7 +355,8 @@ extension PropertiesInspectorController {
     private static let sectionRule = "------------------------"
 
     private static func panelTitle(listing: ArchiveListing, entry: ArchiveEntry?) -> String {
-        if let entry { return "\(entry.name) — Properties" }
+        // Attacker-controlled: escaped for display (SECURITY.md §7).
+        if let entry { return "\(PathNormalizer.displaySafe(entry.name)) — Properties" }
         return "\(listing.url.lastPathComponent) — Properties"
     }
 
@@ -365,7 +369,7 @@ extension PropertiesInspectorController {
         var rows: [Row] = []
 
         if let entry {
-            rows.append(.section("Item — \(entry.name)"))
+            rows.append(.section("Item — \(PathNormalizer.displaySafe(entry.name))"))
             rows.append(contentsOf: entryRows(for: entry).map(Row.property))
         }
 

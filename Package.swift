@@ -66,7 +66,7 @@ let package = Package(
         ),
         .target(
             name: "FMKit",
-            dependencies: ["ArchiveCore"],
+            dependencies: ["ArchiveCore", "Support"],
             path: "Sources/FMKit",
             swiftSettings: strictSettings
         ),

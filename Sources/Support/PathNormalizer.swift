@@ -253,6 +253,61 @@ public enum PathNormalizer {
         return String(decoded)
     }
 
+    // MARK: - Display
+
+    /// Make an attacker-controlled name safe to *show*, without changing what it means.
+    ///
+    /// A member name is chosen by whoever built the archive, and the user decides whether
+    /// to extract or open it largely by reading its extension. Two families of scalar let
+    /// a name lie about that:
+    ///
+    /// * **Bidi overrides.** `invoice\u{202E}gnp.exe` renders as `invoice exe.png`. The
+    ///   name really does end in `.exe`; the display is reversed after the override. This
+    ///   is the classic RLO spoof and it is used in the wild.
+    /// * **Control characters.** A newline or carriage return splits a name across lines
+    ///   or lets the tail overwrite the head in a single-line field.
+    ///
+    /// Both are replaced with a visible `\u{XXXX}` escape.
+    ///
+    /// Only the explicit bidi *control* scalars are escaped, never ordinary right-to-left
+    /// letters: a genuinely Arabic or Hebrew filename must keep rendering as itself. The
+    /// distinction is the whole point — escaping RTL script would break real names while
+    /// doing nothing about the attack, which does not need RTL letters at all.
+    ///
+    /// - Note: For display only. Never feed the result back to the engine as a member
+    ///   name; it no longer identifies the same entry.
+    public static func displaySafe(_ name: String) -> String {
+        guard name.unicodeScalars.contains(where: needsDisplayEscaping) else { return name }
+        var out = ""
+        out.reserveCapacity(name.unicodeScalars.count)
+        for scalar in name.unicodeScalars {
+            if needsDisplayEscaping(scalar) {
+                out += String(format: "\\u{%04X}", scalar.value)
+            } else {
+                out.unicodeScalars.append(scalar)
+            }
+        }
+        return out
+    }
+
+    /// Scalars that can make a name render as something other than what it is.
+    private static func needsDisplayEscaping(_ scalar: Unicode.Scalar) -> Bool {
+        switch scalar.value {
+        case 0x00...0x1F, 0x7F:          // C0 and DEL
+            return true
+        case 0x80...0x9F:                // C1
+            return true
+        case 0x200E, 0x200F:             // LEFT/RIGHT-TO-LEFT MARK
+            return true
+        case 0x202A...0x202E:            // embeddings and overrides, incl. RLO
+            return true
+        case 0x2066...0x2069:            // isolates
+            return true
+        default:
+            return false
+        }
+    }
+
     // MARK: - Untrusted entry paths
 
     /// Reduce an attacker-controlled archive entry path to a *relative* POSIX path that

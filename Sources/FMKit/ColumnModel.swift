@@ -11,6 +11,9 @@ import Foundation
 #if canImport(ArchiveCore)   // module-guard
 import ArchiveCore
 #endif
+#if canImport(Support)   // module-guard
+import Support
+#endif
 
 /// One column in a panel.
 public struct PanelColumn: Sendable, Hashable, Identifiable {
@@ -91,7 +94,9 @@ public struct ColumnModel: Sendable, Hashable {
     /// Returns `""` rather than a placeholder for a missing value: 7zFM leaves the
     /// cell blank, and a dash or "n/a" reads as data.
     public static func displayText(for item: FolderItem, column: PropID) -> String {
-        if column == .name { return item.name }
+        // Escaped, not raw: a member name is attacker-controlled, and a bidi override
+        // makes `invoice<RLO>gnp.exe` render as `invoice exe.png`. See SECURITY.md §7.
+        if column == .name { return PathNormalizer.displaySafe(item.name) }
 
         // The ".." row carries nothing but its name.
         if item.isParentRow { return "" }
