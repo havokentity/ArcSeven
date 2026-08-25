@@ -154,9 +154,20 @@ engine and is a reason to be cautious about moving decoding in-process.
 
 ### 9. Extension transport
 
-The Quick Look and Quick Action extensions communicate with the container app over
-an authenticated channel scoped to the app group. The Quick Look extension parses
-headers only and never spawns `7zz`.
+The Finder extension does not talk to the app over XPC. It writes a request file into
+the shared app-group container
+(`~/Library/Group Containers/HAMH7N3PJR.group.com.havokentity.ArcSeven`) and the app
+consumes it. "Authenticated" only in the sense that the container is gated by an
+entitlement: writing there requires the app-group entitlement, which requires a
+signature from this team. Filenames must parse as UUIDs and stale requests are pruned.
+
+The trust boundary is therefore *same-team code*, not the user's whole machine. An
+attacker who can already ship code signed by this team is out of scope, as is one
+already running as the user.
+
+The Quick Look extension parses container headers itself and never runs `7zz` —
+verified by construction: the helper lives in the app's bundle, and an appex may not
+spawn it. `SevenZipSignatureReader` exists precisely so the appex does not need to.
 
 ## Out of scope
 
