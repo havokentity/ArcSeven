@@ -63,6 +63,9 @@ environment:
   SPARKLE_ED_PRIVATE_KEY   base64 EdDSA private key from Sparkle's generate_keys.
                            UNSET -> this script does nothing and succeeds.
   SIGN_UPDATE              explicit path to Sparkle's sign_update tool.
+  APPCAST_BUILD_VERSION    CFBundleVersion, cross-checked against the DMG. Used only as a
+                           fallback where hdiutil cannot attach an image.
+  APPCAST_SHORT_VERSION    CFBundleShortVersionString, same rules.
   APPCAST_REPO             default $APPCAST_REPO
   APPCAST_DOWNLOAD_BASE    default <github>/releases/download
   APPCAST_FEED_URL         default <github>/releases/latest/download/appcast.xml
@@ -162,34 +165,75 @@ xml_escape() {
     printf '%s' "$1" | LC_ALL=C sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g'
 }
 
-# CFBundleVersion and CFBundleShortVersionString, read from the app inside the DMG.
-# Mounted read-only, nobrowse, and detached even if PlistBuddy fails.
+# CFBundleVersion and CFBundleShortVersionString, read out of the app inside the DMG by
+# mounting it read-only and nobrowse. The image is detached even when PlistBuddy fails.
+#
+# Prints "<build>\t<short>", or nothing at all if the image could not be mounted. Not
+# fatal on its own: the caller decides, because there is a legitimate second source.
 read_versions_from_dmg() {
     local dmg="$1" mount app build short
     mount="$(mktemp -d "${TMPDIR:-/tmp}/arcseven-appcast.XXXXXX")"
 
     if ! hdiutil attach "$dmg" -readonly -nobrowse -noautoopen -mountpoint "$mount" >/dev/null 2>&1; then
         rmdir "$mount" 2>/dev/null || true
-        die "could not mount $dmg - it cannot be signed into an appcast without its CFBundleVersion"
+        return 1
     fi
 
     app="$(/usr/bin/find "$mount" -maxdepth 1 -type d -name '*.app' -print 2>/dev/null | head -n 1)"
-    if [ -z "$app" ]; then
-        hdiutil detach "$mount" -quiet 2>/dev/null || hdiutil detach "$mount" -force -quiet 2>/dev/null || true
-        rmdir "$mount" 2>/dev/null || true
-        die "no .app at the top level of $dmg"
+    if [ -n "$app" ]; then
+        build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist" 2>/dev/null || true)"
+        short="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+            "$app/Contents/Info.plist" 2>/dev/null || true)"
     fi
-
-    build="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app/Contents/Info.plist" 2>/dev/null || true)"
-    short="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null || true)"
 
     hdiutil detach "$mount" -quiet 2>/dev/null || hdiutil detach "$mount" -force -quiet 2>/dev/null || true
     rmdir "$mount" 2>/dev/null || true
 
+    [ -n "$app" ] || die "no .app at the top level of $dmg"
     [ -n "$build" ] || die "CFBundleVersion is empty in $dmg (Sparkle compares this, not the marketing version)"
     [ -n "$short" ] || die "CFBundleShortVersionString is empty in $dmg"
 
     printf '%s\t%s' "$build" "$short"
+}
+
+# The versions for one DMG, with the shipped bundle as the authority.
+#
+# APPCAST_BUILD_VERSION / APPCAST_SHORT_VERSION exist because a release runner does know
+# these already - release.yml passes the very same numbers to xcodebuild as
+# CURRENT_PROJECT_VERSION and MARKETING_VERSION - and because hdiutil cannot attach an
+# image everywhere (a container without DiskArbitration, for one). They are a fallback and
+# a cross-check, never a replacement: when the DMG can be read and the two disagree, that
+# is a mis-tagged build and the release stops here rather than at a user's machine.
+resolve_versions() {
+    local dmg="$1" from_dmg env_build="${APPCAST_BUILD_VERSION:-}" env_short="${APPCAST_SHORT_VERSION:-}"
+
+    if from_dmg="$(read_versions_from_dmg "$dmg")"; then
+        local build="${from_dmg%%$'\t'*}" short="${from_dmg##*$'\t'}"
+        if [ -n "$env_build" ] && [ "$env_build" != "$build" ]; then
+            die "$(basename "$dmg"): APPCAST_BUILD_VERSION=$env_build but the bundle says $build"
+        fi
+        if [ -n "$env_short" ] && [ "$env_short" != "$short" ]; then
+            die "$(basename "$dmg"): APPCAST_SHORT_VERSION=$env_short but the bundle says $short"
+        fi
+        printf '%s\t%s' "$build" "$short"
+        return 0
+    fi
+
+    if [ -n "$env_build" ] && [ -n "$env_short" ]; then
+        # One pair of numbers cannot describe two different builds. release.yml produces
+        # exactly one DMG per run, so this only fires when someone points the script at a
+        # folder of archived releases with the fallback set, which would stamp every one
+        # of them with the same version.
+        [ "${#DMGS[@]}" -eq 1 ] || die "APPCAST_BUILD_VERSION/APPCAST_SHORT_VERSION cannot be used with \
+${#DMGS[@]} DMGs - run one at a time, or make hdiutil attach work"
+        printf '%s: warning: could not mount %s; trusting APPCAST_BUILD_VERSION/APPCAST_SHORT_VERSION\n' \
+            "$SCRIPT_NAME" "$(basename "$dmg")" >&2
+        printf '%s\t%s' "$env_build" "$env_short"
+        return 0
+    fi
+
+    die "could not mount $(basename "$dmg"), and APPCAST_BUILD_VERSION/APPCAST_SHORT_VERSION are unset - \
+refusing to guess CFBundleVersion"
 }
 
 # --------------------------------------------------------------------------------------
@@ -205,7 +249,7 @@ for dmg in "${DMGS[@]}"; do
     base="$(basename "$dmg")"
     step "Signing $base"
 
-    versions="$(read_versions_from_dmg "$dmg")"
+    versions="$(resolve_versions "$dmg")"
     build="${versions%%$'\t'*}"
     short="${versions##*$'\t'}"
     info "CFBundleVersion=$build  CFBundleShortVersionString=$short"

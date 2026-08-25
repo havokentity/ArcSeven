@@ -129,7 +129,20 @@ settings:
       DEBUG_INFORMATION_FORMAT: dwarf-with-dsym
 
 # ---------------------------------------------------------------------------------------
+# External packages
+# ---------------------------------------------------------------------------------------
+# Sparkle is the ONLY third-party dependency, and it is deliberately confined to the app
+# target. ArchiveCore and FMKit stay dependency-free so `swift build` / `swift test` work
+# on a bare checkout with no package resolution — which is what keeps CI green for fork
+# pull requests that never receive secrets.
+packages:
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle
+    exactVersion: "2.9.6"
+
+# ---------------------------------------------------------------------------------------
 # Targets
+# ---------------------------------------------------------------------------------------
 # ---------------------------------------------------------------------------------------
 targets:
 
@@ -232,6 +245,10 @@ targets:
             subpath: Legal
 
     dependencies:
+      # No `embed:` — Xcode embeds a package's dynamic framework into an app target on
+      # its own, and LD_RUNPATH_SEARCH_PATHS already carries @executable_path/../Frameworks.
+      - package: Sparkle
+        product: Sparkle
       - target: QuickLookPreview
         embed: true
       - target: ArcSevenFinder
@@ -707,6 +724,19 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSHumanReadableCopyright: >-
           Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+
+        # ---- Sparkle -----------------------------------------------------------------
+        # SUPublicEDKey is deliberately ABSENT until `generate_keys` has been run. Sparkle
+        # refuses to apply an update it cannot verify, so omitting the key fails CLOSED —
+        # far better than shipping a placeholder that looks configured. Add the public key
+        # here and the private half as the SPARKLE_ED_PRIVATE_KEY secret; see
+        # docs/SPARKLE-INTEGRATION.md.
+        #
+        # Automatic checks default to OFF and the app asks once, on the second launch. A
+        # GPL tool that phones home on first launch without consent is not acceptable.
+        SUFeedURL: https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml
+        SUEnableAutomaticChecks: false
+        SUScheduledCheckInterval: 86400
         NSExtension:
           NSExtensionPointIdentifier: com.apple.quicklook.preview
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController

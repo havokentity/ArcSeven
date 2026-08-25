@@ -271,8 +271,8 @@ extension UpdaterController: SPUUpdaterDelegate {
     /// one outcome we will not tolerate is a network-permission prompt appearing before
     /// the app has drawn a window. Consent is asked for in
     /// `presentAutomaticUpdateConsentIfNeeded()`, on our schedule and in our words.
-    nonisolated public func updaterShouldPromptForPermissionToCheckForUpdates(
-        _ updater: SPUUpdater
+    nonisolated public func updaterShouldPromptForPermissionToCheck(
+        forUpdates updater: SPUUpdater
     ) -> Bool {
         false
     }

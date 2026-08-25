@@ -144,6 +144,17 @@ jobs:
           key: brew-${{ runner.os }}-${{ runner.arch }}-swiftlint-xcodegen
           restore-keys: brew-${{ runner.os }}-${{ runner.arch }}-
 
+      # The app target now depends on Sparkle, so the Xcode build resolves a package from
+      # the network. Cache the clone: an unavailable github.com would otherwise turn a
+      # source-only change into a red build for reasons that have nothing to do with the
+      # change.
+      - name: Cache resolved Swift packages
+        uses: actions/cache@v4
+        with:
+          path: .build/spm
+          key: spm-pkgs-${{ runner.os }}-${{ hashFiles('project.yml') }}
+          restore-keys: spm-pkgs-${{ runner.os }}-
+
       - name: Install XcodeGen
         run: brew install xcodegen
 
@@ -176,6 +187,8 @@ jobs:
               -scheme ArcSeven \
               -configuration "$config" \
               -derivedDataPath "$RUNNER_TEMP/dd-$config" \
+              -clonedSourcePackagesDirPath .build/spm \
+              -destination 'generic/platform=macOS' \
               CODE_SIGN_IDENTITY="-" \
               CODE_SIGNING_REQUIRED=NO \
               CODE_SIGNING_ALLOWED=NO \
