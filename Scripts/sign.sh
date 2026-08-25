@@ -26,6 +26,16 @@ set -euo pipefail
 SCRIPT_NAME="$(basename "$0")"
 REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 
+# Accept SIGN_IDENTITY as an alias for CODESIGN_IDENTITY.
+#
+# release.yml exports SIGN_IDENTITY while this script reads CODESIGN_IDENTITY. The
+# mismatch went unnoticed because the default below happens to be the correct identity on
+# the maintainer's machine: the step "passed" while silently ignoring what the workflow
+# told it. That would break for any other signer, and would hide the default drifting out
+# of date. Prefer an explicit value from either spelling; fall back to the default only
+# when neither is set.
+: "${CODESIGN_IDENTITY:=${SIGN_IDENTITY:-}}"
+
 CODESIGN_IDENTITY="${CODESIGN_IDENTITY:-Developer ID Application: Rajesh DMonte (HAMH7N3PJR)}"
 # Entitlements live next to the code they belong to, not in a central directory:
 # Extensions/<Name>/<Name>.entitlements and Sources/App/Resources/ArcSeven.entitlements.

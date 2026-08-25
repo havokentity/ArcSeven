@@ -13,6 +13,9 @@
 #   AC_API_ISSUER_ID   App Store Connect Issuer UUID
 #   AC_API_KEY_PATH    path to AuthKey_<KEYID>.p8
 #
+# NOTARY_KEY_ID / NOTARY_ISSUER_ID / NOTARY_KEY_PATH are accepted as equivalents, because
+# that is what release.yml exports and what the repository secrets are called.
+#
 # A .zip cannot carry a stapled ticket. Submitting a .app therefore zips it for
 # transport and staples the .app itself; submitting a .zip requires you to name
 # the staple target explicitly.
@@ -58,6 +61,20 @@ xcrun --find notarytool >/dev/null 2>&1 || die "notarytool not available (needs 
 
 # --------------------------------------------------------- credentials ------
 step "Credentials"
+# Accept either spelling.
+#
+# release.yml exports NOTARY_KEY_ID / NOTARY_ISSUER_ID / NOTARY_KEY_PATH, matching the
+# secret names; this script was written expecting AC_API_*. Two files, two conventions,
+# and the release failed at the notarisation step on its first run with
+# "AC_API_KEY_ID is not set" — after a successful build and sign, which is the most
+# expensive place to discover a typo.
+#
+# Rather than pick a winner and leave the other spelling as a trap, both work. AC_API_*
+# wins when both are set, since that is what --help documents.
+: "${AC_API_KEY_ID:=${NOTARY_KEY_ID:-}}"
+: "${AC_API_ISSUER_ID:=${NOTARY_ISSUER_ID:-}}"
+: "${AC_API_KEY_PATH:=${NOTARY_KEY_PATH:-}}"
+
 for v in AC_API_KEY_ID AC_API_ISSUER_ID AC_API_KEY_PATH; do
     eval "val=\${$v:-}"
     [ -n "$val" ] || die "environment variable $v is not set (see --help)"
