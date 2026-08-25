@@ -114,4 +114,33 @@ struct StreamTokenizerTests {
     func empty() {
         #expect(tokens("").isEmpty)
     }
+
+    /// The adversarial review flagged this as re-materialising the whole row on every
+    /// backspace — O(row x backspaces) on long non-ASCII paths. It does not: `isErasing`
+    /// means the row is published once per erase RUN, on the first backspace, which is
+    /// also the last moment its contents are still intact. Pinning that here so the flag
+    /// is not "simplified" away later.
+    @Test("An erase run materialises the row once, not once per backspace")
+    func eraseRunMaterialisesOnce() {
+        // The shape 7zz actually emits: token, N backspaces, N spaces, N backspaces.
+        let path = "src/café_日本_a-long-enough-name-to-matter.txt"
+        let token = " 34% 2 - \(path)"
+        let width = token.unicodeScalars.count
+        let burst = token
+            + String(repeating: "\u{08}", count: width)
+            + String(repeating: " ", count: width)
+            + String(repeating: "\u{08}", count: width)
+
+        var tokenizer = StreamTokenizer()
+        let produced = tokenizer.consume(Array(burst.utf8))
+
+        var transients = 0
+        for item in produced {
+            if case .transient = item { transients += 1 }
+        }
+        // One for the token's erase run, one for the run of spaces that follows it.
+        #expect(transients <= 2,
+                "\(width) backspaces produced \(transients) materialisations")
+        #expect(transients >= 1, "the row must still be published before being erased")
+    }
 }
