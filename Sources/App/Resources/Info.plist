@@ -616,6 +616,14 @@
 	<false/>
 	<key>NSSupportsSuddenTermination</key>
 	<false/>
+	<key>SUEnableAutomaticChecks</key>
+	<false/>
+	<key>SUFeedURL</key>
+	<string>https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>5mai3p83QNIAbw/nSEOSkZXeAez+DCurHqGwihqOVhQ=</string>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>UTImportedTypeDeclarations</key>
 	<array>
 		<dict>

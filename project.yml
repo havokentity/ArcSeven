@@ -295,6 +295,27 @@ targets:
           (LGPL-2.1-or-later, BSD-3-Clause, BSD-2-Clause, plus the unRAR restriction).
           ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov.
 
+        # ---- Sparkle -----------------------------------------------------------------
+        # The PUBLIC half of the EdDSA update-signing key. Public by design: it ships in
+        # every copy of the app, and its whole job is to let an installed copy verify that
+        # an update was signed by the private half. The private half lives only in the
+        # maintainer's login Keychain and in the SPARKLE_ED_PRIVATE_KEY secret — it is
+        # never committed. See docs/SPARKLE-INTEGRATION.md.
+        #
+        # Changing this key strands every already-installed copy: they will reject updates
+        # signed by the new key, and the only route back is a manual re-download.
+        SUPublicEDKey: 5mai3p83QNIAbw/nSEOSkZXeAez+DCurHqGwihqOVhQ=
+        #
+        # These belong to the APP, not to an extension. Until 0.1.2 this whole block sat in
+        # QuickLookPreview's Info.plist, where Sparkle never reads it: the app shipped with
+        # no feed URL, so it could not have checked for an update even once.
+        #
+        # Automatic checks default to OFF and the app asks once, on the second launch. A
+        # GPL tool that phones home on first launch without consent is not acceptable.
+        SUFeedURL: https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml
+        SUEnableAutomaticChecks: false
+        SUScheduledCheckInterval: 86400
+
         # ---- TCC: the app is not sandboxed, so these strings are the consent prompts ----
         NSDesktopFolderUsageDescription: >-
           ArcSeven needs access to your Desktop so it can list, compress and extract files
@@ -741,18 +762,6 @@ targets:
         NSHumanReadableCopyright: >-
           Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
 
-        # ---- Sparkle -----------------------------------------------------------------
-        # SUPublicEDKey is deliberately ABSENT until `generate_keys` has been run. Sparkle
-        # refuses to apply an update it cannot verify, so omitting the key fails CLOSED —
-        # far better than shipping a placeholder that looks configured. Add the public key
-        # here and the private half as the SPARKLE_ED_PRIVATE_KEY secret; see
-        # docs/SPARKLE-INTEGRATION.md.
-        #
-        # Automatic checks default to OFF and the app asks once, on the second launch. A
-        # GPL tool that phones home on first launch without consent is not acceptable.
-        SUFeedURL: https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml
-        SUEnableAutomaticChecks: false
-        SUScheduledCheckInterval: 86400
         NSExtension:
           NSExtensionPointIdentifier: com.apple.quicklook.preview
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
