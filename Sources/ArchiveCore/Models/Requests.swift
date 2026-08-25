@@ -200,8 +200,11 @@ public struct ExtractRequest: Sendable, Hashable {
     /// user does not get `Foo/Foo/…` (`-spe`).
     public var eliminateRootDuplication: Bool
 
-    /// Recreate symbolic links as links rather than as copies of their targets
-    /// (`-snl`).
+    /// - Warning: Currently inert. Nothing reads this, and no `7zz` switch implements it:
+    ///   `-snl` is compression-only and changes nothing on extraction, where symlink
+    ///   members are always restored as links. Honouring `false` would mean
+    ///   post-processing the extracted tree. No dialog exposes it, so nothing sets it to
+    ///   `false` today. See `docs/SECURITY.md` §2.
     public var restoreSymbolicLinks: Bool
 
     /// Keep the partial output of members that fail CRC, instead of deleting them.

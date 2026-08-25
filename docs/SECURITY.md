@@ -18,11 +18,22 @@ An archive member named `../../../../etc/cron.d/evil` must never be written outs
 the destination directory. This is the highest-severity issue an archive tool can
 have and it is exploited in the wild.
 
-**Mitigation.** Every destination path is resolved with symlinks followed, then
-checked to be a descendant of the extraction root *before* any bytes are written.
-A member that escapes is refused and reported as a warning; extraction of the
-remaining members continues. Absolute paths and drive-letter prefixes are stripped
-unless the user explicitly chose "Absolute pathnames".
+**Mitigation.** Containment is **7-Zip's**, not ArcSeven's. `7zz` strips leading
+separators, drive-letter prefixes and `..` components from member paths, so a
+traversal member lands flattened inside the destination instead of escaping it.
+`Tests/ArchiveCoreTests/ExtractionContainmentTests.swift` builds hostile ZIPs at the
+byte level — `7zz` will not create such a member itself — and asserts that nothing is
+written outside the destination, including under the `-spf`/`-spf2` path modes.
+
+**What ArcSeven does not do.** It does not inspect member paths before extraction.
+`PathSafety` exists and is correct, but is used only by the overwrite pre-scan; it is
+not on the extraction path. Through 0.1.2 this section claimed ArcSeven resolved and
+checked every destination itself, refusing escapees with a warning. It never did. The
+protection was real and the description of it was not, which is the more dangerous of
+the two failures: it invites a reviewer to conclude the work is already done.
+
+Treat the vendored `7zz` version as load-bearing. The containment tests are what
+catches a regression if it is bumped or replaced.
 
 ### 2. Symlink escape
 
@@ -30,18 +41,32 @@ A member may be a symlink to `/` or to a directory outside the destination, with
 later member written *through* it. Checking paths at write time is not enough,
 because the link is created first.
 
-**Mitigation.** Symlink members whose targets resolve outside the extraction root are
-not created. Directory components are verified not to be symlinks before descending.
-Restoring symlinks at all is a user-visible option.
+**Mitigation.** Again 7-Zip's. `7zz` **does** create the symlink member — it is not
+refused — but it will not write a later member through it: the write fails with
+`errno=20 : Not a directory` and is reported as a sub-item error. Verified against
+26.02 with a hand-built archive pairing a `/`-relative link with a member addressed
+through it.
+
+**What ArcSeven does not do.** It does not examine link targets, and does not check
+directory components for symlinks before descending. Through 0.1.2 this section
+claimed both. `ExtractRequest.restoreSymbolicLinks` is likewise inert: nothing reads
+it, no switch implements it — `-snl` is compression-only and makes no difference on
+extraction — and no dialog exposes it. It is always effectively `true`.
 
 ### 3. Decompression bombs
 
 A few hundred kilobytes can expand to petabytes. Nested archives multiply this.
 
-**Mitigation.** Extraction tracks total bytes written against the sum of the members'
-declared sizes and against absolute and ratio ceilings. Crossing a ceiling pauses
-the operation and asks the user rather than filling the disk. Nested-archive
-browsing applies its own depth limit.
+**Not mitigated.** Through 0.1.2 this section claimed extraction tracked bytes written
+against declared sizes and against absolute and ratio ceilings, pausing to ask the
+user before filling the disk. No such tracking exists. Extraction runs to completion
+or to a full disk.
+
+The one real limit is `ListRequest`'s output-byte cap, which bounds what a malicious
+archive can make ArcSeven *buffer* while listing — not what it can make it write.
+
+Implementing the ceilings is worthwhile and is not yet scheduled. Until then, this
+section describes an absent control rather than an implemented one.
 
 ### 4. Passphrase exposure in the process table
 
