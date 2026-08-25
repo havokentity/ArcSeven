@@ -92,7 +92,20 @@ permissions:
   contents: write
 
 concurrency:
-  group: release-${{ github.ref }}
+  # Repository-wide, deliberately NOT keyed on github.ref.
+  #
+  # Two release runs publishing at once can both create or edit the same GitHub release
+  # and interleave their asset uploads, leaving a release whose appcast.xml and .dmg came
+  # from different builds — which Sparkle would then serve to users as a broken update.
+  #
+  # Keying on the ref does not prevent that, and reads as if it does: a tag push and a
+  # workflow_dispatch republish of the SAME version arrive with different github.ref
+  # values, so a per-ref group lets through exactly the two runs that must not overlap.
+  # (Borrowed from the MacTools release workflow, which had already hit this.)
+  #
+  # cancel-in-progress stays false: cancelling a run mid-publish is how a half-uploaded
+  # release happens in the first place.
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -375,14 +388,29 @@ jobs:
 
           # Both assets go up in the same call, so a partially populated release - the one
           # state that would put us out of compliance - is not reachable.
-          gh release create "${{ steps.version.outputs.tag }}" \
-            --title "ArcSeven ${{ steps.version.outputs.version }}" \
-            --notes-file dist/RELEASE_NOTES.md \
-            --verify-tag \
-            ${{ steps.version.outputs.prerelease }} \
-            "$DMG" \
-            "$SRC_TARBALL" \
-            "dist/SHA256SUMS.txt"
+          #
+          # Idempotent by design: a re-run must not die on "a release with the same tag
+          # name already exists". That happened for real - a force-pushed tag started a
+          # second run while the first was mid-publish, and the second failed HERE, after
+          # ten minutes of building, signing and notarising. The concurrency group above
+          # now prevents the overlap; this makes the step survive it regardless.
+          if gh release view "${{ steps.version.outputs.tag }}" >/dev/null 2>&1; then
+            echo "Release already exists - replacing its assets."
+            gh release upload "${{ steps.version.outputs.tag }}" \
+              "$DMG" \
+              "$SRC_TARBALL" \
+              "dist/SHA256SUMS.txt" \
+              --clobber
+          else
+            gh release create "${{ steps.version.outputs.tag }}" \
+              --title "ArcSeven ${{ steps.version.outputs.version }}" \
+              --notes-file dist/RELEASE_NOTES.md \
+              --verify-tag \
+              ${{ steps.version.outputs.prerelease }} \
+              "$DMG" \
+              "$SRC_TARBALL" \
+              "dist/SHA256SUMS.txt"
+          fi
 
           if [ -f dist/appcast.xml ]; then
             gh release upload "${{ steps.version.outputs.tag }}" dist/appcast.xml --clobber
