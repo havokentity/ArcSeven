@@ -98,12 +98,25 @@ public final class PropertiesInspectorController: NSViewController {
     /// This is what makes the inspector *live*: the panel owner calls it from its
     /// selection-changed hook rather than tearing the controller down and building
     /// a new one, so the scroll position of an unchanged section survives.
+    /// Replace the contents, and re-fit — a newly selected member can have many more
+    /// rows than the one before it, and keeping the old height would clip them.
     public func update(listing: ArchiveListing, entry: ArchiveEntry?) {
         self.listing = listing
         self.entry = entry
         rows = Self.buildRows(listing: listing, entry: entry)
         panel.title = Self.panelTitle(listing: listing, entry: entry)
         tableView.reloadData()
+
+        // Grow to fit a larger selection, but never shrink: once the user has sized the
+        // panel by hand, taking that away on every selection change is worse than a bit
+        // of empty space.
+        if panel.isVisible {
+            let wanted = preferredContentSize()
+            let current = panel.contentLayoutRect.size
+            if wanted.height > current.height {
+                panel.setContentSize(NSSize(width: current.width, height: wanted.height))
+            }
+        }
     }
 
     private func configurePanelIfNeeded() {
@@ -118,6 +131,37 @@ public final class PropertiesInspectorController: NSViewController {
         // to the view controller, which would otherwise blank what we just set.
         panel.contentViewController = self
         panel.title = Self.panelTitle(listing: listing, entry: entry)
+
+        // Size AFTER assigning contentViewController, never before.
+        //
+        // Assigning it resizes the window to the view's fitting size and throws away the
+        // contentRect passed to init — so the panel opened at a few hundred points and
+        // had to be dragged bigger by hand every single time. Exactly the defect the main
+        // window had (it opened at 278x85); the fix is the same, and the ordering is the
+        // whole point.
+        panel.setContentSize(preferredContentSize())
+        panel.minSize = NSSize(width: 420, height: 260)
+    }
+
+    /// A size that shows the whole table without scrolling, within reason.
+    ///
+    /// Properties panels vary enormously — a `.tar` member has a handful of rows, a
+    /// solid `.7z` with an encrypted header has dozens — so a fixed height is either
+    /// wasteful or immediately scrolling. Height follows the row count and is then
+    /// clamped to 70% of the visible screen, because "fit the content" must not mean a
+    /// panel taller than the display.
+    private func preferredContentSize() -> NSSize {
+        let headerHeight: CGFloat = 24
+        let chrome: CGFloat = 76          // button row, insets, separator
+        let contentHeight = CGFloat(max(rows.count, 6)) * tableView.rowHeight
+            + headerHeight + chrome
+
+        let screen = panel.screen ?? NSScreen.main
+        let ceilingHeight = (screen?.visibleFrame.height ?? 900) * 0.7
+        return NSSize(
+            width: 560,
+            height: min(max(contentHeight, 260), ceilingHeight)
+        )
     }
 
     private func position(over window: NSWindow) {

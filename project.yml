@@ -425,140 +425,140 @@ targets:
           # ---- Tier A: system-declared -----------------------------------------------
           - CFBundleTypeName: 7z Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-7z.icns
             LSItemContentTypes: [org.7-zip.7-zip-archive]
           - CFBundleTypeName: Zip Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-zip.icns
             LSItemContentTypes: [public.zip-archive]
           - CFBundleTypeName: Tar Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-tar.icns
             LSItemContentTypes: [public.tar-archive]
           - CFBundleTypeName: Gzip Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-gz.icns
             LSItemContentTypes:
               - org.gnu.gnu-zip-archive
               - org.gnu.gnu-zip-tar-archive
           - CFBundleTypeName: Bzip2 Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-bz2.icns
             LSItemContentTypes:
               - public.bzip2-archive
               - public.tar-bzip2-archive
           - CFBundleTypeName: XZ Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-xz.icns
             LSItemContentTypes:
               - org.tukaani.xz-archive
               - org.tukaani.tar-xz-archive
           - CFBundleTypeName: Compress Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [public.z-archive]
           - CFBundleTypeName: CPIO Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes:
               - public.cpio-archive
               - com.apple.bom-compressed-cpio
           - CFBundleTypeName: Cabinet Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-cab.icns
             LSItemContentTypes: [com.microsoft.cab]
           - CFBundleTypeName: Java Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-zip.icns
             LSItemContentTypes:
               - com.sun.java-archive
               - com.sun.web-application-archive
           - CFBundleTypeName: XAR Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.apple.xar-archive]
           - CFBundleTypeName: Installer Package
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.apple.installer-package-archive]
           - CFBundleTypeName: StuffIt Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.allume.stuffit-archive]
 
           # ---- Tier B: imported below, not system-declared ----------------------------
           - CFBundleTypeName: RAR Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-rar.icns
             LSItemContentTypes: [com.rarlab.rar-archive]
           - CFBundleTypeName: LHA Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes:
               - lha
               - public.archive.lha
           - CFBundleTypeName: Disk Image
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes:
               - public.iso-image
               - com.apple.disk-image-udif
           - CFBundleTypeName: Windows Installer Package
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.microsoft.msi-installer]
           - CFBundleTypeName: SquashFS Image
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.plougher.squashfs-archive]
           - CFBundleTypeName: Windows Imaging Format Archive
             CFBundleTypeRole: Editor
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.microsoft.wim-archive]
           - CFBundleTypeName: Zstandard Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes:
               - com.facebook.zstandard-archive
               - com.facebook.zstandard-tar-archive
           - CFBundleTypeName: LZ4 Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [public.lz4-archive]
           - CFBundleTypeName: Brotli Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [com.google.brotli-archive]
           - CFBundleTypeName: LZMA Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-generic.icns
             LSItemContentTypes: [org.tukaani.lzma-archive]
           - CFBundleTypeName: ZIPX Archive
             CFBundleTypeRole: Viewer
-            LSHandlerRank: Alternate
+            LSHandlerRank: Default
             CFBundleTypeIconFile: doc-zip.icns
             LSItemContentTypes: [com.winzip.zipx-archive]
 
@@ -580,6 +580,22 @@ targets:
         # authority that defines this format". We define none of them. In particular
         # org.7-zip.7-zip-archive belongs to Igor Pavlov and is already system-declared -
         # it is imported below defensively, never exported.
+
+        # ---- Handler rank -----------------------------------------------------------------
+        # Default, not Alternate.
+        #
+        # macOS resolves a document's ICON from the highest-ranked declarer of its type,
+        # independently of which app the user picked as the default. With Alternate, .7z
+        # files kept Keka's icon even after ArcSeven was made the default handler for
+        # them, because Keka declares that type as Default — verified by reading its
+        # Info.plist, not guessed. Every other format we claim did pick up our icon, which
+        # is what made the single exception legible.
+        #
+        # Default is the honest claim: "a reasonable handler for this type". It is NOT
+        # Owner, which asserts authorship of the format and belongs to whoever defined it
+        # — org.7-zip.7-zip-archive is Igor Pavlov's. public.data stays at None: it
+        # matches every file with no better type, and claiming any rank on it would put
+        # ArcSeven in front of unrelated documents.
 
         # ---- Imported types ---------------------------------------------------------------
         # Every entry here was verified absent from CoreTypes.bundle: without these
