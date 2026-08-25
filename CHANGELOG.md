@@ -20,6 +20,38 @@ calls M1.
 
 Nothing yet.
 
+## [0.1.2] - 2026-08-26
+
+**The auto-updater works for the first time.** Every earlier build shipped without a feed
+URL, so this update has to be installed by hand; from here on the app can update itself.
+
+### Fixed
+
+- **Auto-update was never configured.** `SUFeedURL`, `SUEnableAutomaticChecks` and
+  `SUScheduledCheckInterval` sat in the Quick Look extension's `Info.plist`. Sparkle reads
+  its configuration from the host app, so nothing there was ever consulted and the app had
+  no feed to check. The keys were present and correctly spelled the whole time, just
+  attached to the wrong target. Preflight now asserts this against the built bundle.
+- **Encrypted multi-volume archives always reported failure.** With `-v`, 7zz writes
+  `archive.7z.001`, `.002`, … and never `archive.7z`, but the encryption check re-listed
+  the base name and got `errno=2 : No such file or directory`. The archive had been
+  written correctly, and encrypted correctly, and the user was told it failed.
+- **Large selections could not be extracted or tested.** Member paths went on `argv`,
+  where `ARG_MAX` fails the spawn with an opaque `E2BIG`. They now move to a list file
+  past a threshold, and stay on `argv` below it.
+- The progress sheet is now dismissed from a `defer`. It is modal, and the only way out
+  of a stuck one is force-quitting.
+
+### Added
+
+- `SUPublicEDKey`, so updates are verified. Sparkle refuses anything it cannot verify, so
+  until now the updater had no key and would have failed closed.
+
+### Changed
+
+- Running and reporting moved to `MainWindowController+Running.swift`; the original file
+  crossed the 500-line limit.
+
 ## [0.1.1] - 2026-08-25
 
 **Security and data-loss fixes. 0.1.0 has been withdrawn — do not use it.**
