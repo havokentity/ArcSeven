@@ -121,15 +121,10 @@
 		3CDED68EF65F528FBB671662 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Legal;
-			dstSubfolderSpec = 7;
+			dstPath = Contents/Helpers;
+			dstSubfolderSpec = 1;
 			files = (
-				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
-				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
-				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
-				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
-				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
-				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
+				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -149,10 +144,15 @@
 		DAD6661C6AD7DA74B203F630 /* CopyFiles */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
-			dstPath = Contents/Helpers;
-			dstSubfolderSpec = 1;
+			dstPath = Legal;
+			dstSubfolderSpec = 7;
 			files = (
-				E10365AAC0D4136896C5FBA1 /* 7zz in CopyFiles */,
+				90FE2F48EEC095B680CE8AC0 /* LGPL-2.1.txt in CopyFiles */,
+				1E75C3FC622BB571B7C2B121 /* LICENSE in CopyFiles */,
+				E8D48A90A988F15F8C633A96 /* LICENSE.txt in CopyFiles */,
+				4680454E41964798EC8D3865 /* NOTICE in CopyFiles */,
+				12006C22B6B1FB17D6E8CBEB /* README.md in CopyFiles */,
+				16BE6F31606416142B47F9E4 /* VERSION.txt in CopyFiles */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -222,6 +222,7 @@
 		914454927FC7D467D9B4FC1E /* ArcSevenFinder.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ArcSevenFinder.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		91D0B85908D951E18BB85B51 /* NOTICE */ = {isa = PBXFileReference; path = NOTICE; sourceTree = "<group>"; };
 		99BDD5F12265C85FB91CA016 /* MainMenuBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainMenuBuilder.swift; sourceTree = "<group>"; };
+		A10F9485B31405A0AA3EA3D0 /* install-local.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "install-local.sh"; sourceTree = "<group>"; };
 		A134098FF89E5ECA64D63CFF /* FileSystemFolderProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileSystemFolderProvider.swift; sourceTree = "<group>"; };
 		A210EBCE9CDBD5A8FA0AE0A7 /* SLTParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SLTParser.swift; sourceTree = "<group>"; };
 		A33EEBF650F52AE00F93F0C9 /* SettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsWindowController.swift; sourceTree = "<group>"; };
@@ -516,6 +517,7 @@
 			isa = PBXGroup;
 			children = (
 				2C0BCDA5314932F42663BFA6 /* bootstrap.sh */,
+				A10F9485B31405A0AA3EA3D0 /* install-local.sh */,
 				39EC82CB3AABAD194D9AC580 /* make-dmg.sh */,
 				2CCBCB270A7E9B4968483E07 /* notarize.sh */,
 				4583501B1049B50851F414CE /* refresh-third-party-licenses.sh */,
