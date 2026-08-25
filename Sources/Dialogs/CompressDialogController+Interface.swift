@@ -181,6 +181,10 @@ extension CompressDialogController {
         encryptNamesCheckbox.action = #selector(encryptNamesToggled(_:))
         passwordErrorLabel.font = .systemFont(ofSize: 11)
         passwordErrorLabel.textColor = .systemRed
+        passwordExposureLabel.font = .systemFont(ofSize: 11)
+        passwordExposureLabel.textColor = .secondaryLabelColor
+        passwordExposureLabel.lineBreakMode = .byWordWrapping
+        passwordExposureLabel.maximumNumberOfLines = 2
 
         // The masked and the legible passphrase field get a row each and take it in
         // turns to be hidden, so the caret never has to move between two views that
@@ -194,7 +198,7 @@ extension CompressDialogController {
         let plainLabel = label("Enter password:")
         let verifyLabel = label("Reenter password:")
         let methodLabel = label("Encryption method:")
-        let spacerLabels = [label(""), label(""), label("")]
+        let spacerLabels = [label(""), label(""), label(""), label("")]
         let formLabels = [secureLabel, plainLabel, verifyLabel, methodLabel] + spacerLabels
 
         // One measured width for the whole group, so the fields line up the way an
@@ -214,11 +218,13 @@ extension CompressDialogController {
         let methodRow = formRow(methodLabel, encryptionMethodPopup)
         let namesRow = formRow(spacerLabels[1], encryptNamesCheckbox)
         let errorRow = formRow(spacerLabels[2], passwordErrorLabel)
+        let exposureRow = formRow(spacerLabels[3], passwordExposureLabel)
         secureRow = secure
         plainRow = plain
         verifyRow = verify
         encryptNamesRow = namesRow
         passwordErrorRow = errorRow
+        passwordExposureRow = exposureRow
 
         let encryptionSection = section(
             "Encryption", [secure, plain, verify, showRow, methodRow, namesRow, errorRow])

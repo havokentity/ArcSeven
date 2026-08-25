@@ -242,6 +242,16 @@ extension CompressDialogController {
         passwordErrorLabel.stringValue = passwordFailure?.errorDescription ?? ""
         passwordErrorRow?.isHidden = passwordFailure == nil
 
+        // Unconditional rather than gated on EngineCapabilities: the dialog holds no
+        // engine, and the CLI engine — the only one that exists — reports
+        // `keepsPasswordsInProcess == false`. Gate this the day a second engine lands.
+        let hasPassword = !model.password.isEmpty
+        passwordExposureLabel.stringValue = hasPassword
+            ? "While the archive is being created, the password is briefly visible to "
+              + "other users signed in to this Mac."
+            : ""
+        passwordExposureRow?.isHidden = !hasPassword
+
         // Only the two conditions that can never produce a runnable command block OK.
         // Everything else 7-Zip validates on OK, and so do we — see `okPressed`.
         let pathEmpty = model.archivePath.trimmingCharacters(in: .whitespaces).isEmpty

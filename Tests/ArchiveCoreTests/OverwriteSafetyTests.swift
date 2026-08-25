@@ -157,4 +157,49 @@ struct OverwriteSafetyTests {
         // Ask must be the SAFE end of the range, never -aoa.
         #expect(SevenZipCLIEngine.overwriteSwitch(.ask) == ["-aos"])
     }
+
+    /// The combination that makes the `.ask` fail-safe load-bearing rather than belt-and-
+    /// braces.
+    ///
+    /// A password is delivered by piping it to the child's stdin, which requires OMITTING
+    /// `-y` so that `7zz` emits its "Enter password:" prompt at all (SECURITY.md §4). With
+    /// `-y` gone, nothing suppresses the *overwrite* prompt either — so before 0.1.1, when
+    /// `.ask` emitted no `-ao*` switch, an encrypted extraction over an existing file left
+    /// 7zz prompting on the same stdin the passphrase was being written to.
+    ///
+    /// Both outcomes are bad and neither is a clean failure: the passphrase is consumed as
+    /// the answer to "overwrite?", or the child blocks forever on a prompt no one will
+    /// answer. The explicit `-aos` is what keeps that prompt from ever appearing.
+    @Test("An encrypted archive in Ask mode neither overwrites nor eats the password")
+    func encryptedAskDoesNotOverwriteOrHang() async throws {
+        try await withScratch { dir in
+            let source = dir.appendingPathComponent("src", isDirectory: true)
+            try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+            try "FROM-ARCHIVE".write(to: source.appendingPathComponent("keep.txt"),
+                                     atomically: true, encoding: .utf8)
+
+            let archive = dir.appendingPathComponent("enc.7z")
+            var compress = CompressRequest(
+                archiveURL: archive, inputs: [source.appendingPathComponent("keep.txt")],
+                format: .sevenZip
+            )
+            compress.baseDirectory = source
+            compress.encryption = CompressRequest.EncryptionOptions(password: "correct horse")
+            for try await _ in engine.compress(compress) {}
+
+            let destination = dir.appendingPathComponent("out", isDirectory: true)
+            try FileManager.default.createDirectory(at: destination, withIntermediateDirectories: true)
+            try "PRECIOUS".write(to: destination.appendingPathComponent("keep.txt"),
+                                 atomically: true, encoding: .utf8)
+
+            var request = ExtractRequest(archiveURL: archive, destinationURL: destination)
+            request.password = "correct horse"
+            request.overwriteMode = .ask
+            request.pathMode = .fullPaths
+            for try await _ in engine.extract(request) {}
+
+            #expect(contents(destination.appendingPathComponent("keep.txt")) == "PRECIOUS",
+                    "Ask mode must not overwrite even when a password is in play")
+        }
+    }
 }

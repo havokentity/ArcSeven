@@ -116,6 +116,13 @@ public final class CompressDialogController: NSObject, NSTextFieldDelegate, NSCo
     let encryptNamesCheckbox = NSButton(checkboxWithTitle: "Encrypt file names", target: nil, action: nil)
     let passwordErrorLabel = NSTextField(labelWithString: "")
 
+    /// Discloses that a passphrase used to CREATE an archive is briefly visible to other
+    /// local users. `7zz a` has no stdin prompt — it silently writes an unencrypted
+    /// archive when `-p` is absent — so the passphrase has to go on argv, where `ps` can
+    /// see it for the lifetime of the child. Reading an encrypted archive is unaffected;
+    /// there the passphrase is piped. See `docs/SECURITY.md` §4.
+    let passwordExposureLabel = NSTextField(labelWithString: "")
+
     /// The sheet's content view, kept so the sheet can be resized to it whenever a row
     /// appears or disappears.
     var contentRoot: NSView?
@@ -140,6 +147,7 @@ public final class CompressDialogController: NSObject, NSTextFieldDelegate, NSCo
     var verifyRow: NSStackView?
     var encryptNamesRow: NSStackView?
     var passwordErrorRow: NSStackView?
+    var passwordExposureRow: NSStackView?
     var volumeErrorRow: NSStackView?
 
     // MARK: - Construction
