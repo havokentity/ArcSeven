@@ -38,6 +38,10 @@ playground.xcworkspace
 # committed once in fc44099; untracked here so it cannot happen twice.
 build/
 
+# Agent worktrees. These are live git worktrees of THIS repo; committing them adds
+# embedded repositories that no clone can resolve.
+.claude/worktrees/
+
 # CocoaPods
 #
 # We recommend against adding the Pods directory to your .gitignore. However
