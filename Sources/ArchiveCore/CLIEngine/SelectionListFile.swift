@@ -55,8 +55,10 @@ enum SelectionListFile {
         // it 7zz reads list files in the OEM code page and any non-ASCII member silently
         // fails to match.
         //
-        // One member per line. 7-Zip treats a list-file line as a literal name, so a member
-        // containing a newline cannot be expressed here — those fall back to argv below.
+        // One member per line. A list-file line is matched as a WILDCARD exactly like an
+        // argv name — verified, contradicting an earlier comment here — so the caller pairs
+        // this with -spd. A member containing a newline still cannot be expressed in a
+        // line-delimited file, so those fall back to argv below.
         let splittable = entries.filter { !$0.contains(where: \.isNewline) }
         let unsplittable = entries.filter { $0.contains(where: \.isNewline) }
 

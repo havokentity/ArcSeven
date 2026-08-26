@@ -34,6 +34,42 @@ struct CompressDialogConstructionTests {
         #expect(dialog.passwordExposureRow != nil)
     }
 
+    /// Existing is not the same as being on screen.
+    ///
+    /// The exposure row shipped in 0.1.3 built, styled, stored and updated — and never
+    /// added to the Encryption section, so it had no superview and was invisible. The test
+    /// that was supposed to cover it asserted `isHidden` and `stringValue`, which a
+    /// detached view answers perfectly well. Reaching the content view is the property that
+    /// actually matters.
+    @Test("Every stored row is attached to the sheet")
+    func rowsAreInTheViewHierarchy() {
+        let dialog = makeDialog()
+        let root = dialog.contentRoot
+        #expect(root != nil, "no content view was built")
+
+        func reachesRoot(_ view: NSView?) -> Bool {
+            var node = view
+            while let current = node {
+                if current === root { return true }
+                node = current.superview
+            }
+            return false
+        }
+
+        let rows: [(String, NSView?)] = [
+            ("passwordErrorRow", dialog.passwordErrorRow),
+            ("passwordExposureRow", dialog.passwordExposureRow),
+            ("secureRow", dialog.secureRow),
+            ("verifyRow", dialog.verifyRow),
+            ("encryptNamesRow", dialog.encryptNamesRow),
+        ]
+        for (name, view) in rows {
+            #expect(reachesRoot(view), "\(name) is not attached to the sheet")
+        }
+        #expect(reachesRoot(dialog.passwordExposureLabel),
+                "the exposure label itself never reaches the sheet")
+    }
+
     /// The passphrase-exposure note is real: `7zz a` takes the password on argv, where
     /// other local users can see it. It must appear exactly when a password will be used.
     @Test("The exposure note appears only when a password is set")

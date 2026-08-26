@@ -81,6 +81,18 @@ public final class OverwriteDialogController: NSObject {
         didSet { applyDefaultButton() }
     }
 
+    /// The mirror of ``showsExtraButtons``: hides the PER-FILE answers, leaving only the
+    /// ones that honestly describe what will happen.
+    ///
+    /// The subprocess engine cannot be answered mid-run — a decision becomes one `-ao*`
+    /// switch for the whole extraction. So when more than one file collides, `Yes` cannot
+    /// mean "this one": it silently overwrites every collision, which through 0.1.5 is what
+    /// it did. Removing the button is the honest fix; the alternative is a button that
+    /// means something other than what it says.
+    public var showsPerFileButtons: Bool = true {
+        didSet { applyButtonVisibility() }
+    }
+
     // MARK: Controls
 
     private let panel = NSPanel(
@@ -107,6 +119,14 @@ public final class OverwriteDialogController: NSObject {
     private weak var host: NSWindow?
     private var completion: (@MainActor (OverwriteDecision) -> Void)?
     private var selfRetain: OverwriteDialogController?
+
+    // MARK: Testing hooks
+
+    /// The sheet's content view, so a test can assert which buttons a user actually sees.
+    public var panelContentViewForTesting: NSView? { panel.contentView }
+
+    /// Whether Return is wired to the destructive answer.
+    public var destructiveButtonHasReturnKeyForTesting: Bool { yesButton.keyEquivalent == "\r" }
 
     // MARK: Init
 
@@ -313,6 +333,9 @@ public final class OverwriteDialogController: NSObject {
     private func applyButtonVisibility() {
         for button in [yesToAllButton, noToAllButton, autoRenameButton] {
             button.isHidden = !showsExtraButtons
+        }
+        for button in [yesButton, noButton] {
+            button.isHidden = !showsPerFileButtons
         }
         panel.setContentSize(panel.contentView?.fittingSize ?? panel.frame.size)
     }

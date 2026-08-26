@@ -162,6 +162,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             return Self.failedStream(.extract, error)
         }
         arguments.append(contentsOf: selection.switches)
+        if request.selectedEntries?.isEmpty == false { arguments.append(Self.literalNames) }
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         arguments.append(contentsOf: selection.arguments)
@@ -190,6 +191,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
             return Self.failedStream(.test, error)
         }
         arguments.append(contentsOf: selection.switches)
+        if request.selectedEntries?.isEmpty == false { arguments.append(Self.literalNames) }
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         arguments.append(contentsOf: selection.arguments)
@@ -270,6 +272,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         let delivery = Self.readDelivery(request.password)
         var arguments = ["d"]
         arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
+        if !request.entryPaths.isEmpty { arguments.append(Self.literalNames) }
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         arguments.append(contentsOf: request.entryPaths)
@@ -421,6 +424,19 @@ extension SevenZipCLIEngine {
     /// - Parameter passwordOnStdin: when `true`, `-y` is omitted so `7zz` will emit
     ///   its "Enter password:" prompt and read the answer from our pipe. See
     ///   ``passwordDelivery(for:)`` for why that matters.
+    /// Member names are LITERAL, never patterns.
+    ///
+    /// Without `-spd`, 7-Zip reads every member name given to it as a wildcard, and `*` and
+    /// `?` are legal characters in an APFS filename. Selecting the single member `note*.txt`
+    /// and pressing Delete removed `note*.txt`, `noteA.txt` and `noteB.txt` — three members
+    /// destroyed, exit 0, no warning. Extraction had the matching flaw: the pattern also
+    /// matched members the user had not selected, and `-aoa` then overwrote the on-disk
+    /// files they expanded onto.
+    ///
+    /// Verified against 26.02: `-spd` restricts matching to the literal name and leaves
+    /// ordinary and nested selections working exactly as before.
+    static let literalNames = "-spd"
+
     static func commonSwitches(passwordOnStdin: Bool) -> [String] {
         var switches = [
             "-bb3",

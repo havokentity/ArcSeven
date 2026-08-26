@@ -894,3 +894,29 @@ was the one that lied.
 `-spe` (`eliminateRootDuplication`) is 7-Zip's own partial answer and remains available; it
 only fires when the root folder's name matches the archive's, so it misses `archive.zip`
 containing `src/`.
+
+## D-0.1.6-1 — the overwrite prompt offers only answers it can honour
+
+**Windows 7zFM.** `Confirm File Replace` appears per file, so `Yes` overwrites that one
+file and the next collision asks again.
+
+**ArcSeven.** The subprocess engine has no interactive channel once `7zz` is running, so a
+decision has to become one `-ao*` switch for the whole extraction. Conflicts are therefore
+resolved before the child is spawned, and the sheet offers only the answers that describe
+what will actually happen:
+
+| Collisions found | Buttons |
+| --- | --- |
+| Exactly one | `Yes`, `No`, `Cancel` — they mean what they say |
+| More than one | `Yes to All`, `No to All`, `Auto Rename`, `Cancel` |
+
+`Return` is bound to the safe answer, never the destructive one.
+
+**Why.** Through 0.1.5 all six buttons were shown in every case and `Yes` was mapped to
+`-aoa`. A sheet naming a single file, answered with the button that means "this one",
+overwrote every colliding file in the run — silently, and with no way to discover which
+files had been replaced. The buttons existed to be honest about a per-file decision the
+engine cannot make; withdrawing them is the fix, because the alternative is a button that
+means something other than what it says.
+
+A true per-file prompt needs the in-process engine, and is not scheduled.

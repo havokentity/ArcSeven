@@ -227,7 +227,8 @@ extension CompressDialogController {
         passwordExposureRow = exposureRow
 
         let encryptionSection = section(
-            "Encryption", [secure, plain, verify, showRow, methodRow, namesRow, errorRow])
+            "Encryption",
+            [secure, plain, verify, showRow, methodRow, namesRow, errorRow, exposureRow])
         return encryptionSection
     }
 

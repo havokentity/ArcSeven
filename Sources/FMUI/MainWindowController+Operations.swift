@@ -325,13 +325,19 @@ extension MainWindowController {
     ) {
         let manager = FileManager.default
         var conflict: (existing: URL, entry: ArchiveEntry)?
+        // Counted, not just detected, because the count decides which answers are honest.
+        // Stops at two: the only question is "exactly one collision, or more than one", and
+        // a large archive over a large directory is a lot of stat calls to make for a
+        // number nobody reads.
+        var conflictCount = 0
         for entry in Self.filesAffected(by: request, in: listing) {
             guard let destination = Self.extractionDestination(
                 of: entry, under: request
             ) else { continue }
             if manager.fileExists(atPath: destination.path) {
-                conflict = (destination, entry)
-                break
+                if conflict == nil { conflict = (destination, entry) }
+                conflictCount += 1
+                if conflictCount > 1 { break }
             }
         }
 
@@ -353,6 +359,20 @@ extension MainWindowController {
                 modified: conflict.entry.modified
             )
         )
+
+        // One collision: `Yes` and `No` mean what they say, and there is nothing to apply
+        // "to all", so the bulk answers go.
+        //
+        // More than one: the answer becomes a single `-ao*` for the whole run, so `Yes`
+        // cannot mean "this file". Through 0.1.5 it was offered anyway and quietly
+        // overwrote every collision — the sheet named one file and destroyed all of them.
+        // Only the answers that describe the real behaviour are offered now.
+        let isSingleConflict = conflictCount == 1
+        dialog.showsExtraButtons = !isSingleConflict
+        dialog.showsPerFileButtons = isSingleConflict
+        // Return should not be the destructive answer.
+        dialog.defaultsToNo = true
+
         dialog.present(in: window) { decision in
             var resolved = request
             switch decision {
