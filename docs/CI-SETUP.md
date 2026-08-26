@@ -30,8 +30,9 @@ Linux build and the lint job needs no Xcode.
 
 ## Release secrets
 
-Seven required, one optional. Set them with `gh secret set NAME --repo havokentity/ArcSeven`,
-which reads the value from stdin so it never lands in your shell history.
+Eight, all required for a stable release. Set them with
+`gh secret set NAME --repo havokentity/ArcSeven`, which reads the value from stdin so it
+never lands in your shell history.
 
 ### Signing certificate
 
@@ -62,10 +63,23 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set NOTARY_KEY_P8_BASE64 --repo havo
 - `NOTARY_KEY_ID` — the 10-character Key ID.
 - `NOTARY_ISSUER_ID` — the UUID shown above the key list.
 
-### Optional
+### Auto-update signing
 
-- `SPARKLE_ED_PRIVATE_KEY` — from Sparkle's `generate_keys`. The appcast step **skips
-  itself** when this is unset, so leave it out until auto-update actually ships.
+- `SPARKLE_ED_PRIVATE_KEY` — from Sparkle's `generate_keys`.
+
+This one used to be optional, and is not any more. Every shipped bundle carries a real
+`SUPublicEDKey` and a `SUFeedURL` of
+`https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml`. A stable
+release publishes and immediately *becomes* `releases/latest`, so a release with no
+`appcast.xml` attached makes that URL 404 for **every already-installed copy**, not only
+the ones that would have updated to it. Scheduled checks fail quietly by design, so
+nobody sees an error: the installed base just stops receiving updates until some later
+release repairs the feed.
+
+So `release.yml` now fails the run when the secret is missing on a stable tag, before
+anything is published. A **prerelease** tag (`v1.2.0-beta.1`) may still be built without
+it — GitHub's `releases/latest` alias excludes prereleases, so such a release can never
+become the feed an installed copy reads.
 
 ## Cutting a release
 

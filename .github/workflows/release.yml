@@ -29,10 +29,14 @@
 #     two-factor re-authentication.
 #
 #   SPARKLE_ED_PRIVATE_KEY     Sparkle EdDSA private key, from Sparkle's generate_keys.
-#                              Optional: the appcast step is skipped when it is absent, so
-#                              this pipeline works before Sparkle is wired up. DSA-only
-#                              updates are no longer supported by Sparkle; EdDSA or
-#                              nothing.
+#                              REQUIRED for a stable tag, and the appcast step fails the
+#                              run when it is missing. It was optional while Sparkle was
+#                              still being wired up; it stopped being optional the moment
+#                              a real SUPublicEDKey and SUFeedURL started shipping in every
+#                              bundle. See the appcast step for what a missing appcast
+#                              does to the installed base. A prerelease tag may still be
+#                              published without it. DSA-only updates are no longer
+#                              supported by Sparkle; EdDSA or nothing.
 #
 # ---------------------------------------------------------------------------------------
 # SCRIPTS CONTRACT
@@ -77,8 +81,10 @@
 #       artefact is not optional.
 #
 #   Scripts/appcast.sh <dist-dir>
-#       Sparkle sign_update + generate_appcast. Skipped when SPARKLE_ED_PRIVATE_KEY is
-#       unset.
+#       Sparkle sign_update, then writes dist/appcast.xml. It exits 0 without writing
+#       anything when SPARKLE_ED_PRIVATE_KEY is unset, which is right for a local run and
+#       is NOT what this workflow wants: the step below rejects that outcome for a stable
+#       tag before it can reach the publish step.
 #       env: SPARKLE_ED_PRIVATE_KEY
 
 name: Release
@@ -321,20 +327,56 @@ jobs:
           shasum -a 256 *.dmg *.tar.xz | tee SHA256SUMS.txt
 
       # ---------------------------------------------------------------------------------
-      # Sparkle appcast (skipped until the EdDSA key exists)
+      # Sparkle appcast - a hard requirement for a stable tag
       # ---------------------------------------------------------------------------------
+      # This step used to skip itself when the secret was absent, and the publish step
+      # below used to shrug at a missing appcast.xml. That was the correct posture exactly
+      # once: before Sparkle shipped. It is now the single worst failure this pipeline can
+      # have.
+      #
+      # Every bundle we ship carries a real SUPublicEDKey and
+      #   SUFeedURL = https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml
+      # A stable release publishes and immediately becomes `releases/latest`. If it carries
+      # no appcast.xml, that URL starts returning 404 for EVERY already-installed copy -
+      # not just the ones that would have updated to this version - and stays broken until
+      # some later release repairs it. Users see nothing: scheduled checks fail quietly by
+      # design, so the whole installed base silently stops receiving updates, including
+      # security ones. A release that cannot be published is recoverable in ten minutes; an
+      # installed base that has lost its feed is not recoverable at all from our side.
+      #
+      # So: no key, no release.
+      #
+      # A prerelease tag is exempt, and for one specific reason rather than convenience -
+      # GitHub's `releases/latest` alias excludes prereleases, so a `-beta` release can
+      # never become the feed an installed copy reads. Shipping one without an appcast
+      # strands nobody, and keeping that path open means the pipeline can still be
+      # exercised end to end from a fork-less test tag with no secrets but the signing ones.
+      #
       # Guarded inside the step rather than with `if:` - the secrets context is not
       # available to a step-level condition.
       - name: Sign update and generate appcast
         env:
           SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+          # Empty for a stable tag, "--prerelease" otherwise. See the version step.
+          PRERELEASE_FLAG: ${{ steps.version.outputs.prerelease }}
         run: |
           set -euo pipefail
           if [ -z "${SPARKLE_ED_PRIVATE_KEY:-}" ]; then
-            echo "SPARKLE_ED_PRIVATE_KEY is not set - skipping Sparkle appcast generation."
-            exit 0
+            if [ -n "${PRERELEASE_FLAG:-}" ]; then
+              echo "::warning::SPARKLE_ED_PRIVATE_KEY is not set. Publishing ${{ steps.version.outputs.tag }} without an appcast: it is a prerelease, so it will not become releases/latest and cannot break an installed copy's feed."
+              exit 0
+            fi
+            echo "::error::SPARKLE_ED_PRIVATE_KEY is not set, so this release would carry no appcast.xml. It would still become releases/latest, and every installed copy's SUFeedURL would start returning 404. Set the secret (gh secret set SPARKLE_ED_PRIVATE_KEY --repo havokentity/ArcSeven) and re-run, or tag a prerelease instead."
+            exit 1
           fi
           Scripts/appcast.sh dist
+          # appcast.sh exits 0 on the unset-key path, and that path is unreachable here -
+          # but the check costs nothing and turns any future silent no-op into a red run
+          # rather than a broken feed.
+          if [ ! -f dist/appcast.xml ]; then
+            echo "::error::Scripts/appcast.sh succeeded but wrote no dist/appcast.xml."
+            exit 1
+          fi
 
       # ---------------------------------------------------------------------------------
       # Publish
@@ -412,8 +454,18 @@ jobs:
               "dist/SHA256SUMS.txt"
           fi
 
+          # The appcast is an asset of the release, not an afterthought: `releases/latest`
+          # is the feed URL burned into every shipped bundle, so a stable release without
+          # one 404s the installed base. The appcast step above already refuses to let that
+          # reach here; this is the second lock on the same door, and it is deliberately a
+          # failure rather than a skip.
           if [ -f dist/appcast.xml ]; then
             gh release upload "${{ steps.version.outputs.tag }}" dist/appcast.xml --clobber
+          elif [ -z "${{ steps.version.outputs.prerelease }}" ]; then
+            echo "::error::dist/appcast.xml is missing on a stable release. Every installed copy reads releases/latest/download/appcast.xml; publishing without it breaks auto-update for all of them."
+            exit 1
+          else
+            echo "No appcast.xml for this prerelease - it will not become releases/latest, so no installed copy reads it."
           fi
 
       - name: Upload debug symbols as a workflow artifact
