@@ -84,10 +84,16 @@ enum SevenZipSignatureReader {
             // so the counts are not zero - they are unknown. Reporting "0 files" about a
             // perfectly good archive would be a lie.
             countsAreKnown: false,
+            // "in a metadata header this preview does not read", not "in a COMPRESSED
+            // metadata header". The compressed case is the overwhelmingly common one, but
+            // it is not universal: `7z a -mhc=off` writes a plain kHeader, and telling a
+            // user their uncompressed header is compressed is a small lie in the one
+            // sentence they are given. What is true either way is that this extension
+            // does not parse it.
             note: """
                 Valid 7z archive, format version \(header.version). The list of files is \
-                stored in a compressed metadata header, which this preview does not \
-                decompress. Open the archive in ArcSeven to browse its contents.
+                stored in a metadata header, which this preview does not read. Open the \
+                archive in ArcSeven to browse its contents.
                 """
         )
     }

@@ -767,18 +767,41 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
           NSExtensionAttributes:
             QLSupportsSearchableItems: false
-            # Only the formats whose directory can be read from a bounded header parse.
-            # Solid 7z is included because the header is at a known offset and is itself
-            # a stream we can decode without touching the payload.
+            # Only what this extension can actually say something about. Claiming a type
+            # and then refusing it is worse than not claiming it: Quick Look picks ONE
+            # previewer per type, so every type listed here is one we take away from
+            # whatever else on the machine could have rendered it - Keka, BetterZip, or
+            # macOS itself - and the user gets a sentence where a file list used to be.
+            #
+            # This list carried ten types until 0.1.5, and six of them
+            # (public.tar-archive, org.gnu.gnu-zip-tar-archive, public.tar-bzip2-archive,
+            # org.tukaani.tar-xz-archive, com.rarlab.rar-archive, com.microsoft.cab) could
+            # only ever produce "<Format> archives are not previewed here." - the sniffer
+            # in ArchiveDirectoryReader routes every one of them to `.known(name:)`, which
+            # is the refusal path. Verified by running the real reader over real archives
+            # of each type. They are gone.
+            #
+            # What is left, and why each one earns its place:
+            #
+            #   public.zip-archive     ZIP stores its directory as plain records at a
+            #   com.sun.java-archive   findable offset, so two bounded reads produce a
+            #   com.winzip.zipx-archive  real listing. JAR and ZIPX are ZIP containers -
+            #                          the reader sniffs magic bytes, not the extension,
+            #                          and never looks at the compression method, so a
+            #                          method it cannot decompress still lists.
+            #
+            #   org.7-zip.7-zip-archive  Does NOT list members, and says so. The member
+            #                          list lives behind a metadata header this extension
+            #                          will not parse (see SevenZipSignatureReader for the
+            #                          reasoning). What it does render is real and
+            #                          specific: the format, the version, and the fact
+            #                          that the signature header passes its own CRC. That
+            #                          is strictly more than stock macOS shows for a .7z,
+            #                          which is nothing at all, so claiming the type takes
+            #                          nothing away from anyone.
             QLSupportedContentTypes:
               - org.7-zip.7-zip-archive
               - public.zip-archive
-              - public.tar-archive
-              - org.gnu.gnu-zip-tar-archive
-              - public.tar-bzip2-archive
-              - org.tukaani.tar-xz-archive
-              - com.rarlab.rar-archive
-              - com.microsoft.cab
               - com.sun.java-archive
               - com.winzip.zipx-archive
 
