@@ -85,18 +85,6 @@ struct ExtractDialogStore {
         defaults.set(enabled, forKey: Key.eliminateRoot)
     }
 
-    /// Defaults to `true`: an absent key means the user has never had an opinion, and
-    /// restoring the permission bits an archive carries is the behaviour that loses
-    /// nothing.
-    var restoresPOSIXPermissions: Bool {
-        guard defaults.object(forKey: Key.restorePermissions) != nil else { return true }
-        return defaults.bool(forKey: Key.restorePermissions)
-    }
-
-    func setRestoresPOSIXPermissions(_ enabled: Bool) {
-        defaults.set(enabled, forKey: Key.restorePermissions)
-    }
-
     /// Shared with the Password dialog (PWD-02), which persists the same toggle.
     var showsPassword: Bool {
         defaults.bool(forKey: Key.showPassword)
@@ -116,7 +104,11 @@ struct ExtractDialogStore {
         /// Same string as `SettingsKey.elimDup`, which SettingsUI documents as API
         /// precisely so leaf modules do not have to link it.
         static let eliminateRoot = "Options.ElimDup"
-        static let restorePermissions = "FM.Extract.RestorePOSIXPermissions"
+        // `FM.Extract.RestorePOSIXPermissions` used to live here, behind the `Restore
+        // POSIX permissions` check box. Both are gone: the preference was written on
+        // every OK and read by nothing, because the request it was meant to influence has
+        // no field for it. See the note at the top of `ExtractDialogController`. Any
+        // value a previous version wrote is simply ignored.
         static let showPassword = "FM.ShowPassword"
     }
 }
