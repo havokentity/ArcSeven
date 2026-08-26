@@ -150,6 +150,52 @@ public enum CompressionMethod: String, Hashable, Sendable, Codable, CaseIterable
     /// `true` when the method's "word size" control is really PPMd's model order
     /// (`-mo=`) rather than fast bytes (`-mfb=`) — res_8 §1.7.
     public var usesModelOrder: Bool { self == .ppmd }
+
+    /// The `-m` property name the Dictionary size control sets, or `nil` when the
+    /// codec has no dictionary to size.
+    ///
+    /// Three different answers, and passing the wrong one is not a mis-tuned
+    /// archive — it is `E_INVALIDARG` and no archive at all. Verified against the
+    /// vendored 26.02 binary by running `a -t7z -m0=<method>` with each spelling
+    /// (0 = accepted, 2 = `E_INVALIDARG`):
+    ///
+    ///     method       -md=  -mmem=
+    ///     LZMA           0      2
+    ///     LZMA2          0      2
+    ///     BZip2          0      2      (block size, not a window)
+    ///     PPMd           2      0      (a model memory budget, not a window)
+    ///     Copy           2      2
+    ///     Deflate        2      2      (32 KiB window, fixed by the format)
+    ///     Deflate64      2      2      (64 KiB window, fixed by the format)
+    public var dictionaryPropertyName: String? {
+        switch self {
+        case .lzma, .lzma2, .bzip2: "d"
+        case .ppmd: "mem"
+        case .copy, .deflate, .deflate64, .gnuTar, .posixTar: nil
+        }
+    }
+
+    /// The `-m` property name the Word size control sets, or `nil` when the codec
+    /// has no such control.
+    ///
+    /// Same measurement, same binary, same failure mode as
+    /// ``dictionaryPropertyName``:
+    ///
+    ///     method       -mfb=  -mo=
+    ///     LZMA           0      2
+    ///     LZMA2          0      2
+    ///     Deflate        0      2
+    ///     Deflate64      0      2
+    ///     PPMd           2      0      (``usesModelOrder``)
+    ///     BZip2          2      2
+    ///     Copy           2      2
+    public var wordSizePropertyName: String? {
+        switch self {
+        case .lzma, .lzma2, .deflate, .deflate64: "fb"
+        case .ppmd: "o"
+        case .copy, .bzip2, .gnuTar, .posixTar: nil
+        }
+    }
 }
 
 /// A dictionary size selection: either the handler's own automatic choice or an

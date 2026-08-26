@@ -29,9 +29,25 @@ public enum CompressArgumentBuilder {
             switches.append("-m0=\(method.rawValue)")
         }
 
+        // The codec that will actually run. `method == nil` is the dialog's `*`
+        // entry: it suppresses the method switch, but a codec still runs, and the
+        // dictionary and word-size properties have to be spelled for THAT one.
+        let codec = FormatCatalog.effectiveMethod(format: request.format, method: request.method)
+
         // Dictionary size.
-        if let bytes = request.dictionarySize.byteValue {
-            switches.append("-md=\(bytes)")
+        //
+        // The `b` suffix is load-bearing. An unsuffixed `-md=N` is a **log2** value
+        // and 7zz rejects anything above 31, so every byte count the dialog can
+        // produce died as `E_INVALIDARG` with no archive written. Verified against
+        // the vendored 26.02: `-md=16777216` → exit 2, `-md=16777216b` → exit 0 and
+        // `Method = LZMA2:24`. `-ms=` below has always had this right.
+        //
+        // The property NAME varies by codec as well — PPMd sizes a model memory
+        // budget through `-mmem=` and rejects `-md=` outright. See
+        // `CompressionMethod.dictionaryPropertyName` for the measured table.
+        if let bytes = request.dictionarySize.byteValue,
+           let property = codec?.dictionaryPropertyName {
+            switches.append("-m\(property)=\(bytes)b")
         }
 
         // Word size.

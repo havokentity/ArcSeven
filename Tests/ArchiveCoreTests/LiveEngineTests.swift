@@ -66,6 +66,26 @@ struct LiveEngineTests {
         return (result, items, progress)
     }
 
+    /// `Method = LZMA2:20` and friends, straight off `l -slt`. This is the only place
+    /// the codec settings a compress request asked for become observable, so the
+    /// `-m…` tests assert on it rather than on the argument array.
+    private func storedMethod(of archive: URL) async throws -> String? {
+        let listing = try await engine.list(ListRequest(archiveURL: archive))
+        return listing.entries.first { !$0.isDirectory }?.method
+    }
+
+    /// Write `byteCount` bytes of incompressible data. Codec settings are only
+    /// observable on an input big enough that 7-Zip does not shrink the dictionary
+    /// down to the payload size ("reduce size").
+    private func writeIncompressibleFile(at url: URL, byteCount: Int) throws {
+        var generator = SystemRandomNumberGenerator()
+        var bytes = Data(capacity: byteCount)
+        while bytes.count < byteCount {
+            withUnsafeBytes(of: generator.next()) { bytes.append(contentsOf: $0) }
+        }
+        try bytes.prefix(byteCount).write(to: url)
+    }
+
     @Test("Capabilities report the real vendored version")
     func capabilities() async throws {
         let caps = try await engine.capabilities()
@@ -270,6 +290,65 @@ struct LiveEngineTests {
                 received.append(chunk)
             }
             #expect(String(bytes: received, encoding: .utf8) == payload)
+        }
+    }
+
+    /// The Add dialog's Dictionary size combo produces byte counts. `-md=N` without a
+    /// suffix is a log2 exponent that 7zz refuses above 31, so every one of those byte
+    /// counts used to exit 2 with `E_INVALIDARG` and write nothing at all.
+    @Test("An explicit dictionary size is sent as a byte count")
+    func explicitDictionarySize() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("payload.bin")
+            try writeIncompressibleFile(at: source, byteCount: 2 << 20)
+
+            let archive = dir.appendingPathComponent("dict.7z")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.dictionarySize = .bytes(1 << 20)
+            _ = try await drain(engine.compress(request))
+
+            #expect(FileManager.default.fileExists(atPath: archive.path),
+                    "a dictionary size must not stop the archive being written")
+            // 20 is log2(1 MiB): the byte count asked for, arriving intact.
+            #expect(try await storedMethod(of: archive) == "LZMA2:20")
+        }
+    }
+
+    /// PPMd sizes a model memory budget, not a sliding window, and rejects `-md=`
+    /// outright. One property name for every codec was a guaranteed `E_INVALIDARG`.
+    @Test("PPMd sizes its model memory rather than a dictionary")
+    func ppmdDictionarySize() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("payload.bin")
+            try writeIncompressibleFile(at: source, byteCount: 2 << 20)
+
+            let archive = dir.appendingPathComponent("ppmd.7z")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.method = .ppmd
+            request.dictionarySize = .bytes(8 << 20)
+            _ = try await drain(engine.compress(request))
+
+            #expect(FileManager.default.fileExists(atPath: archive.path))
+            // mem23 is log2(8 MiB); o6 is the level-5 default order, left alone here.
+            #expect(try await storedMethod(of: archive) == "PPMD:o6:mem23")
+        }
+    }
+
+    /// Deflate's window is fixed by the format and the handler rejects `-md=` for it,
+    /// so a stale dictionary size left on the request must not be forwarded.
+    @Test("A dictionary size is dropped for a codec that has none")
+    func dictionarySizeDroppedForDeflate() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("a.txt")
+            try "content".write(to: source, atomically: true, encoding: .utf8)
+
+            let archive = dir.appendingPathComponent("deflate.zip")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .zip)
+            request.method = .deflate
+            request.dictionarySize = .bytes(1 << 20)
+            _ = try await drain(engine.compress(request))
+
+            #expect(FileManager.default.fileExists(atPath: archive.path))
         }
     }
 
