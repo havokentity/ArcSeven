@@ -15,23 +15,29 @@ contributors. That is the reason `ArchiveCore` and `FMKit` are AppKit-free and d
 nor the vendored `7zz`, so the parsers, the sort comparator and the exit-code mapper —
 the parts that actually break — are covered on every push.
 
-## Cost
+## Cost and throughput
 
-This repository is **private**, and GitHub bills macOS runners at a **10× minute
-multiplier**. A personal account's 2,000 free minutes per month is therefore about
-**200 macOS minutes**. A full CI run is three jobs; the release workflow is longer
-because it builds the vendored 7-Zip from source and waits on Apple's notary service.
+This repository is **public**, so standard GitHub-hosted runners are not billed and the
+10× macOS minute multiplier — which does apply to private repositories, and which earlier
+versions of this document budgeted against — does not come into it. There is no minute
+budget to protect.
 
-`ci.yml` already has `paths-ignore` for docs and Markdown, and
-`concurrency: cancel-in-progress`, so pushing twice in a minute does not pay twice.
-If minutes get tight, the honest lever is to drop the `pull_request` trigger to
-`types: [opened, synchronize]` or run the lint job on `ubuntu-latest` — SwiftLint has a
-Linux build and the lint job needs no Xcode.
+What is still finite is **wall-clock time and concurrency**. A full CI run is three jobs;
+the release workflow is much longer, because it builds 7-Zip from source and then waits on
+Apple's notary service, which is not a queue we control. `release.yml` sets
+`timeout-minutes: 90` for that reason, and a repository-wide `concurrency: release` group
+so two publishes can never interleave their asset uploads.
+
+`ci.yml` keeps `paths-ignore` for docs and Markdown and `concurrency: cancel-in-progress`,
+so pushing twice in a minute does not queue twice. If runs start backing up behind each
+other, the lever is to move the lint job to `ubuntu-latest` — SwiftLint has a Linux build
+and that job needs no Xcode — rather than to cut test coverage.
 
 ## Release secrets
 
-Seven required, one optional. Set them with `gh secret set NAME --repo havokentity/ArcSeven`,
-which reads the value from stdin so it never lands in your shell history.
+Eight, all required for a stable release. Set them with
+`gh secret set NAME --repo havokentity/ArcSeven`, which reads the value from stdin so it
+never lands in your shell history.
 
 ### Signing certificate
 
@@ -62,10 +68,23 @@ base64 -i AuthKey_XXXXXXXXXX.p8 | gh secret set NOTARY_KEY_P8_BASE64 --repo havo
 - `NOTARY_KEY_ID` — the 10-character Key ID.
 - `NOTARY_ISSUER_ID` — the UUID shown above the key list.
 
-### Optional
+### Auto-update signing
 
-- `SPARKLE_ED_PRIVATE_KEY` — from Sparkle's `generate_keys`. The appcast step **skips
-  itself** when this is unset, so leave it out until auto-update actually ships.
+- `SPARKLE_ED_PRIVATE_KEY` — from Sparkle's `generate_keys`.
+
+This one used to be optional, and is not any more. Every shipped bundle carries a real
+`SUPublicEDKey` and a `SUFeedURL` of
+`https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml`. A stable
+release publishes and immediately *becomes* `releases/latest`, so a release with no
+`appcast.xml` attached makes that URL 404 for **every already-installed copy**, not only
+the ones that would have updated to it. Scheduled checks fail quietly by design, so
+nobody sees an error: the installed base just stops receiving updates until some later
+release repairs the feed.
+
+So `release.yml` now fails the run when the secret is missing on a stable tag, before
+anything is published. A **prerelease** tag (`v1.2.0-beta.1`) may still be built without
+it — GitHub's `releases/latest` alias excludes prereleases, so such a release can never
+become the feed an installed copy reads.
 
 ## Cutting a release
 

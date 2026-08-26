@@ -190,8 +190,8 @@ automatically.
 |---|---|
 | Main app (`ArcSeven`, non-sandboxed) | **Yes** — the only spawner |
 | `QuickLookPreview.appex` (sandboxed) | **No** — pure-Swift header parser, no spawn |
-| `FinderSync.appex` (sandboxed) | **No** — hands URLs to the app via app group + `NSWorkspace.openApplication` |
-| `QuickActions` App Intents appex | **No** — routes to the app over the authenticated App-Group/XPC transport |
+| `ArcSevenFinder.appex` (sandboxed) | **No** — hands URLs to the app via app group + `NSWorkspace.openApplication` |
+| `QuickActions` App Intents appex | **Not built.** The target was removed; if it ever lands it routes to the app over the authenticated App-Group transport and spawns nothing |
 
 App extensions are sandboxed by design; a child inherits only the parent's **static** entitlements,
 never dynamically acquired PowerBox grants, so a spawn from an appex cannot reach a user-selected

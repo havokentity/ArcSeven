@@ -8,9 +8,12 @@
 #
 # Contract with .github/workflows/release.yml:
 #
-#   * SPARKLE_ED_PRIVATE_KEY unset  -> print why, write nothing, exit 0. Auto-update is
-#     optional and the pipeline must work before it is wired up. release.yml guards this
-#     as well; the guard is repeated here so a local run behaves the same way.
+#   * SPARKLE_ED_PRIVATE_KEY unset  -> print why, write nothing, exit 0. That is a
+#     convenience for LOCAL runs, where nobody has the CI secret and nobody is publishing
+#     anything. It is no longer what happens in CI: release.yml now treats an unset key as
+#     fatal for a stable tag, because a stable release with no appcast.xml becomes
+#     `releases/latest` and 404s the SUFeedURL burned into every installed copy. Do not
+#     "fix" release.yml to match this exit code; the asymmetry is the point.
 #   * SPARKLE_ED_PRIVATE_KEY set but sign_update missing -> exit non-zero, loudly. A
 #     silently unsigned appcast is worse than no appcast: Sparkle refuses unsigned
 #     updates, so the failure would only show up on a user's machine, weeks later, as
@@ -312,8 +315,26 @@ for dmg in "${DMGS[@]}"; do
     notes="${APPCAST_RELEASE_BASE}/${tag}"
 
     # A semver prerelease identifier means the tag was published as a GitHub prerelease.
-    # Those go in the `beta` channel, which UpdaterController only allows when the user
-    # has opted in. Stable users must never be offered one.
+    # Those get a `beta` channel tag, which UpdaterController's `allowedChannels(for:)`
+    # only admits when `UpdaterPreferences.includesPrereleases` is true. Stable users must
+    # never be offered one, and this is what guarantees it.
+    #
+    # HONEST CAVEAT: no shipped build can currently receive a beta item at all, so this
+    # tag is protection against a future that has not arrived rather than a live feature.
+    # Three separate things have to change before it does anything:
+    #
+    #   1. Nothing ever sets `UpdaterPreferences.includesPrereleases`. There is no
+    #      Settings toggle bound to it, so `allowedChannels(for:)` always returns [].
+    #   2. SUFeedURL is <repo>/releases/latest/download/appcast.xml, and GitHub's `latest`
+    #      alias EXCLUDES prereleases - so the appcast written for a prerelease tag is
+    #      never the one an installed copy fetches, opted in or not.
+    #   3. release.yml uploads the appcast to the tag being built, so a prerelease's
+    #      appcast lists only that prerelease. A real beta channel needs one feed that
+    #      carries both stable and beta items.
+    #
+    # Emitting the tag anyway is still right: it costs one line, it is correct XML today,
+    # and the failure mode of NOT emitting it - a prerelease silently offered to stable
+    # users the day someone fixes (1) and (2) - is the one that matters.
     channel=""
     case "$short" in
         *-*) channel="            <sparkle:channel>beta</sparkle:channel>"$'\n' ;;

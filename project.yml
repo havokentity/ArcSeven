@@ -201,7 +201,10 @@ targets:
       # `lipo -create`. It is a separate executable driven as a subprocess and is never
       # linked into this process - with the RAR handlers present, linking would import
       # the unRAR restriction, which is a GPL-incompatible "further restriction" under
-      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the SHA-256.
+      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the upstream COMMIT the
+      # binary was built from - not a SHA-256 of the binary, which differs on every build
+      # because it is compiled per release rather than mirrored. Per-release checksums
+      # live in SHA256SUMS.txt on the GitHub release.
       #
       # `optional: true` so a fresh clone can generate the project before bootstrapping.
       - path: vendor/bin/7zz
@@ -251,9 +254,10 @@ targets:
         product: Sparkle
       - target: QuickLookPreview
         embed: true
+      # codeSign: false — the appex is signed by Scripts/sign.sh, inside-out, with its own
+      # entitlements. Letting Xcode's embed phase sign it too would apply the host's.
       - target: ArcSevenFinder
         embed: true
-        codeSign: false
         codeSign: false
 
     entitlements:
@@ -385,13 +389,40 @@ targets:
             NSSendTypes: [NSFilenamesPboardType]
             NSRequiredContext:
               NSTextContent: FilePath
-          - NSMenuItem:
-              default: ArcSeven/Extract Files...
-            NSMessage: extractFilesService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
+          # ---- Removed in 0.1.5: three verbs that were two behaviours ------------------
+          #
+          # "Extract Files…", "Add to 7z Archive" and "Add to Zip Archive" were declared
+          # here and forwarded, in Sources/App/ServicesProvider.swift, to selectors that
+          # already had a menu item:
+          #
+          #   extractFilesService  -> .extract   identical to "Extract Here". No chooser
+          #                                      was ever shown, so the ellipsis promised
+          #                                      a dialog that does not exist.
+          #   addTo7zService       -> .compress  identical to "Add to Archive…".
+          #   addToZipService      -> .compress  identical, AND the Compress dialog it
+          #                                      opens pre-fills a .7z name regardless
+          #                                      (MainWindowController.compressFromFinder),
+          #                                      so the one item that named a format named
+          #                                      the wrong one.
+          #
+          # This is the bug 0.1.4 fixed for "Extract Here" vs "Extract to Subfolder": two
+          # names for one command teach the user that the names do not mean anything.
+          # Deleting the duplicates is the honest half of the fix and it is the half that
+          # lives in this file. The other half needs Sources/ and is not ours:
+          #
+          #   * "Extract Files…" needs a `FinderRequestAction` case that opens the Extract
+          #     dialog with a destination chooser, rather than reusing `.extract`, which
+          #     is defined as "decide the destination by inspecting the archive".
+          #   * "Add to <name>.7z" / "Add to <name>.zip" need the format to survive the
+          #     hand-off. `FinderRequestAction` has one `.compress` case carrying no
+          #     format, and `compressFromFinder` hard-codes `.7z` on the pre-filled name.
+          #     Widening the enum is a contract change - the Finder Sync extension and the
+          #     App Group wire format are written against exactly these cases - so it is
+          #     one owner's job, not a patch. 7-Zip's own shell menu names the file
+          #     ("Add to \"docs.7z\""), which is the target shape.
+          #
+          # The selectors stay in ServicesProvider.swift. An @objc method nothing declares
+          # is inert, and leaving them means restoring these items later is a plist edit.
           - NSMenuItem:
               default: ArcSeven/Add to Archive...
             NSMessage: addToArchiveService
@@ -401,20 +432,6 @@ targets:
               NSTextContent: FilePath
             NSKeyEquivalent:
               default: ^$A
-          - NSMenuItem:
-              default: ArcSeven/Add to 7z Archive
-            NSMessage: addTo7zService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
-          - NSMenuItem:
-              default: ArcSeven/Add to Zip Archive
-            NSMessage: addToZipService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
           - NSMenuItem:
               default: ArcSeven/Test Archive
             NSMessage: testArchiveService
@@ -434,9 +451,18 @@ targets:
         # UTImportedTypeDeclarations further down. com.rarlab.rar-archive is the one that
         # surprises people: it is a de-facto standard, not a system type.
         #
-        # LSHandlerRank is Alternate for everything. We export no format and own no
-        # format, so claiming Default would mean fighting Archive Utility, Installer and
-        # DiskImageMounter for their own file types on first launch.
+        # LSHandlerRank is Default for all 24 archive types, and None for the public.data
+        # catch-all at the bottom. It is NOT Alternate anywhere, whatever this comment used
+        # to say — an Alternate handler never wins a type whose Default handler is present,
+        # so an archiver that claimed only Alternate would never open a .7z by double-click
+        # on a Mac where Archive Utility already answers for it, which is every Mac.
+        #
+        # That is a real trade-off rather than a free win: on first launch LaunchServices
+        # can hand us types that Archive Utility, Installer or DiskImageMounter were
+        # opening before. It is bounded deliberately — the catch-all is `None` so we never
+        # become the fallback for arbitrary files, and Scripts/tools/SetDefaultHandler.swift
+        # skips .dmg, .pkg, .msi, .jar, .war and public.data, because double-clicking those
+        # is *doing something* rather than *looking inside*.
         #
         # CFBundleTypeRole is Editor only for the seven formats 7zz can actually create
         # (7z, zip, tar, gzip, bzip2, xz, wim). Everything else is Viewer - and RAR is
@@ -767,28 +793,62 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PreviewViewController
           NSExtensionAttributes:
             QLSupportsSearchableItems: false
-            # Only the formats whose directory can be read from a bounded header parse.
-            # Solid 7z is included because the header is at a known offset and is itself
-            # a stream we can decode without touching the payload.
+            # Only what this extension can actually say something about. Claiming a type
+            # and then refusing it is worse than not claiming it: Quick Look picks ONE
+            # previewer per type, so every type listed here is one we take away from
+            # whatever else on the machine could have rendered it - Keka, BetterZip, or
+            # macOS itself - and the user gets a sentence where a file list used to be.
+            #
+            # This list carried ten types until 0.1.5, and six of them
+            # (public.tar-archive, org.gnu.gnu-zip-tar-archive, public.tar-bzip2-archive,
+            # org.tukaani.tar-xz-archive, com.rarlab.rar-archive, com.microsoft.cab) could
+            # only ever produce "<Format> archives are not previewed here." - the sniffer
+            # in ArchiveDirectoryReader routes every one of them to `.known(name:)`, which
+            # is the refusal path. Verified by running the real reader over real archives
+            # of each type. They are gone.
+            #
+            # What is left, and why each one earns its place:
+            #
+            #   public.zip-archive     ZIP stores its directory as plain records at a
+            #   com.sun.java-archive   findable offset, so two bounded reads produce a
+            #   com.winzip.zipx-archive  real listing. JAR and ZIPX are ZIP containers -
+            #                          the reader sniffs magic bytes, not the extension,
+            #                          and never looks at the compression method, so a
+            #                          method it cannot decompress still lists.
+            #
+            #   org.7-zip.7-zip-archive  Does NOT list members, and says so. The member
+            #                          list lives behind a metadata header this extension
+            #                          will not parse (see SevenZipSignatureReader for the
+            #                          reasoning). What it does render is real and
+            #                          specific: the format, the version, and the fact
+            #                          that the signature header passes its own CRC. That
+            #                          is strictly more than stock macOS shows for a .7z,
+            #                          which is nothing at all, so claiming the type takes
+            #                          nothing away from anyone.
             QLSupportedContentTypes:
               - org.7-zip.7-zip-archive
               - public.zip-archive
-              - public.tar-archive
-              - org.gnu.gnu-zip-tar-archive
-              - public.tar-bzip2-archive
-              - org.tukaani.tar-xz-archive
-              - com.rarlab.rar-archive
-              - com.microsoft.cab
               - com.sun.java-archive
               - com.winzip.zipx-archive
 
   # =====================================================================================
-  # Quick Actions extension - declared, minimal
+  # Quick Actions extension - REMOVED, and there is deliberately no target below
   # =====================================================================================
-  # App Intents extension backing the Finder Quick Actions, Shortcuts, Spotlight and Siri
-  # surfaces: ExtractArchive, CompressFiles, TestArchive, ListArchiveContents. Real work
-  # is handed to the app over the shared app group, never performed in the extension -
-  # an appex has no business spawning a long-running 7zz.
+  # This banner used to introduce a `QuickActions:` target and now introduces nothing. The
+  # target was removed because Extensions/QuickActions/ has an Info.plist and entitlements
+  # but no code, and an appex with no executable is worse than no appex: it cannot carry
+  # entitlements at all, so verify-release.sh correctly failed it as "NOT sandboxed", and
+  # the bundle shipped dead weight the system might still try to load. Found by dry-running
+  # the release pipeline, not during a release.
+  #
+  # The intent is still on the roadmap - App Intents backing Finder Quick Actions,
+  # Shortcuts, Spotlight and Siri: ExtractArchive, CompressFiles, TestArchive,
+  # ListArchiveContents, with the real work handed to the app over the shared app group
+  # rather than performed in the extension, because an appex has no business spawning a
+  # long-running 7zz. Extensions/QuickActions/README.md says what bringing it back needs.
+  #
+  # Until someone writes those AppIntent implementations, nothing belongs here. Do not
+  # re-add a target for the plist alone.
   # =====================================================================================
   # Finder Sync extension - the top-level right-click menu
   # =====================================================================================
