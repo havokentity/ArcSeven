@@ -383,12 +383,47 @@ public final class PanelViewController: NSViewController {
 
     // MARK: Navigation
 
+    /// What activating a row means.
+    ///
+    /// Split out of ``open(rowAt:)`` because the decision is the part that goes wrong
+    /// and the part that cannot otherwise be observed: `open(rowAt:)` either kicks off
+    /// an async descent or calls `NSWorkspace`, and neither is assertable. This is,
+    /// and every branch below is reached through it.
+    enum RowActivation: Equatable {
+        /// The synthetic ".." row: go up a level.
+        case ascend
+        /// A folder or an archive: ask the provider for a child provider.
+        case descend
+        /// Anything else with a file behind it — a document, or a package such as a
+        /// `.app`. Hand it to Launch Services, which is what Finder does.
+        case launch(URL)
+        /// A row with nothing behind it: a member of an archive that is not itself
+        /// navigable has no URL to open.
+        case nothing
+    }
+
+    /// Decide what opening `item` should do.
+    ///
+    /// The ordering matters: `isNavigable` is checked BEFORE falling through to the
+    /// URL, so a folder never gets handed to Launch Services, and a row that is not
+    /// navigable never reaches `child(at:)` — which would return `nil` and leave the
+    /// double-click doing nothing at all. That was the package bug: `isNavigable` was
+    /// `true` for a `.app` while `isDirectory` was `false`, so the descent branch ran,
+    /// `child(at:)` matched no branch, and the launch fallback was never considered.
+    static func activation(for item: FolderItem) -> RowActivation {
+        if item.isParentRow { return .ascend }
+        if item.isNavigable { return .descend }
+        if let url = item.url { return .launch(url) }
+        return .nothing
+    }
+
     /// Open the row at `index`, descending if it is navigable.
     public func open(rowAt index: Int) {
         guard rows.indices.contains(index) else { return }
         let item = rows[index]
 
-        if item.isParentRow {
+        switch Self.activation(for: item) {
+        case .ascend:
             // `self.provider` must stay qualified: a local named `provider` is declared
             // further down this function, and an unqualified reference here captures
             // that instead. SwiftLint's redundant_self autofix removed the `self.` and
@@ -399,12 +434,18 @@ public final class PanelViewController: NSViewController {
                 go(to: parent)
             }
             return
-        }
 
-        guard item.isNavigable else {
-            // A plain file: hand it to Launch Services, matching 7zFM's Enter.
-            if let url = item.url { NSWorkspace.shared.open(url) }
+        case .launch(let url):
+            // A plain file, or a package: hand it to Launch Services, matching 7zFM's
+            // Enter and Finder's double-click.
+            NSWorkspace.shared.open(url)
             return
+
+        case .nothing:
+            return
+
+        case .descend:
+            break
         }
 
         let provider = self.provider
@@ -443,6 +484,16 @@ public final class PanelViewController: NSViewController {
     }
 
     // MARK: Selection
+
+    /// Select rows by index, as clicking them would.
+    ///
+    /// The table itself is private, and everything that reads a selection reads it
+    /// through ``selectedItems``, so without this there is no way to put a panel into a
+    /// selected state — which is precisely the state the Properties inspector is
+    /// supposed to follow, and precisely why nothing noticed that it did not.
+    func selectRows(_ indexes: IndexSet) {
+        tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+    }
 
     /// The rows the user has selected, excluding the ".." row.
     public var selectedItems: [FolderItem] {

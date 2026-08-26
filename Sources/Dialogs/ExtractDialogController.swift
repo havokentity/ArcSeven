@@ -58,18 +58,33 @@ public final class ExtractDialogController: NSObject {
         didSet { selectPathMode(pathMode) }
     }
 
-    /// Whether extracted files get POSIX permission bits restored from the archive.
-    ///
-    /// Read this after ``present(in:completion:)`` calls back with a non-`nil` request.
-    /// It is deliberately *not* part of the request: ``ExtractRequest`` has no field
-    /// for it today, and inventing one would mean editing ArchiveCore. When ArchiveCore
-    /// grows `restorePermissions`, this property becomes the dialog's binding for it and
-    /// the extra round trip disappears.
-    public private(set) var restoresPOSIXPermissions: Bool = true
+    // Win32's `IDX_EXTRACT_NT_SECUR` — `Restore file security`, EXT-11 — has no control
+    // here, and its absence is deliberate.
+    //
+    // Through 0.1.5 there was a `Restore POSIX permissions` check box, a
+    // `restoresPOSIXPermissions` property documented "read this after
+    // `present(in:completion:)` calls back", and a persisted preference behind it. No
+    // caller ever read the property: `MainWindowController.extractSelection` never
+    // touches the dialog inside its completion. The box remembered its own state across
+    // launches and changed nothing.
+    //
+    // It could not have been honoured as written. `ExtractRequest` has no field for it,
+    // and `7zz` has no switch for it either — the Unix build restores the `st_mode` bits
+    // out of the entry's attribute word unconditionally, so "off" would have to mean
+    // walking the extracted tree afterwards and rewriting modes. That walk cannot tell
+    // which files it actually wrote (an extraction over an existing directory leaves the
+    // user's own files in the same tree), so implementing it would risk changing
+    // permissions on files ArcSeven did not create. A control that silently does nothing
+    // is bad; one that silently chmods the user's files would be worse.
+    //
+    // Bringing it back means a `restorePermissions` field on `ExtractRequest` and an
+    // engine that can act on it. Until then there is nothing to show.
 
     // MARK: Controls
 
-    private let panel = NSPanel(
+    /// `internal`, so a test can walk the sheet's real view hierarchy. Asserting on a
+    /// control the sheet never adopted is how a dead one goes unnoticed.
+    let panel = NSPanel(
         contentRect: NSRect(x: 0, y: 0, width: 560, height: 320),
         styleMask: [.titled],
         backing: .buffered,
@@ -99,19 +114,13 @@ public final class ExtractDialogController: NSObject {
         checkboxWithTitle: "Show password", target: nil, action: nil
     )
 
-    private let eliminateRootCheck = NSButton(
+    /// Carried into `ExtractRequest.eliminateRootDuplication`, which is what makes it a
+    /// control rather than a decoration. See the note above about the one that was not.
+    let eliminateRootCheck = NSButton(
         checkboxWithTitle: "Eliminate duplication of root folder", target: nil, action: nil
     )
 
-    /// Win32's `IDX_EXTRACT_NT_SECUR` is `Restore file security` and restores NT ACLs
-    /// (EXT-11). NT security descriptors have no APFS/HFS+ counterpart, so the macOS
-    /// control restores the one thing a 7-Zip archive actually carries for a Unix host:
-    /// the `st_mode` permission bits stored in the entry's attribute word.
-    private let restorePermissionsCheck = NSButton(
-        checkboxWithTitle: "Restore POSIX permissions", target: nil, action: nil
-    )
-
-    private let extractButton = NSButton(title: "Extract", target: nil, action: nil)
+    let extractButton = NSButton(title: "Extract", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
     private let helpButton = NSButton(title: "", target: nil, action: nil)
 
@@ -313,7 +322,6 @@ public final class ExtractDialogController: NSObject {
             [Self.formLabel("Password:"), passwordBox],
             [NSGridCell.emptyContentView, showPasswordCheck],
             [NSGridCell.emptyContentView, eliminateRootCheck],
-            [NSGridCell.emptyContentView, restorePermissionsCheck],
         ])
         grid.translatesAutoresizingMaskIntoConstraints = false
         grid.rowAlignment = .firstBaseline
@@ -325,8 +333,8 @@ public final class ExtractDialogController: NSObject {
         // clickable across its entire frame, so a stretched one toggles when the user
         // clicks empty space 400 pt to the right of its label.
         grid.column(at: 1).xPlacement = .leading
-        // `Show password` belongs to the field above it, not to the checkbox pair below,
-        // so it sits tight against the field and the pair is pushed away from both.
+        // `Show password` belongs to the field above it, not to the check box below, so
+        // it sits tight against the field and the check box is pushed away from both.
         grid.row(at: 4).topPadding = -4
         grid.row(at: 5).topPadding = 10
         return grid
@@ -384,8 +392,6 @@ public final class ExtractDialogController: NSObject {
         select(store.overwriteMode ?? .ask)
 
         eliminateRootCheck.state = store.eliminatesRootDuplication ? .on : .off
-        restorePermissionsCheck.state = store.restoresPOSIXPermissions ? .on : .off
-        restoresPOSIXPermissions = restorePermissionsCheck.state == .on
 
         showPasswordCheck.state = store.showsPassword ? .on : .off
         applyPasswordVisibility()
@@ -396,7 +402,6 @@ public final class ExtractDialogController: NSObject {
         store.setPathMode(currentPathMode)
         store.setOverwriteMode(currentOverwriteMode)
         store.setEliminatesRootDuplication(eliminateRootCheck.state == .on)
-        store.setRestoresPOSIXPermissions(restorePermissionsCheck.state == .on)
         store.setShowsPassword(showPasswordCheck.state == .on)
     }
 }
@@ -467,7 +472,6 @@ extension ExtractDialogController {
         }
 
         persistState(destination: destination)
-        restoresPOSIXPermissions = restorePermissionsCheck.state == .on
 
         let password = currentPassword
         finish(ExtractRequest(

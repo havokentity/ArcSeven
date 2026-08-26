@@ -96,6 +96,32 @@ public final class PropertiesInspectorController: NSViewController {
         panel.makeKeyAndOrderFront(nil)
     }
 
+    /// `true` while the panel is on screen.
+    ///
+    /// The controller outlives its window: closing the panel drops `selfRetain` and
+    /// `hostWindow`, but whoever opened it still holds a reference, and `present(in:)`
+    /// will put the same panel back. The owner needs to be able to tell the two states
+    /// apart — see `MainWindowController.showInfo`.
+    public var isOnScreen: Bool { panel.isVisible }
+
+    /// What the panel is rendering right now.
+    ///
+    /// Exposed because "the inspector follows the selection" is otherwise unobservable
+    /// from outside — and it was asserted in two documents (`DIVERGENCES.md` D-27,
+    /// `FIDELITY.md` PRP-01) for two releases while `update(listing:entry:)` had no
+    /// call sites at all.
+    public var inspectedEntryPath: String? { entry?.path }
+
+    /// The archive the panel is describing.
+    public var inspectedArchiveURL: URL { listing.url }
+
+    /// The panel's window title, which names whatever is selected.
+    public var inspectedTitle: String { panel.title }
+
+    /// How many rows the table is showing. Asked of the *table*, not of the row array,
+    /// so a state change that never reached `reloadData` still reads as stale.
+    public var inspectedRowCount: Int { tableView.numberOfRows }
+
     /// Re-render for a new selection, keeping the panel where it is.
     ///
     /// This is what makes the inspector *live*: the panel owner calls it from its

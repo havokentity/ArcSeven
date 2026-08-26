@@ -42,6 +42,31 @@ public final class MainWindowController: NSWindowController {
     /// view controller, so nothing else retains it.
     var propertiesInspector: PropertiesInspectorController?
 
+    /// Where "Remember in Keychain" puts things, and where the open path looks first.
+    ///
+    /// A `var` so a test can substitute an in-memory store: exercising this against the
+    /// real login keychain would prompt the person running the suite for access and
+    /// leave items behind in it.
+    var passwordStore: any ArchivePasswordStore = KeychainArchivePasswordStore()
+
+    /// How a disk delete reaches the Trash.
+    ///
+    /// `TrashService.trash(_:)`'s BATCH overload, which carries on past a failure and
+    /// reports the whole selection at once. A `var` so a test can substitute it: proving
+    /// that the batch call happens, and that a `volumeHasNoTrash` answer is honoured,
+    /// must not require moving the tester's files into their real Trash.
+    var trashItems: @MainActor ([URL]) -> TrashSummary = { TrashService.trash($0) }
+
+    /// What the last disk delete decided to tell the user.
+    ///
+    /// Recorded because the alternative is an alert sheet, which a test cannot inspect —
+    /// and "the UI must offer the permanent delete instead and say why" is a behaviour
+    /// `TrashService` documents, not a comment. Nothing in the app reads this.
+    private(set) var lastDeleteOutcome: DeleteOutcome?
+
+    /// Set by ``deleteSelection(from:)``; see ``lastDeleteOutcome``.
+    func recordDeleteOutcome(_ outcome: DeleteOutcome) { lastDeleteOutcome = outcome }
+
     private var activePanel: PanelViewController? {
         panels.indices.contains(activePanelIndex) ? panels[activePanelIndex] : nil
     }
@@ -196,6 +221,21 @@ public final class MainWindowController: NSWindowController {
         }
     }
 
+    /// Where the passphrase currently being tried came from.
+    ///
+    /// The three cases are genuinely different, and collapsing them is how a remembered
+    /// passphrase turns into an unbreakable loop: a stale keychain item is handed back
+    /// on every retry, so the user never sees the prompt again and can never correct it.
+    enum PasswordOrigin: Sendable, Equatable {
+        /// Nothing tried yet — the first attempt at this archive.
+        case untried
+        /// Read out of the keychain. A failure means the item is stale and must go.
+        case remembered
+        /// Typed into the prompt just now. `remember` is the checkbox, and is honoured
+        /// only once the archive has actually opened.
+        case typed(remember: Bool)
+    }
+
     /// Open an archive, prompting for a passphrase when its headers are encrypted.
     ///
     /// An archive with encrypted headers cannot even be LISTED without the password —
@@ -203,20 +243,52 @@ public final class MainWindowController: NSWindowController {
     /// prompt has to happen here, on the open path, not at extraction time.
     /// `ArchiveError.needsPassword` covers both the wrong-password case and the
     /// prompt-was-required case, which is exactly the retry condition.
-    private func openArchive(
+    ///
+    /// The keychain rules, in one place because they only make sense together:
+    ///
+    /// * A remembered passphrase is tried BEFORE the prompt, which is the whole point of
+    ///   the checkbox — otherwise it is a write with no read, which is the same bug.
+    /// * It is saved only AFTER the archive opens. Storing what the user typed the
+    ///   moment they press OK would happily remember a typo and then re-fail forever.
+    /// * A remembered passphrase that fails is deleted before the prompt goes up. The
+    ///   archive has been re-encrypted, or the item was always wrong; either way, keeping
+    ///   it means the next open silently retries it.
+    ///
+    /// `internal` rather than `private` so a test can drive each origin directly: the
+    /// alternative is answering a modal sheet, which a test cannot do.
+    func openArchive(
         at url: URL,
         in panel: PanelViewController,
-        password: String?
+        password: String?,
+        origin: PasswordOrigin = .untried
     ) async {
         do {
             let provider = try await ArchiveFolderProvider.open(
                 archiveURL: url, engine: engine, password: password
             )
             panel.go(to: provider)
+
+            if case .typed(remember: true) = origin, let password, !password.isEmpty {
+                passwordStore.save(password, forArchiveAt: url)
+            }
         } catch let error as ArchiveError where error.needsPassword {
+            if origin == .remembered {
+                passwordStore.removePassword(forArchiveAt: url)
+            }
+            if origin == .untried, let remembered = passwordStore.password(forArchiveAt: url) {
+                await openArchive(at: url, in: panel, password: remembered, origin: .remembered)
+                return
+            }
             promptForPassword(archiveName: url.lastPathComponent) { [weak self] result in
                 guard let self, let result else { return }
-                Task { await self.openArchive(at: url, in: panel, password: result.password) }
+                Task {
+                    await self.openArchive(
+                        at: url,
+                        in: panel,
+                        password: result.password,
+                        origin: .typed(remember: result.storeInKeychain)
+                    )
+                }
             }
         } catch {
             presentMessage("Could not open \(url.lastPathComponent)", error.localizedDescription)
@@ -230,6 +302,24 @@ public final class MainWindowController: NSWindowController {
         guard let window else { completion(nil); return }
         let dialog = PasswordDialogController(mode: .unlock, archiveName: archiveName)
         dialog.present(in: window, completion: completion)
+    }
+
+    /// Ask for an archive's passphrase, using a remembered one rather than prompting.
+    ///
+    /// The insertion path's entry point. It reads the keychain but never writes to it:
+    /// only ``openArchive(at:in:password:origin:)`` can tell whether a passphrase was
+    /// actually right, and an unverified write is how a typo gets remembered.
+    func password(
+        forArchiveAt url: URL,
+        completion: @escaping @MainActor (String?) -> Void
+    ) {
+        if let remembered = passwordStore.password(forArchiveAt: url) {
+            completion(remembered)
+            return
+        }
+        promptForPassword(archiveName: url.lastPathComponent) { result in
+            completion(result?.password)
+        }
     }
 
     // MARK: Finder entry points
@@ -457,10 +547,16 @@ extension MainWindowController: PanelViewControllerDelegate {
         // 7zFM titles the window with the focused panel's path, falling back to the
         // app name when there is none.
         window?.title = panel.provider.displayPath.isEmpty ? "ArcSeven" : panel.provider.displayPath
+        // Stepping into a nested archive changes the listing under the inspector too,
+        // not just the selection.
+        refreshPropertiesInspector(from: panel)
     }
 
     public func panelDidChangeSelection(_ panel: PanelViewController) {
         if let index = panels.firstIndex(where: { $0 === panel }) { activePanelIndex = index }
+        // The selection-changed hook `PropertiesInspectorController.update(listing:entry:)`
+        // documents itself as being called from, and for two releases was not.
+        refreshPropertiesInspector(from: panel)
     }
 
     public func panel(_ panel: PanelViewController, didFailWith error: any Error) {
@@ -531,9 +627,12 @@ extension MainWindowController {
             runInsertion(files, into: archive, at: destinationSubPath, password: nil, shownIn: panel)
             return
         }
-        promptForPassword(archiveName: archive.archiveURL.lastPathComponent) { [weak self] result in
-            guard let self, let result else { return }
-            runInsertion(files, into: archive, at: destinationSubPath, password: result.password, shownIn: panel)
+        // Through the keychain-aware helper, so an archive the user asked to be
+        // remembered is not re-prompted here either — "opens without asking again" is
+        // not a promise that should hold for one command and not the next.
+        password(forArchiveAt: archive.archiveURL) { [weak self] password in
+            guard let self, let password else { return }
+            runInsertion(files, into: archive, at: destinationSubPath, password: password, shownIn: panel)
         }
     }
 

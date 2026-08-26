@@ -34,11 +34,15 @@ public struct PasswordPromptResult: Sendable, Hashable {
 
     /// `true` when the user asked for the passphrase to be remembered.
     ///
-    /// This dialog only *reports* the request — nothing here links against
-    /// Security.framework. Keychain storage is a later milestone: it needs the
-    /// keychain item naming scheme (one item per archive URL), the settings switch
-    /// that turns the whole feature off, and the eviction rules for when an archive
-    /// is renamed or deleted. Whoever owns that milestone consumes this flag.
+    /// This dialog only *reports* the request; it does not link against
+    /// Security.framework. The flag is consumed by
+    /// `MainWindowController.openArchive(at:in:password:origin:)`, which writes it to
+    /// `FMKit.KeychainArchivePasswordStore` — but only once the archive has actually
+    /// opened, so a mistyped passphrase is never the one that gets remembered.
+    ///
+    /// Through 0.1.5 nothing consumed it at all: a grep for `Keychain` across the tree
+    /// found this file and nothing else, while the checkbox's tooltip told the user the
+    /// archive would open without asking again. It did not.
     public var storeInKeychain: Bool
 
     public init(password: String, storeInKeychain: Bool = false) {
@@ -82,7 +86,7 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
 
     // MARK: Views
 
-    private let panel = NSPanel(
+    let panel = NSPanel(
         contentRect: NSRect(x: 0, y: 0, width: 460, height: 210),
         styleMask: [.titled],
         backing: .buffered,
@@ -95,8 +99,11 @@ public final class PasswordDialogController: NSObject, NSTextFieldDelegate {
     private let verifyField = RevealableSecureField()
     private let mismatchLabel = NSTextField(labelWithString: "")
     private let showPasswordButton = NSButton(checkboxWithTitle: "Show password", target: nil, action: nil)
-    private let keychainButton = NSButton(checkboxWithTitle: "Remember in Keychain", target: nil, action: nil)
-    private let okButton = NSButton(title: "OK", target: nil, action: nil)
+    /// `internal`, like `okButton` below, so a test can flip it and press OK. A test
+    /// cannot answer a modal sheet, and asserting on a control the sheet never adopted
+    /// is exactly the kind of test that passed while this feature did nothing.
+    let keychainButton = NSButton(checkboxWithTitle: "Remember in Keychain", target: nil, action: nil)
+    let okButton = NSButton(title: "OK", target: nil, action: nil)
     private let cancelButton = NSButton(title: "Cancel", target: nil, action: nil)
 
     // MARK: Init
