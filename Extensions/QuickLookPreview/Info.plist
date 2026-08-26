@@ -28,12 +28,6 @@
 			<array>
 				<string>org.7-zip.7-zip-archive</string>
 				<string>public.zip-archive</string>
-				<string>public.tar-archive</string>
-				<string>org.gnu.gnu-zip-tar-archive</string>
-				<string>public.tar-bzip2-archive</string>
-				<string>org.tukaani.tar-xz-archive</string>
-				<string>com.rarlab.rar-archive</string>
-				<string>com.microsoft.cab</string>
 				<string>com.sun.java-archive</string>
 				<string>com.winzip.zipx-archive</string>
 			</array>

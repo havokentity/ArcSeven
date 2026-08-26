@@ -507,26 +507,6 @@
 			</array>
 		</dict>
 		<dict>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>ArcSeven/Extract Files...</string>
-			</dict>
-			<key>NSMessage</key>
-			<string>extractFilesService</string>
-			<key>NSPortName</key>
-			<string>ArcSeven</string>
-			<key>NSRequiredContext</key>
-			<dict>
-				<key>NSTextContent</key>
-				<string>FilePath</string>
-			</dict>
-			<key>NSSendTypes</key>
-			<array>
-				<string>NSFilenamesPboardType</string>
-			</array>
-		</dict>
-		<dict>
 			<key>NSKeyEquivalent</key>
 			<dict>
 				<key>default</key>
@@ -539,46 +519,6 @@
 			</dict>
 			<key>NSMessage</key>
 			<string>addToArchiveService</string>
-			<key>NSPortName</key>
-			<string>ArcSeven</string>
-			<key>NSRequiredContext</key>
-			<dict>
-				<key>NSTextContent</key>
-				<string>FilePath</string>
-			</dict>
-			<key>NSSendTypes</key>
-			<array>
-				<string>NSFilenamesPboardType</string>
-			</array>
-		</dict>
-		<dict>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>ArcSeven/Add to 7z Archive</string>
-			</dict>
-			<key>NSMessage</key>
-			<string>addTo7zService</string>
-			<key>NSPortName</key>
-			<string>ArcSeven</string>
-			<key>NSRequiredContext</key>
-			<dict>
-				<key>NSTextContent</key>
-				<string>FilePath</string>
-			</dict>
-			<key>NSSendTypes</key>
-			<array>
-				<string>NSFilenamesPboardType</string>
-			</array>
-		</dict>
-		<dict>
-			<key>NSMenuItem</key>
-			<dict>
-				<key>default</key>
-				<string>ArcSeven/Add to Zip Archive</string>
-			</dict>
-			<key>NSMessage</key>
-			<string>addToZipService</string>
 			<key>NSPortName</key>
 			<string>ArcSeven</string>
 			<key>NSRequiredContext</key>
