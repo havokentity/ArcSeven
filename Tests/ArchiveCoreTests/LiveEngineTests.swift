@@ -51,19 +51,26 @@ struct LiveEngineTests {
     /// Drain an operation stream, returning everything it reported.
     private func drain(
         _ stream: ArchiveOperationStream
-    ) async throws -> (result: ArchiveOperationResult?, items: [ArchiveItemEvent], progress: [ArchiveProgress]) {
+    ) async throws -> (
+        result: ArchiveOperationResult?,
+        items: [ArchiveItemEvent],
+        progress: [ArchiveProgress],
+        logs: [String]
+    ) {
         var result: ArchiveOperationResult?
         var items: [ArchiveItemEvent] = []
         var progress: [ArchiveProgress] = []
+        var logs: [String] = []
         for try await event in stream {
             switch event {
             case .finished(let value): result = value
             case .item(let item): items.append(item)
             case .progress(let tick): progress.append(tick)
+            case .log(let line): logs.append(line)
             default: break
             }
         }
-        return (result, items, progress)
+        return (result, items, progress, logs)
     }
 
     /// `Method = LZMA2:20` and friends, straight off `l -slt`. This is the only place
@@ -546,6 +553,41 @@ struct LiveEngineTests {
             // stops early.
             #expect(recovered != (try Data(contentsOf: source)))
         }
+    }
+
+    /// `b` prints one block of `<log2dict>:` rows per pass, so counting the rows for
+    /// the first dictionary size counts the passes. `passes` used to be emitted as
+    /// `-mmt<n>` — a thread count — so it never made more than one.
+    ///
+    /// Copy is the codec that keeps this cheap (about a second for three passes) and
+    /// it is also the one with no dictionary at all, so the same run proves the
+    /// dictionary size is withheld from a codec that would reject it.
+    @Test("A benchmark runs the passes it was asked for")
+    func benchmarkPasses() async throws {
+        var request = BenchmarkRequest()
+        request.passes = 3
+        request.method = .copy
+        request.dictionarySize = 1 << 20
+        request.threads = 1
+
+        let outcome = try await drain(engine.benchmark(request))
+        #expect(outcome.result != nil)
+
+        let firstRowLabel = outcome.logs
+            .compactMap { line -> String? in
+                let trimmed = line.trimmingCharacters(in: .whitespaces)
+                guard let colon = trimmed.firstIndex(of: ":"),
+                      trimmed[trimmed.startIndex..<colon].allSatisfy(\.isNumber),
+                      colon > trimmed.startIndex
+                else { return nil }
+                return String(trimmed[trimmed.startIndex..<colon])
+            }
+            .first
+        let label = try #require(firstRowLabel, "benchmark printed no dictionary rows")
+        let blocks = outcome.logs.filter {
+            $0.trimmingCharacters(in: .whitespaces).hasPrefix("\(label):")
+        }
+        #expect(blocks.count == 3, "expected one \(label): row per pass, got \(blocks.count)")
     }
 
     @Test("Listing a non-archive fails rather than returning an empty listing")
