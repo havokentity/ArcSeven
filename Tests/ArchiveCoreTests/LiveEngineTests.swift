@@ -447,6 +447,72 @@ struct LiveEngineTests {
         }
     }
 
+    /// `keepBrokenFiles` used to send `-tzip:kb`, which is not a switch 26.02 has and
+    /// which forced the zip handler onto every archive besides. Setting it did not
+    /// salvage anything — it failed the extraction outright.
+    @Test("Asking to keep broken files does not break extraction")
+    func keepBrokenFilesExtracts() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("hello.txt")
+            try "payload".write(to: source, atomically: true, encoding: .utf8)
+            let archive = dir.appendingPathComponent("kb.7z")
+            _ = try await drain(
+                engine.compress(CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip))
+            )
+
+            let destination = dir.appendingPathComponent("out")
+            var request = ExtractRequest(archiveURL: archive, destinationURL: destination)
+            request.keepBrokenFiles = true
+            _ = try await drain(engine.extract(request))
+
+            let restored = destination.appendingPathComponent("hello.txt")
+            #expect(try String(contentsOf: restored, encoding: .utf8) == "payload")
+        }
+    }
+
+    /// The claim `keepBrokenFiles` now rests on: 7zz keeps the partial output of a
+    /// member that fails CRC whether or not anyone asks it to, so there is nothing
+    /// for the flag to switch on. If this ever stops being true the flag needs a real
+    /// implementation, not a doc comment.
+    @Test("A member that fails CRC leaves its partial output on disk")
+    func brokenMemberLeavesPartialOutput() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("payload.bin")
+            try writeIncompressibleFile(at: source, byteCount: 2 << 20)
+
+            let archive = dir.appendingPathComponent("corrupt.7z")
+            var compress = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            compress.level = .fastest
+            _ = try await drain(engine.compress(compress))
+
+            // Flip two bytes in the middle of the compressed stream, past the header.
+            var bytes = try Data(contentsOf: archive)
+            bytes[bytes.count / 2] ^= 0xFF
+            bytes[bytes.count / 2 + 1] ^= 0xFF
+            try bytes.write(to: archive)
+
+            let destination = dir.appendingPathComponent("out")
+            await #expect(throws: (any Error).self) {
+                _ = try await self.drain(
+                    self.engine.extract(
+                        ExtractRequest(archiveURL: archive, destinationURL: destination)
+                    )
+                )
+            }
+
+            let salvaged = destination.appendingPathComponent("payload.bin")
+            #expect(FileManager.default.fileExists(atPath: salvaged.path),
+                    "the broken member should survive the CRC failure, unasked")
+            let recovered = try Data(contentsOf: salvaged)
+            #expect(!recovered.isEmpty)
+            // Damaged, and kept anyway — which is the whole of what "keep broken
+            // files" means. How much survives depends on where the damage lands: a
+            // stored stream decodes to the end and only fails CRC, a compressed one
+            // stops early.
+            #expect(recovered != (try Data(contentsOf: source)))
+        }
+    }
+
     @Test("Listing a non-archive fails rather than returning an empty listing")
     func notAnArchive() async throws {
         try await withTemporaryDirectory { dir in

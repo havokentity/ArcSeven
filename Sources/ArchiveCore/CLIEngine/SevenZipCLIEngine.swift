@@ -151,7 +151,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         arguments.append(contentsOf: Self.overwriteSwitch(request.overwriteMode))
         if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
         if request.pathMode == .absolutePaths { arguments.append("-spf2") }
-        if request.keepBrokenFiles { arguments.append("-tzip:kb") }
+        // `keepBrokenFiles` emits nothing on purpose. See its doc comment.
         // A large selection cannot go on argv: ARG_MAX is 1 MiB and posix_spawn fails
         // with an opaque E2BIG well before the user thinks they have selected "a lot".
         // The list-file switch has to precede `--`, hence the ordering here.
