@@ -16,7 +16,9 @@ import UniformTypeIdentifiers
 enum PaneMetrics {
     /// Wide enough for `Eliminate duplication of root folder` plus its control without wrapping.
     static let width: CGFloat = 620
-    /// Tall enough for the Integration pane's twelve-row verb checklist without scrolling.
+    /// Sized around the Integration pane's twelve-row verb checklist. It no longer fits
+    /// without scrolling — the panes carry per-section notices now — and the grouped `Form`
+    /// scrolls, which is what the header above says the tall panes do.
     static let height: CGFloat = 500
 }
 
@@ -38,6 +40,35 @@ struct Footnote: View {
             .font(.callout)
             .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// The notice attached to controls that are switched off because nothing consults them yet.
+///
+/// Most of this window used to persist its keys and stop there: every pane wrote to
+/// `UserDefaults` and no other module ever read back. From the user's side a switch that
+/// stores a value nothing acts on is not merely broken, it is worse than absent — it looks
+/// like it worked, so the real behaviour reads as a bug somewhere else entirely, and the
+/// setting gets flipped back and forth to no effect.
+///
+/// So the controls above one of these are `.disabled(true)` and this says which module has to
+/// grow the read for them to come back. Re-enabling is then a one-line diff in the pane, made
+/// by whoever writes that read, rather than a rediscovery of what the switch was ever for.
+struct NotYetApplied: View {
+    let text: String
+
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Label {
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.secondary)
+        }
     }
 }
 

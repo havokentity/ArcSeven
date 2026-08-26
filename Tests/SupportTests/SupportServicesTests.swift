@@ -210,24 +210,48 @@ struct SupportServicesTests {
             logicalCoreCount: 16, physicalCoreCount: 16
         )
         #expect(
-            ThreadPlanner.recommendedThreadCount(
+            ThreadPlanner.throttledThreadCount(
                 topology: silicon, thermalState: .fair, isLowPowerModeEnabled: false
             ) == 12
         )
         #expect(
-            ThreadPlanner.recommendedThreadCount(
+            ThreadPlanner.throttledThreadCount(
                 topology: silicon, thermalState: .serious, isLowPowerModeEnabled: false
             ) == 6
         )
         #expect(
-            ThreadPlanner.recommendedThreadCount(
+            ThreadPlanner.throttledThreadCount(
                 topology: silicon, thermalState: .critical, isLowPowerModeEnabled: false
             ) == 1
         )
         #expect(
-            ThreadPlanner.recommendedThreadCount(
+            ThreadPlanner.throttledThreadCount(
                 topology: silicon, thermalState: .nominal, isLowPowerModeEnabled: true
             ) == 6
+        )
+    }
+
+    /// The backoff used to be an overload of `recommendedThreadCount`, and Swift resolved
+    /// the argument-free call to the *other* one — the caller who wrote the obvious thing
+    /// got no backoff and no diagnostic. Naming it separately is the fix; this asserts the
+    /// two are genuinely different functions rather than one shadowing the other.
+    @Test("Throttling is a distinct call, and is a no-op on a cool machine")
+    func throttlingIsOptIn() {
+        let silicon = CPUTopology(
+            performanceCoreCount: 12, efficiencyCoreCount: 4,
+            logicalCoreCount: 16, physicalCoreCount: 16
+        )
+        #expect(
+            ThreadPlanner.throttledThreadCount(
+                topology: silicon, thermalState: .nominal, isLowPowerModeEnabled: false
+            ) == ThreadPlanner.recommendedThreadCount(topology: silicon)
+        )
+        // Same call shape as the plain version, so the trap would reappear as a mismatch.
+        #expect(
+            ThreadPlanner.throttledThreadCount(
+                upperBound: 4, topology: silicon, thermalState: .critical,
+                isLowPowerModeEnabled: false
+            ) == 1
         )
     }
 
@@ -270,6 +294,69 @@ struct SupportServicesTests {
             #expect(planned == topology.performanceCoreCount)
             #expect(planned < topology.logicalCoreCount)
         }
+    }
+
+    /// The previous test passes on the FALLBACK path — an Apple silicon Mac where
+    /// `sysctlbyname` silently failed would report `performanceCoreCount == logicalCoreCount`
+    /// and satisfy every assertion above while quietly handing compression every E-core.
+    /// That is the exact failure ADD-18 is meant to prevent, so it is checked against a
+    /// second, independent reader of the same kernel nodes rather than against itself.
+    @Test("Detection agrees with the kernel's own hw.perflevel* nodes")
+    func detectionMatchesSysctl() {
+        let topology = CPUTopology.detect()
+
+        #expect(topology.logicalCoreCount == Self.sysctlCommand("hw.logicalcpu"))
+        #expect(topology.physicalCoreCount == Self.sysctlCommand("hw.physicalcpu"))
+
+        // Absent on Intel and inside some virtual machines, where homogeneous is the right
+        // answer and `hw.logicalcpu` is the Windows behaviour.
+        guard let performance = Self.sysctlCommand("hw.perflevel0.logicalcpu"),
+              let efficiency = Self.sysctlCommand("hw.perflevel1.logicalcpu") else {
+            #expect(!topology.isHeterogeneous)
+            #expect(topology.performanceCoreCount == topology.logicalCoreCount)
+            #expect(topology.efficiencyCoreCount == 0)
+            return
+        }
+
+        // perflevel0 is the FAST cluster. Reading the two the wrong way round would still
+        // produce a plausible-looking heterogeneous topology, so the direction is asserted.
+        #expect(topology.performanceCoreCount == performance)
+        #expect(topology.efficiencyCoreCount == efficiency)
+        #expect(topology.isHeterogeneous)
+        #expect(ThreadPlanner.recommendedThreadCount(topology: topology) == performance)
+    }
+
+    @Test("The hardware hint names both clusters on a heterogeneous machine")
+    func topologySummaryShape() {
+        let silicon = CPUTopology(
+            performanceCoreCount: 12, efficiencyCoreCount: 4,
+            logicalCoreCount: 16, physicalCoreCount: 16
+        )
+        #expect(silicon.summary == "12P + 4E (16 threads)")
+
+        let intel = CPUTopology(
+            performanceCoreCount: 8, efficiencyCoreCount: 0,
+            logicalCoreCount: 8, physicalCoreCount: 4
+        )
+        #expect(intel.summary == "8 threads")
+    }
+
+    /// `/usr/sbin/sysctl -n`, i.e. not `sysctlbyname`: a test that read the node the same way
+    /// the code under test does would agree with it even when both are wrong.
+    private static func sysctlCommand(_ name: String) -> Int? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/sbin/sysctl")
+        process.arguments = ["-n", name]
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0, let text = String(data: data, encoding: .utf8) else {
+            return nil
+        }
+        return Int(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     // MARK: - Bytes

@@ -34,6 +34,28 @@
 //
 // On Intel Macs `hw.perflevel*` does not exist, `sysctlbyname` fails, and the fallback is
 // `hw.logicalcpu`, which is the Windows behaviour and correct there.
+//
+// NOTHING CALLS THIS YET, and saying so here is the point. `CompressDialogModel` still takes
+// `ProcessInfo.processInfo.activeProcessorCount` and hands it to
+// `FormatCatalog.automaticThreads`, so ADD-17's "prefers the P-core count on Apple silicon"
+// and ADD-18's `hw.perflevel*` hardware hint are, today, claims and not behaviour - every
+// automatic compression on an Apple silicon Mac asks for every logical core, E-cores
+// included, which the analysis above calls actively harmful. Sources/Dialogs is where that
+// changes, in three places:
+//
+//   * `CompressDialogModel.effectiveThreads` - replace
+//     `FormatCatalog.automaticThreads(format:method:hardwareThreads:)` with
+//     `ThreadPlanner.recommendedThreadCount(upperBound: FormatCatalog.maximumThreads(format:method:))`.
+//   * `CompressDialogModel.threadChoices` and `reconcileThreads` - the `hardwareThreads * 2`
+//     ceilings become `ThreadPlanner.maximumSelectableThreadCount(algorithmMaximum:)`. Note
+//     that this ceiling is deliberately still the *logical* core count doubled, per ADD-17;
+//     only the automatic value drops the E-cores.
+//   * `CompressDialogModel.init`'s `hardwareThreads` default -
+//     `ThreadPlanner.topology.logicalCoreCount`, which is the same number
+//     `activeProcessorCount` reports but comes from the same read as everything else here.
+//
+// `CPUTopology.summary` ("12P + 4E (16 threads)") is ADD-18's hint string, and has no home
+// until the Add dialog grows a place to show it.
 
 import Foundation
 #if canImport(ArchiveCore)   // module-guard
@@ -146,8 +168,22 @@ public enum ThreadPlanner {
     /// - at which point more threads buy nothing and the machine gets slower for
     /// everything else the user is doing.
     ///
+    /// SEPARATELY NAMED, not an overload. It was one, and the overload silently did not
+    /// work: given two candidates that differ only in how many defaulted parameters they
+    /// carry, Swift prefers the one with fewer, so `recommendedThreadCount()` and
+    /// `recommendedThreadCount(upperBound: n)` both resolved to the plain version above and
+    /// the backoff never ran. A caller had to name `thermalState:` or
+    /// `isLowPowerModeEnabled:` explicitly to reach it - which is precisely what a caller
+    /// wanting "the recommended count, whatever that means today" would never think to do.
+    ///
+    /// Which of the two to call is a real choice, not a detail. The Add dialog's `*  <auto>`
+    /// entry should use the plain version: it is a number shown in a combo box, and a
+    /// displayed default that changes between two openings of the same dialog because the
+    /// Mac got warm is unexplainable. A job that has already started, or a background
+    /// re-compress, should use this one.
+    ///
     /// - Parameter thermalState: Injectable for testing; defaults to the live state.
-    public static func recommendedThreadCount(
+    public static func throttledThreadCount(
         upperBound: Int? = nil,
         topology: CPUTopology = Self.topology,
         thermalState: ProcessInfo.ThermalState = ProcessInfo.processInfo.thermalState,
