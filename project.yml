@@ -385,13 +385,40 @@ targets:
             NSSendTypes: [NSFilenamesPboardType]
             NSRequiredContext:
               NSTextContent: FilePath
-          - NSMenuItem:
-              default: ArcSeven/Extract Files...
-            NSMessage: extractFilesService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
+          # ---- Removed in 0.1.5: three verbs that were two behaviours ------------------
+          #
+          # "Extract Files…", "Add to 7z Archive" and "Add to Zip Archive" were declared
+          # here and forwarded, in Sources/App/ServicesProvider.swift, to selectors that
+          # already had a menu item:
+          #
+          #   extractFilesService  -> .extract   identical to "Extract Here". No chooser
+          #                                      was ever shown, so the ellipsis promised
+          #                                      a dialog that does not exist.
+          #   addTo7zService       -> .compress  identical to "Add to Archive…".
+          #   addToZipService      -> .compress  identical, AND the Compress dialog it
+          #                                      opens pre-fills a .7z name regardless
+          #                                      (MainWindowController.compressFromFinder),
+          #                                      so the one item that named a format named
+          #                                      the wrong one.
+          #
+          # This is the bug 0.1.4 fixed for "Extract Here" vs "Extract to Subfolder": two
+          # names for one command teach the user that the names do not mean anything.
+          # Deleting the duplicates is the honest half of the fix and it is the half that
+          # lives in this file. The other half needs Sources/ and is not ours:
+          #
+          #   * "Extract Files…" needs a `FinderRequestAction` case that opens the Extract
+          #     dialog with a destination chooser, rather than reusing `.extract`, which
+          #     is defined as "decide the destination by inspecting the archive".
+          #   * "Add to <name>.7z" / "Add to <name>.zip" need the format to survive the
+          #     hand-off. `FinderRequestAction` has one `.compress` case carrying no
+          #     format, and `compressFromFinder` hard-codes `.7z` on the pre-filled name.
+          #     Widening the enum is a contract change - the Finder Sync extension and the
+          #     App Group wire format are written against exactly these cases - so it is
+          #     one owner's job, not a patch. 7-Zip's own shell menu names the file
+          #     ("Add to \"docs.7z\""), which is the target shape.
+          #
+          # The selectors stay in ServicesProvider.swift. An @objc method nothing declares
+          # is inert, and leaving them means restoring these items later is a plist edit.
           - NSMenuItem:
               default: ArcSeven/Add to Archive...
             NSMessage: addToArchiveService
@@ -401,20 +428,6 @@ targets:
               NSTextContent: FilePath
             NSKeyEquivalent:
               default: ^$A
-          - NSMenuItem:
-              default: ArcSeven/Add to 7z Archive
-            NSMessage: addTo7zService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
-          - NSMenuItem:
-              default: ArcSeven/Add to Zip Archive
-            NSMessage: addToZipService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
           - NSMenuItem:
               default: ArcSeven/Test Archive
             NSMessage: testArchiveService
