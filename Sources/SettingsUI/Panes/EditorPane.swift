@@ -12,9 +12,15 @@
 //   * Empty Editor falls back to the LaunchServices default for the file's type, i.e. what
 //     double-clicking it in Finder would do.
 //
-// The Diff field is not decoration: setting it is what makes `File ▸ Diff` appear at all,
-// upstream and here (OPT-17). Leaving it empty hides the command rather than showing a
-// disabled one, which is why the footnote says so out loud.
+// The Diff field is not decoration: setting it is what makes the compare command appear at
+// all, upstream and here (OPT-17). Leaving it empty hides the command rather than showing a
+// disabled one.
+//
+// ALL THREE ARE DISABLED, because every sentence above is about a future. There is no View,
+// Edit or Diff item in `MainMenuBuilder`, and nothing anywhere opens a member out of an
+// archive — the pane previously claimed that members were "extracted to a temporary copy
+// first and written back when the application saves them", which no code in this repository
+// does any part of. The fields come back when the commands exist to use them.
 
 import AppKit
 import SwiftUI
@@ -24,7 +30,19 @@ struct EditorPane: View {
 
     var body: some View {
         Form {
-            Section {
+            applicationsSection
+        }
+        .formStyle(.grouped)
+        .settingsPaneFrame()
+    }
+
+    // MARK: Sections
+
+    private var applicationsSection: some View {
+        Section {
+            // Disabled as a group rather than by disabling the Section, which would dim the
+            // notice explaining the disabling along with them.
+            Group {
                 PathChooserRow(
                     title: "View:",
                     placeholder: "Quick Look",
@@ -45,29 +63,36 @@ struct EditorPane: View {
 
                 PathChooserRow(
                     title: "Diff:",
-                    placeholder: "Not set — File ▸ Diff is hidden",
+                    placeholder: "Not set",
                     choice: .applicationOrExecutable,
                     panelTitle: "Choose the application to compare files with.",
                     path: $store.diffPath
                 )
                 resolvedRow(for: store.diffPath)
-            } header: {
-                Text("External Applications")
-            } footer: {
-                Footnote(
-                    """
-                    Leave View empty to use Quick Look, and Editor empty to use whichever \
-                    application Finder would open the file with. Setting Diff is what makes \
-                    File ▸ Diff appear in the menu; with no Diff application there is nothing \
-                    for the command to do, so it is hidden rather than shown disabled. \
-                    Files opened from inside an archive are extracted to a temporary copy \
-                    first and written back when the application saves them.
-                    """
-                )
             }
+            .disabled(true)
+
+            NotYetApplied(
+                """
+                There is nothing to hand these three applications yet. ArcSeven has no View, \
+                Edit or Diff command in any menu, and no way to open a file from inside an \
+                archive at all — so an application chosen here would be stored and never \
+                launched.
+                """
+            )
+        } header: {
+            Text("External Applications")
+        } footer: {
+            Footnote(
+                """
+                Once the commands exist: an empty View means Quick Look rather than \
+                upstream’s “Cannot start editor.”, an empty Editor means whichever \
+                application Finder would open the file with, and Diff decides whether the \
+                compare command is offered at all — with nothing to compare with, there is \
+                nothing for it to do.
+                """
+            )
         }
-        .formStyle(.grouped)
-        .settingsPaneFrame()
     }
 
     /// A one-line confirmation of what a path resolves to.

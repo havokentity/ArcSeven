@@ -261,7 +261,7 @@ public final class SettingsStore {
     /// onto turning Gatekeeper off for the entire contents of a downloaded archive, which is
     /// the regression `Support/Quarantine.swift` opens by refusing to write a function for.
     /// The safe behaviour is already the shipped behaviour; the only bug was the pane.
-    public nonisolated static let quarantinePropagation: QuarantinePropagation = .always
+    nonisolated public static let quarantinePropagation: QuarantinePropagation = .always
 
     // MARK: Language pane
 
@@ -329,7 +329,7 @@ public final class SettingsStore {
     ///
     /// The seven Settings-pane checkboxes are deliberately absent: they are all off upstream,
     /// and absent already reads as `false`.
-    public nonisolated static func registerDefaults(in defaults: UserDefaults = .standard) {
+    nonisolated public static func registerDefaults(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             SettingsKey.memUse.rawValue: 4,                 // OPT-26: the spin edit starts at 4 GB.
             SettingsKey.workDirType.rawValue: WorkDirType.systemTemp.rawValue,

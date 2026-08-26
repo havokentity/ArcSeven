@@ -14,6 +14,11 @@
 // the working folder on the same volume as the archive and the move is a rename; put it
 // elsewhere and every update copies the whole archive across volumes. That is what
 // `Current` is for, and it is why the setting exists at all rather than always using $TMPDIR.
+//
+// Which is what makes it worth saying that the choice is not wired: `ArchiveInsertion` stages
+// under `FileManager.temporaryDirectory` unconditionally, so "always using $TMPDIR" is exactly
+// what happens. The controls are disabled and the "In Effect Now" row reports the real folder
+// rather than the selected one; wiring them means emitting `-w` from FMKit.
 
 import SwiftUI
 
@@ -22,7 +27,20 @@ struct FoldersPane: View {
 
     var body: some View {
         Form {
-            Section {
+            temporaryFilesSection
+            effectiveSection
+        }
+        .formStyle(.grouped)
+        .settingsPaneFrame()
+    }
+
+    // MARK: Sections
+
+    private var temporaryFilesSection: some View {
+        Section {
+            // Disabled as a group rather than by disabling the Section, which would dim the
+            // notice explaining the disabling along with them.
+            Group {
                 // Stacked, as upstream stacks its three radios. A `Picker` left to itself in a
                 // form row lays the radios out in a line and the last caption runs off the
                 // right edge, which is how this looked before the VStack.
@@ -45,50 +63,55 @@ struct FoldersPane: View {
                     panelTitle: "Specify a location for temporary archive files.",
                     path: $store.workDirPath
                 )
-                .disabled(store.workDirType != .specified)
 
                 Toggle("Use for removable drives only", isOn: $store.tempRemovableOnly)
-            } header: {
-                Text("Temporary Files")
-            } footer: {
-                Footnote(
-                    """
-                    Updating an archive rebuilds it in the working folder and then moves the \
-                    result over the original. Keeping the working folder on the same volume as \
-                    the archive turns that move into a rename instead of a full copy, which is \
-                    what “Current” is for. “Use for removable drives only” applies the \
-                    choice just to archives on removable or ejectable volumes and leaves \
-                    everything else in the system temp folder.
-                    """
-                )
             }
+            .disabled(true)
 
-            Section("In Effect Now") {
-                LabeledContent("Folder:") {
-                    Text(effectiveDescription)
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                        .lineLimit(2)
-                        .truncationMode(.middle)
-                }
-            }
+            NotYetApplied(
+                """
+                Archive updates always stage in the system temp folder. FMKit’s \
+                ArchiveInsertion builds its staging tree under \
+                FileManager.temporaryDirectory and nothing emits 7-Zip’s -w switch, so none \
+                of the three choices above would reach the engine.
+                """
+            )
+        } header: {
+            Text("Temporary Files")
+        } footer: {
+            Footnote(
+                """
+                Updating an archive rebuilds it in the working folder and then moves the \
+                result over the original. Keeping the working folder on the same volume as \
+                the archive turns that move into a rename instead of a full copy, which is \
+                what “Current” is for. “Use for removable drives only” applies the choice \
+                just to archives on removable or ejectable volumes and leaves everything \
+                else in the system temp folder.
+                """
+            )
         }
-        .formStyle(.grouped)
-        .settingsPaneFrame()
     }
 
-    /// What the current radio + path actually resolves to, so the pane is not the only place
-    /// in the app where you cannot tell what a setting did.
-    private var effectiveDescription: String {
-        switch store.workDirType {
-        case .systemTemp:
-            NSTemporaryDirectory()
-        case .currentFolder:
-            "The folder containing the archive being updated"
-        case .specified:
-            store.workDirPath.isEmpty
-                ? "Not set — falls back to \(NSTemporaryDirectory())"
-                : store.workDirPath
+    private var effectiveSection: some View {
+        Section("In Effect Now") {
+            LabeledContent("Folder:") {
+                Text(effectiveDirectory)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .lineLimit(2)
+                    .truncationMode(.middle)
+            }
         }
+    }
+
+    /// The folder updates really stage in — not the folder the radios above would choose.
+    ///
+    /// This section used to render the *selection*, under a heading saying it was in effect,
+    /// which made it the most confidently wrong thing in the window: it would tell you a
+    /// working folder on the archive's own volume was live while every update was still
+    /// copying across to $TMPDIR. `ArchiveInsertion.stage` is the one that decides, and it
+    /// asks `FileManager` for this.
+    private var effectiveDirectory: String {
+        FileManager.default.temporaryDirectory.path
     }
 }

@@ -24,6 +24,11 @@
 // the application (7zFM posts IDCLOSE — one key from ⌘W, mid-extraction, is a data-loss bug),
 // and RightCtrl+0…9 bookmarks are impossible in AppKit, which cannot distinguish the two
 // Control keys in a key-equivalent.
+//
+// ALL OF WHICH IS STILL DESIGN. Only the Finder preset is implemented, and it is implemented
+// by `MainMenuBuilder` hard-coding its key equivalents at launch — there is no `ShortcutMap`,
+// nothing reads `Shortcuts.Preset`, and nothing writes `Shortcuts.Custom`. The picker is
+// disabled and the Classic table reads as what it is, a table of what Classic will add.
 
 import SwiftUI
 
@@ -52,6 +57,17 @@ struct ShortcutsPane: View {
                 Text("Keyboard shortcuts:")
             }
             .pickerStyle(.radioGroup)
+            .disabled(true)
+
+            NotYetApplied(
+                """
+                The Finder preset is the only one that exists. `MainMenuBuilder` writes its \
+                key equivalents once at launch and there is no ShortcutMap to re-apply a \
+                different preset to, so switching would store a value nothing reads — and \
+                docs/SHORTCUTS.md §8 requires a preset change to take effect without a \
+                relaunch.
+                """
+            )
         } header: {
             Text("Preset")
         } footer: {
@@ -60,7 +76,7 @@ struct ShortcutsPane: View {
     }
 
     private var classicAddsSection: some View {
-        Section("7-Zip Classic Adds") {
+        Section("What 7-Zip Classic Will Add") {
             Grid(alignment: .leadingFirstTextBaseline, horizontalSpacing: 16, verticalSpacing: 6) {
                 ForEach(Self.classicChords, id: \.chord) { row in
                     GridRow {
@@ -75,13 +91,13 @@ struct ShortcutsPane: View {
                 }
             }
             .font(.callout)
-            .opacity(store.keymapPreset == .finder ? 0.55 : 1)
 
             Footnote(
                 """
                 …plus the rest of the function-key row, ⌃F3–⌃F7 for sorting, ⌥0–⌥9 for the \
                 ten favourite folders, the numeric keypad’s select/deselect/invert family, \
-                and ⌃A ⌃C ⌃X ⌃V ⌃N ⌃R ⌃Z. All of them file-list scope only.
+                and ⌃A ⌃C ⌃X ⌃V ⌃N ⌃R ⌃Z. All of them file-list scope only. None of them are \
+                bound today; half name commands ArcSeven does not have yet.
                 """
             )
         }
@@ -104,9 +120,16 @@ struct ShortcutsPane: View {
                 """
                 Custom starts as a copy of whichever preset is active when you first change \
                 a binding, and stores only the differences — so a shortcut you changed in \
-                this version still inherits every command added in the next one. Record a \
-                binding by selecting a command in the menu bar with this preset active. \
-                System shortcuts such as ⌘␣ and ⇧⌘3 cannot be bound in any preset.
+                this version still inherits every command added in the next one. System \
+                shortcuts such as ⌘␣ and ⇧⌘3 cannot be bound in any preset.
+                """
+            )
+
+            NotYetApplied(
+                """
+                There is no way to record one. This count reads Shortcuts.Custom, the delta \
+                table FMUI’s ShortcutMap is to own; nothing writes it, so it is always zero \
+                and the button above is always off.
                 """
             )
         }

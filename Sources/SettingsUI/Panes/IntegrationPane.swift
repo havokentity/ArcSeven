@@ -63,6 +63,15 @@ struct IntegrationPane: View {
     private var finderSection: some View {
         Section {
             Toggle("Enable Finder integration", isOn: $store.finderIntegration)
+                .disabled(true)
+
+            NotYetApplied(
+                """
+                Nothing reads this switch. Whether ArcSeven’s commands appear in Finder is \
+                decided entirely by the system setting reported below, and Services and Quick \
+                Actions are registered from the app’s Info.plist whether it is on or off.
+                """
+            )
 
             LabeledContent("macOS reports:") {
                 HStack(spacing: 8) {
@@ -96,8 +105,13 @@ struct IntegrationPane: View {
 
     private var menuStyleSection: some View {
         Section {
-            Toggle("Cascaded context menu", isOn: $store.cascadedMenu)
-            Toggle("Icons in context menu", isOn: $store.menuIcons)
+            Group {
+                Toggle("Cascaded context menu", isOn: $store.cascadedMenu)
+                Toggle("Icons in context menu", isOn: $store.menuIcons)
+            }
+            .disabled(true)
+
+            NotYetApplied(menuPolicyNotice)
         } header: {
             Text("Menu Style")
         } footer: {
@@ -110,9 +124,14 @@ struct IntegrationPane: View {
 
     private var contextMenuSection: some View {
         Section {
-            ForEach(ContextMenuVerb.allCases) { verb in
-                Toggle(verb.title, isOn: binding(for: verb))
+            Group {
+                ForEach(ContextMenuVerb.allCases) { verb in
+                    Toggle(verb.title, isOn: binding(for: verb))
+                }
             }
+            .disabled(true)
+
+            NotYetApplied(menuPolicyNotice)
         } header: {
             Text("Context Menu Items")
         } footer: {
@@ -126,6 +145,18 @@ struct IntegrationPane: View {
             )
         }
     }
+
+    /// One sentence for both sections, because it is one missing read.
+    ///
+    /// `FinderSyncExtension.menu(for:)` builds a fixed menu and says so in its own header. It
+    /// is a separate, sandboxed process, so honouring these means a shared-suite defaults read
+    /// on Finder's UI thread — which is why it wants a snapshot refreshed by
+    /// `arcSevenIntegrationDidChange`, the notification this window already posts to nobody.
+    private let menuPolicyNotice = """
+        The Finder extension builds a fixed menu. Honouring these means ArcSevenFinder \
+        reading the shared defaults suite and observing arcSevenIntegrationDidChange, which \
+        it does not do yet.
+        """
 
     private var extractionSection: some View {
         Section {
