@@ -20,6 +20,44 @@ calls M1.
 
 Nothing yet.
 
+## [0.1.4] - 2026-08-26
+
+### Changed
+
+- **"Extract Here" now extracts here.** It never did: it and "Extract to Subfolder" were
+  two Services menu items calling the same code, and both wrapped the contents in a folder
+  named after the archive. The destination is now chosen by looking at the archive — a
+  single top-level item extracts loose, since the archive already provides its own folder
+  and wrapping it produces `project-1.0/project-1.0/`; two or more top-level items are
+  wrapped, since extracting them loose scatters them across the enclosing folder with no
+  way to tell afterwards what just arrived. An archive whose listing fails is wrapped.
+  See [`docs/DIVERGENCES.md`](docs/DIVERGENCES.md) D-0.1.4-1.
+- "Extract to Subfolder" is now a distinct command that always wraps.
+
+### Fixed
+
+- **The Compress sheet would have crashed on open.** Adding the passphrase-exposure notice
+  in 0.1.3 indexed a fourth element of a three-element array. Caught before release by the
+  new `DialogsTests`; recorded here because the fix is what the test target is for.
+- **Sparkle's MIT licence was never shipped.** `Sparkle.framework` has been linked and
+  embedded since 0.1.0 while the compliance tree listed it as "not yet vendored", so no
+  copy of its licence reached the app, the disk image or the repository. MIT requires the
+  notice to accompany all copies.
+- Three claims in `NOTICE` that were not true: that it was reproduced under
+  **Help ▸ Acknowledgements** (there was no Help menu — there is now, and it reveals the
+  bundled legal folder), the source-tarball filename pattern, and a grammatical slip.
+
+### Added
+
+- **Colour-coded toolbar buttons.** Each action draws as a rounded badge in its own colour
+  with a white glyph. Delete is the only red in the toolbar, so the destructive button is
+  never found by muscle memory alone. All system colours, so dark mode, Increase Contrast
+  and a changed accent colour stay correct.
+- **Help ▸ Acknowledgements & Licences**, which reveals `Contents/Resources/Legal/`.
+- `FMUITests`, and preflight guards for two things that had silently broken before: the
+  updater being wired to nothing, and the two `FinderRequest.swift` copies drifting apart
+  on the wire format the Finder extension and the app share.
+
 ## [0.1.3] - 2026-08-26
 
 ### Fixed
