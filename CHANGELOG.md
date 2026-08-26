@@ -20,6 +20,30 @@ calls M1.
 
 Nothing yet.
 
+## [0.1.5] - 2026-08-26
+
+### Added
+
+- **"Extract Loose"**, which never creates a wrapper folder, alongside the existing
+  "Extract Here" (wraps only when the archive would otherwise scatter) and "Extract to
+  Subfolder" (always wraps). All three now appear in the Finder right-click submenu, which
+  previously offered only "Extract Here" — the other two existed in the Services menu
+  alone, which is not where anyone looks.
+
+  Named "Extract Loose" rather than "Extract Without Folder" on purpose: 7-Zip already uses
+  "without folder structure" for `-e`, which flattens paths *inside* the archive so
+  `src/a.txt` and `docs/a.txt` collide as `a.txt`. All three of these preserve the
+  archive's internal structure and differ only in the wrapper.
+
+### Fixed
+
+- **The update dialog showed the whole GitHub release page** — nav bar, Sign in button and
+  all — inside its release-notes pane. The appcast set `sparkle:releaseNotesLink` to the
+  release page URL, and Sparkle fetches that into a web view; it also takes precedence over
+  any embedded notes. The notes are now embedded in the appcast as markdown, taken straight
+  from this file, so the dialog shows what changed and nothing else, without a network
+  fetch.
+
 ## [0.1.4] - 2026-08-26
 
 ### Changed

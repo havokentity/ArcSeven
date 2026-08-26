@@ -245,6 +245,42 @@ trap 'rm -f "$ITEMS"' EXIT
 
 PUB_DATE="$(LC_ALL=C date -u '+%a, %d %b %Y %H:%M:%S +0000')"
 
+# --------------------------------------------------------------------------------------
+# Release notes
+# --------------------------------------------------------------------------------------
+# Embedded in the appcast, NOT linked.
+#
+# `sparkle:releaseNotesLink` takes precedence over `<description>` (SUUpdateAlert.m only
+# reads the description when releaseNotesURL is nil), and it makes Sparkle fetch that URL
+# into a web view. Pointed at a GitHub release page that renders the entire page — nav bar,
+# Sign in button, repo header — inside the update dialog. 0.1.4 shipped that way.
+#
+# `sparkle:format="markdown"` gets a dedicated text view with no availability gate, so the
+# CHANGELOG section goes in verbatim: no HTML conversion to get wrong, no network fetch, and
+# it still reads correctly if a future Sparkle renders it as plain text.
+APPCAST_REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+
+changelog_section() {
+    local version="$1" file="$APPCAST_REPO_ROOT/CHANGELOG.md"
+    if [ ! -f "$file" ]; then
+        # Loud, not silent: an appcast whose notes are empty looks fine and tells the user
+        # nothing about what they are installing.
+        info "WARNING: $file not found - release notes will be empty"
+        return 0
+    fi
+    # Blank lines are preserved, and runs of them collapsed to one. Markdown needs the
+    # blank line between a paragraph and the list or heading that follows; stripping them
+    # all runs the whole section together into a single block.
+    /usr/bin/awk -v want="## [$version]" '
+        index($0, want) == 1 { grabbing = 1; next }
+        grabbing && /^## \[/  { exit }
+        grabbing              { print }
+    ' "$file" | /usr/bin/awk '
+        NF                 { blank = 0; started = 1; print; next }
+        started && !blank  { blank = 1; print }
+    ' | /usr/bin/sed -e :a -e '/^\n*$/{$d;N;ba' -e '}'
+}
+
 for dmg in "${DMGS[@]}"; do
     base="$(basename "$dmg")"
     step "Signing $base"
@@ -292,7 +328,18 @@ for dmg in "${DMGS[@]}"; do
         printf '            <sparkle:minimumSystemVersion>%s</sparkle:minimumSystemVersion>\n' \
             "$(xml_escape "$MINIMUM_SYSTEM_VERSION")"
         printf '%s' "$channel"
-        printf '            <sparkle:releaseNotesLink>%s</sparkle:releaseNotesLink>\n' "$(xml_escape "$notes")"
+
+        # CDATA, so the markdown needs no escaping. A literal "]]>" inside would close the
+        # section early; split it across two sections, which is the standard trick and
+        # produces identical text.
+        section="$(changelog_section "$short")"
+        if [ -n "$section" ]; then
+            printf '            <description sparkle:format="markdown"><![CDATA[\n'
+            printf '%s\n' "${section//]]>/]]]]><![CDATA[>}"
+            printf '            ]]></description>\n'
+        else
+            info "no CHANGELOG section for $short - the update dialog will show no notes"
+        fi
         printf '            <link>%s</link>\n' "$(xml_escape "$notes")"
         printf '            <enclosure url="%s"\n' "$(xml_escape "$url")"
         printf '                       sparkle:edSignature="%s"\n' "$(xml_escape "$signature")"
