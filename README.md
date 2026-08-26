@@ -60,7 +60,12 @@ updater and have to be replaced by hand once.
 
 Honest list, because a list of features is worth little without one.
 
-- **Nested archives.** An archive *inside* an archive is not navigable.
+- **Nested archives — browsing works, leaving does not.** `outer.7z/inner.tar/deep/leaf.txt`
+  descends correctly, but the inner archive is staged to a temp file and the provider keeps
+  no chain back to its parent, so `..` from a nested root drops you into
+  `/var/folders/…` rather than back into `outer.7z`. Extract destinations and quarantine
+  propagation are derived from the staged copy for the same reason. Treat nested browsing
+  as one-way until that chain exists.
 - **Opening a member.** No in-app viewer and no temp-file edit/write-back.
   `engine.readEntry(_:)` already streams a member's bytes; nothing calls it.
 - **View modes.** Details only — no icon views, no flat view.
