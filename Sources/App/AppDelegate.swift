@@ -91,6 +91,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    /// Open the bundled legal folder in Finder.
+    ///
+    /// Revealing the folder rather than rendering it in a window: LICENSE, NOTICE and the
+    /// whole THIRD_PARTY_LICENSES tree ship as plain text, and Finder plus the user's own
+    /// editor read them better than a text view built for the purpose would.
+    @objc func showAcknowledgements(_ sender: Any?) {
+        guard let legal = Bundle.main.resourceURL?.appendingPathComponent("Legal"),
+              FileManager.default.fileExists(atPath: legal.path) else {
+            let alert = NSAlert()
+            alert.messageText = "Licences are not in this build"
+            alert.informativeText = """
+                ArcSeven is licensed under GPL-3.0-or-later and bundles 7-Zip (LGPL-2.1) and \
+                Sparkle (MIT). The full texts ship in Contents/Resources/Legal of a release \
+                build, and are always available at \
+                https://github.com/havokentity/ArcSeven.
+                """
+            alert.runModal()
+            return
+        }
+        NSWorkspace.shared.activateFileViewerSelecting([legal])
+    }
+
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
 
     /// Opening an archive from Finder, the Dock, or `open -a`.

@@ -29,6 +29,9 @@ read it without network access:
     the Legal folder of the distributed disk image
     the root of the source repository
 
+The application reaches the first of these from Help > Acknowledgements &
+Licences.
+
 ================================================================================
 1.  BUNDLED THIRD-PARTY SOFTWARE:  7-Zip  ("7zz")
 ================================================================================

@@ -481,7 +481,7 @@ extension MainWindowController: NSWindowDelegate {}
 // MARK: - Toolbar
 
 /// The rebar, and the seven buttons on it. In an extension so the controller body
-/// stays inside its size budget; `ToolbarAction` stays file-private because the
+/// stays inside its size budget. `ToolbarActionStyle` lives in its own file so the
 /// `NSToolbarDelegate` conformance below is the only other place that reads it.
 extension MainWindowController {
     private func configureToolbar() {
@@ -495,45 +495,16 @@ extension MainWindowController {
     }
 
     /// 7zFM's seven toolbar buttons, in its order.
-    private enum ToolbarAction: String, CaseIterable {
-        case add, extract, test, copy, move, delete, info
-
-        var title: String {
-            switch self {
-            case .add: "Add"
-            case .extract: "Extract"
-            case .test: "Test"
-            case .copy: "Copy"
-            case .move: "Move"
-            case .delete: "Delete"
-            case .info: "Info"
-            }
-        }
-
-        /// SF Symbols standing in for 7-Zip's bitmaps.
-        var symbolName: String {
-            switch self {
-            case .add: "plus.rectangle.on.folder"
-            case .extract: "arrow.down.doc"
-            case .test: "checkmark.seal"
-            case .copy: "doc.on.doc"
-            case .move: "arrow.right.doc.on.clipboard"
-            case .delete: "trash"
-            case .info: "info.circle"
-            }
-        }
-
-        var itemIdentifier: NSToolbarItem.Identifier { .init("ArcSeven." + rawValue) }
-    }
-
-    @objc private func toolbarActionInvoked(_ sender: NSToolbarItem) {
-        guard let action = ToolbarAction.allCases.first(
-            where: { $0.itemIdentifier == sender.itemIdentifier }
-        ) else { return }
+    /// The sender is the badge button, so the action is recovered from its accessibility
+    /// label rather than from a toolbar item identifier.
+    @objc private func toolbarActionInvoked(_ sender: Any?) {
+        let title = (sender as? NSButton)?.accessibilityLabel()
+        guard let action = ToolbarActionStyle.allCases.first(where: { $0.title == title })
+        else { return }
         perform(action)
     }
 
-    private func perform(_ action: ToolbarAction) {
+    private func perform(_ action: ToolbarActionStyle) {
         guard let panel = activePanel else { return }
         switch action {
         case .add:
@@ -559,7 +530,7 @@ extension MainWindowController {
 extension MainWindowController: NSToolbarDelegate {
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         var identifiers: [NSToolbarItem.Identifier] = []
-        for action in ToolbarAction.allCases {
+        for action in ToolbarActionStyle.allCases {
             identifiers.append(action.itemIdentifier)
             if action == .test { identifiers.append(.space) }
         }
@@ -567,7 +538,7 @@ extension MainWindowController: NSToolbarDelegate {
     }
 
     public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        ToolbarAction.allCases.map(\.itemIdentifier) + [.space, .flexibleSpace]
+        ToolbarActionStyle.allCases.map(\.itemIdentifier) + [.space, .flexibleSpace]
     }
 
     public func toolbar(
@@ -575,17 +546,24 @@ extension MainWindowController: NSToolbarDelegate {
         itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
         willBeInsertedIntoToolbar flag: Bool
     ) -> NSToolbarItem? {
-        guard let action = ToolbarAction.allCases.first(where: { $0.itemIdentifier == itemIdentifier })
+        guard let action = ToolbarActionStyle.allCases.first(where: { $0.itemIdentifier == itemIdentifier })
         else { return nil }
 
         let item = NSToolbarItem(itemIdentifier: itemIdentifier)
         item.label = action.title
         item.paletteLabel = action.title
         item.toolTip = action.title
-        item.image = NSImage(systemSymbolName: action.symbolName, accessibilityDescription: action.title)
-        item.target = self
-        item.action = #selector(toolbarActionInvoked(_:))
-        item.isBordered = true
+
+        // A custom view rather than `item.image`: the badge is drawn, and a toolbar item
+        // renders its image as a monochrome template. `isBordered` stays off so AppKit does
+        // not draw its own chrome behind ours.
+        let button = BubbleToolbarButton(
+            symbol: action.symbolName, tint: action.tint, title: action.title
+        )
+        button.target = self
+        button.action = #selector(toolbarActionInvoked(_:))
+        item.view = button
+        item.isBordered = false
         return item
     }
 }

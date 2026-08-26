@@ -131,6 +131,12 @@ let package = Package(
             swiftSettings: strictSettings
         ),
         .testTarget(
+            name: "FMUITests",
+            dependencies: ["FMUI", "FMKit", "ArchiveCore", "Dialogs", "SettingsUI", "Support"],
+            path: "Tests/FMUITests",
+            swiftSettings: strictSettings
+        ),
+        .testTarget(
             name: "DialogsTests",
             dependencies: ["Dialogs", "ArchiveCore"],
             path: "Tests/DialogsTests",

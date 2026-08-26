@@ -20,10 +20,30 @@ enum MainMenuBuilder {
         main.addItem(viewMenuItem())
         main.addItem(goMenuItem())
         main.addItem(windowMenuItem())
+        main.addItem(helpMenuItem())
         NSApp.mainMenu = main
     }
 
     // MARK: Menus
+
+    /// Help, whose only job today is reaching the licences.
+    ///
+    /// ArcSeven is GPL-3.0 and bundles LGPL and MIT components; the notices are copied into
+    /// `Contents/Resources/Legal/` precisely so a recipient of the disk image can read them
+    /// without a network. Shipping them where nothing in the app points at them makes that
+    /// gesture worth very little. NOTICE claimed this menu existed before it did.
+    private static func helpMenuItem() -> NSMenuItem {
+        let menu = NSMenu(title: "Help")
+        menu.addItem(
+            withTitle: "Acknowledgements & Licences",
+            action: #selector(AppDelegate.showAcknowledgements(_:)),
+            keyEquivalent: ""
+        )
+        let item = NSMenuItem(title: "Help", action: nil, keyEquivalent: "")
+        item.submenu = menu
+        NSApp.helpMenu = menu
+        return item
+    }
 
     private static func applicationMenuItem() -> NSMenuItem {
         let name = "ArcSeven"
