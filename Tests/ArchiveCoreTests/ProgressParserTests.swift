@@ -26,6 +26,43 @@ struct ProgressParserTests {
         #expect(counted?.path == nil)
     }
 
+    /// While `7zz` is still walking the input it has no total to take a percentage of,
+    /// so it prints a running size and the word `Scan` where the marker goes. That is
+    /// a phase indicator, and it must not arrive at the UI as a filename.
+    @Test("The scan indicator is a phase, not a path")
+    func scanIndicator() {
+        let bare = ProgressParser.parseProgressRow("  0M Scan ")
+        #expect(bare?.megabytes == 0)
+        #expect(bare?.command == "Scan")
+        #expect(bare?.percent == nil)
+        #expect(bare?.path == nil)
+
+        let named = ProgressParser.parseProgressRow(" 12M Scan photos/2019")
+        #expect(named?.megabytes == 12)
+        #expect(named?.command == "Scan")
+        #expect(named?.path == "photos/2019")
+    }
+
+    /// `lastPath` is sticky by design, so anything that reaches it once stays in front
+    /// of the user for the whole operation. The scan indicator used to, right through
+    /// the processing phase.
+    @Test("The scan indicator never becomes the current item path")
+    func scanIndicatorIsNotSticky() {
+        var parser = ProgressParser(operation: .compress)
+        guard case .progress(let scanning) = parser.consume(.transient("  0M Scan ")) else {
+            Issue.record("expected progress"); return
+        }
+        #expect(scanning.phase == .scanning)
+        #expect(scanning.currentItemPath == nil)
+        #expect(scanning.fractionCompleted == nil)
+
+        guard case .progress(let working) = parser.consume(.transient("  5%")) else {
+            Issue.record("expected progress"); return
+        }
+        #expect(working.phase == .processing)
+        #expect(working.currentItemPath == nil, "the scan token must not have stuck")
+    }
+
     @Test("A row without a percentage is not progress")
     func notProgress() {
         #expect(ProgressParser.parseProgressRow("Everything is Ok") == nil)

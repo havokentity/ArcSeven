@@ -590,6 +590,32 @@ struct LiveEngineTests {
         #expect(blocks.count == 3, "expected one \(label): row per pass, got \(blocks.count)")
     }
 
+    /// The parser suite pins the scan grammar against a fixture; this pins the fixture
+    /// against the binary. `7zz` paints `  0M Scan ` before it starts compressing, and
+    /// the only way to know that is still the shape it emits is to read it off a real
+    /// run.
+    @Test("The real scan indicator never surfaces as a filename")
+    func scanIndicatorIsNotReportedAsAPath() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("tree", isDirectory: true)
+            try FileManager.default.createDirectory(at: source, withIntermediateDirectories: true)
+            for index in 0..<200 {
+                try "\(index)".write(to: source.appendingPathComponent("f\(index).txt"),
+                                     atomically: true, encoding: .utf8)
+            }
+
+            let archive = dir.appendingPathComponent("scan.7z")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.baseDirectory = dir
+            request.level = .store
+            let outcome = try await drain(engine.compress(request))
+
+            let paths = outcome.progress.compactMap(\.currentItemPath)
+            #expect(!paths.contains { $0.localizedCaseInsensitiveContains("Scan") },
+                    "reported paths: \(Set(paths).sorted())")
+        }
+    }
+
     @Test("Listing a non-archive fails rather than returning an empty listing")
     func notAnArchive() async throws {
         try await withTemporaryDirectory { dir in
