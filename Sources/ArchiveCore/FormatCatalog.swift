@@ -287,7 +287,7 @@ extension FormatCatalog {
         method: CompressionMethod?,
         level: CompressionLevel
     ) -> [UInt64] {
-        guard let method = resolvedMethod(format: format, method: method) else { return [] }
+        guard let method = effectiveMethod(format: format, method: method) else { return [] }
         // At Store the method/dictionary/word combos are cleared outright, except
         // for tar which has no compression controls at all (res_8 §1.5).
         if level.rawValue == 0 && format != .tar { return [] }
@@ -316,7 +316,7 @@ extension FormatCatalog {
         method: CompressionMethod?,
         level: CompressionLevel
     ) -> UInt64? {
-        guard let method = resolvedMethod(format: format, method: method) else { return nil }
+        guard let method = effectiveMethod(format: format, method: method) else { return nil }
         let value = level.rawValue
 
         switch method {
@@ -351,7 +351,7 @@ extension FormatCatalog {
         method: CompressionMethod?,
         level: CompressionLevel
     ) -> [Int] {
-        guard let method = resolvedMethod(format: format, method: method) else { return [] }
+        guard let method = effectiveMethod(format: format, method: method) else { return [] }
         if level.rawValue == 0 && format != .tar { return [] }
 
         switch method {
@@ -376,7 +376,7 @@ extension FormatCatalog {
         method: CompressionMethod?,
         level: CompressionLevel
     ) -> Int? {
-        guard let method = resolvedMethod(format: format, method: method) else { return nil }
+        guard let method = effectiveMethod(format: format, method: method) else { return nil }
         let value = level.rawValue
 
         switch method {
@@ -426,7 +426,7 @@ extension FormatCatalog {
     /// estimate exceeds the configured limit.
     public static func maximumThreads(format: ArchiveFormat, method: CompressionMethod?) -> Int {
         guard let descriptor = creatable(format), descriptor.supportsMultithreading else { return 1 }
-        guard let method = resolvedMethod(format: format, method: method) else { return 1 }
+        guard let method = effectiveMethod(format: format, method: method) else { return 1 }
         switch method {
         case .lzma2:
             return format == .xz ? 512 : 512
@@ -466,7 +466,12 @@ extension FormatCatalog {
     // MARK: Helpers
 
     /// Resolve `nil` (the `*` auto entry) to the format's default method.
-    private static func resolvedMethod(
+    ///
+    /// Public because the argument builder needs it too: selecting `*` suppresses the
+    /// method switch, but the handler still runs *a* codec, and the dictionary and
+    /// word-size properties have to be spelled for that one. `-md=` against a zip
+    /// left on `*` is `-md=` against Deflate, which is `E_INVALIDARG`.
+    public static func effectiveMethod(
         format: ArchiveFormat,
         method: CompressionMethod?
     ) -> CompressionMethod? {

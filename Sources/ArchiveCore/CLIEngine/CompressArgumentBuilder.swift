@@ -25,18 +25,48 @@ public enum CompressArgumentBuilder {
         switches.append("-mx=\(request.level.rawValue)")
 
         // Method. Only meaningful for formats that offer a choice.
-        if let method = request.method, request.level.rawValue > 0 {
-            switches.append("-m0=\(method.rawValue)")
+        //
+        // The level gate is not `> 0` alone. Store clears the Method combo for the
+        // compressing formats, but tar's ONLY level is 0 and its two "methods" are
+        // header dialects rather than codecs, so gating on the level dropped the
+        // GNU/POSIX choice entirely — the combo was enabled and connected to
+        // nothing. `isTarDialect` is exactly the exception.
+        if let method = request.method, request.level.rawValue > 0 || method.isTarDialect {
+            switches.append("-m\(Self.methodProperty(for: request.format))=\(method.switchValue)")
         }
 
+        // The codec that will actually run. `method == nil` is the dialog's `*`
+        // entry: it suppresses the method switch, but a codec still runs, and the
+        // dictionary and word-size properties have to be spelled for THAT one.
+        let codec = FormatCatalog.effectiveMethod(format: request.format, method: request.method)
+
         // Dictionary size.
-        if let bytes = request.dictionarySize.byteValue {
-            switches.append("-md=\(bytes)")
+        //
+        // The `b` suffix is load-bearing. An unsuffixed `-md=N` is a **log2** value
+        // and 7zz rejects anything above 31, so every byte count the dialog can
+        // produce died as `E_INVALIDARG` with no archive written. Verified against
+        // the vendored 26.02: `-md=16777216` → exit 2, `-md=16777216b` → exit 0 and
+        // `Method = LZMA2:24`. `-ms=` below has always had this right.
+        //
+        // The property NAME varies by codec as well — PPMd sizes a model memory
+        // budget through `-mmem=` and rejects `-md=` outright. See
+        // `CompressionMethod.dictionaryPropertyName` for the measured table.
+        if let bytes = request.dictionarySize.byteValue,
+           let property = codec?.dictionaryPropertyName {
+            switches.append("-m\(property)=\(bytes)b")
         }
 
         // Word size.
-        if let words = request.wordSize.intValue {
-            switches.append("-mfb=\(words)")
+        //
+        // "Word size" is one dialog control standing for two unrelated properties.
+        // For the LZ codecs it is fast bytes, `-mfb=`; for PPMd it is the model
+        // order, `-mo=`, and PPMd rejects `-mfb=` outright — `-t7z -m0=PPMd -mfb=6`
+        // exits 2, `-mo=6` exits 0 and reports `PPMD:o6`. Same in zip. BZip2 and
+        // Copy have no such control at all. See
+        // `CompressionMethod.wordSizePropertyName` for the measured table.
+        if let words = request.wordSize.intValue,
+           let property = codec?.wordSizePropertyName {
+            switches.append("-m\(property)=\(words)")
         }
 
         // Solid block size. 7z only; `-ms=off` disables solid mode entirely.
@@ -67,6 +97,31 @@ public enum CompressArgumentBuilder {
         }
 
         return switches
+    }
+
+    /// The `-m` property that names the codec, which is not spelled the same way for
+    /// every handler.
+    ///
+    /// `-m0=` addresses coder 0 of a chain. Only the multi-coder containers have a
+    /// chain, and the single-stream handlers reject the index outright rather than
+    /// ignoring it. Verified against the vendored 26.02 (0 = accepted, 2 =
+    /// `E_INVALIDARG`):
+    ///
+    ///     format   -m0=   -mm=
+    ///     7z         0      0
+    ///     zip        0      0
+    ///     xz         0      0
+    ///     tar        2      0
+    ///     bzip2      2      0
+    ///     gzip       2      0
+    ///
+    /// `-mm=` is therefore a universal alias, and `-m0=` is kept for 7z and zip only
+    /// because that is the spelling those handlers have always been given here —
+    /// both compose identically with a `-m1=` filter chain typed into the Parameters
+    /// field (`-m0=BCJ -m1=LZMA2` and `-mm=BCJ -m1=LZMA2` both yield
+    /// `Method = BCJ LZMA2`).
+    private static func methodProperty(for format: ArchiveFormat) -> String {
+        format == .sevenZip || format == .zip ? "0" : "m"
     }
 
     /// Path-mode and housekeeping switches.

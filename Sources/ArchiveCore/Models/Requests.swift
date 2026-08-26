@@ -208,7 +208,18 @@ public struct ExtractRequest: Sendable, Hashable {
     public var restoreSymbolicLinks: Bool
 
     /// Keep the partial output of members that fail CRC, instead of deleting them.
-    /// Useful for salvage; off by default because partial files are a footgun.
+    ///
+    /// - Warning: Currently inert, and there is nothing for it to emit. 26.02 has no
+    ///   switch for this — `--help` lists none, and the `-tzip:kb` this used to send
+    ///   is rejected outright (`Unsupported archive type`, exit 2) even against a
+    ///   real zip, while also hard-coding the zip handler for every archive. Until
+    ///   0.1.5 setting this failed EVERY extraction rather than salvaging anything.
+    ///
+    ///   The behaviour it asks for is what `7zz` already does unconditionally:
+    ///   extracting a 7z with a flipped byte mid-stream exits 2, reports
+    ///   `Sub items Errors: 1`, and leaves the truncated member on disk. So the
+    ///   salvage case is covered whatever this is set to, and a caller that wants
+    ///   the opposite has to delete the partial files itself.
     public var keepBrokenFiles: Bool
 
     public init(

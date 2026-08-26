@@ -27,6 +27,18 @@
 // parser therefore treats each field as optional and keeps the last known value for
 // anything missing, so the UI never flickers back to zero between ticks.
 //
+// The leading field is not always a percentage. `7zz` can only print one when it
+// knows the total, and during the scan the total is precisely what it is still
+// measuring — so it prints a running size instead, and labels the slot the marker
+// would occupy with a word:
+//
+//      0M Scan
+//      0M Scan photos/2019
+//
+// That row is a phase indicator, not a member. Reading `0M Scan ` as a path put it
+// in front of the user where a filename belongs, and `lastPath` is sticky, so it
+// stayed there for the rest of the operation.
+//
 // ## Permanent grammar
 //
 // With `-bb3` each processed member gets its own newline-terminated line, prefixed
@@ -149,8 +161,14 @@ public struct ProgressParser: Sendable {
     /// One decoded progress tick. Every field is optional.
     struct ProgressRow: Sendable, Hashable {
         var percent: Int?
+        /// The `<n>M` size `7zz` prints in place of a percentage while the total is
+        /// still unknown. Recognising it is what keeps it out of ``path``.
+        var megabytes: Int?
         var fileCount: Int?
         var marker: Character?
+        /// A word in the marker's slot, such as `Scan`. Names a phase rather than a
+        /// member, so it is deliberately not surfaced as a path.
+        var command: String?
         var path: String?
     }
 
@@ -164,14 +182,21 @@ public struct ProgressParser: Sendable {
 
         var row = ProgressRow()
 
-        // Percentage: digits immediately followed by '%'.
+        // Leading numeric field. A percentage when `7zz` knows the total, a running
+        // size in `M` when it does not — which is every tick of the scan, since the
+        // total is what the scan exists to measure.
         let digits = scanner.prefix(while: \.isNumber)
-        if !digits.isEmpty, scanner.dropFirst(digits.count).first == "%" {
+        guard !digits.isEmpty else { return nil }   // Not a progress row at all.
+        switch scanner.dropFirst(digits.count).first {
+        case "%":
             row.percent = Int(digits).map { min(max($0, 0), 100) }
             scanner = scanner.dropFirst(digits.count + 1)
-        } else if digits.isEmpty {
-            // Not a progress row at all.
-            return nil
+        case "M":
+            row.megabytes = Int(digits)
+            scanner = scanner.dropFirst(digits.count + 1)
+        default:
+            // Leave the digits for the file-count field below.
+            break
         }
 
         dropSpaces()
@@ -194,6 +219,18 @@ public struct ProgressParser: Sendable {
            scanner.dropFirst().first == " " {
             row.marker = first
             scanner = scanner.dropFirst(2)
+        }
+
+        // The same slot can hold a word instead: `7zz` writes `Scan` there while it
+        // is still walking the input. Only consulted for the sizing form — in the
+        // percentage form the marker is always present, so a word at this point is
+        // the first word of a path that contains a space.
+        if row.megabytes != nil, row.marker == nil {
+            let word = scanner.prefix(while: \.isLetter)
+            if !word.isEmpty, scanner.dropFirst(word.count).first == " " {
+                row.command = String(word)
+                scanner = scanner.dropFirst(word.count + 1)
+            }
         }
 
         dropSpaces()
