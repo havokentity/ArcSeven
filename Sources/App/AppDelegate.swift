@@ -53,6 +53,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // do not appear until the next login.
         NSUpdateDynamicServices()
 
+        // Starting is not checking: with automatic checks off, a started updater schedules
+        // nothing and opens no connection — it only makes the menu item live. See
+        // `UpdaterController.start()`, whose own documentation asks to be called from
+        // here, and which nothing called until 0.1.4.
+        UpdaterController.shared.start()
+
         // Anything the Finder extension queued while we were not running.
         FinderRequestStore.pruneStale()
 
@@ -76,6 +82,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let queuedActions = pendingActions
         pendingActions.removeAll()
         for queued in queuedActions { perform(queued.action, on: queued.urls) }
+
+        // Deferred so the window is on screen first. The prompt is skipped on the very
+        // first launch and asked exactly once from the second on; `start()` above has
+        // already incremented the launch count that decides which this is.
+        DispatchQueue.main.async {
+            UpdaterController.shared.presentAutomaticUpdateConsentIfNeeded()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }

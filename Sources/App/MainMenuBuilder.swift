@@ -30,6 +30,20 @@ enum MainMenuBuilder {
         let menu = NSMenu(title: name)
         menu.addItem(withTitle: "About \(name)", action: #selector(NSApplication.orderFrontStandardAboutPanel(_:)), keyEquivalent: "")
         menu.addItem(.separator())
+
+        // Targeted at the shared updater rather than left to the responder chain: it is
+        // not in the chain, so a nil target would leave the item permanently greyed out.
+        // Through 0.1.3 this item did not exist at all — Sparkle.framework shipped in
+        // every build, fully configured and signed, and nothing ever asked it anything.
+        let updates = NSMenuItem(
+            title: "Check for Updates…",
+            action: #selector(UpdaterController.checkForUpdates(_:)),
+            keyEquivalent: ""
+        )
+        updates.target = UpdaterController.shared
+        menu.addItem(updates)
+        menu.addItem(.separator())
+
         menu.addItem(withTitle: "Settings…", action: Selector(("showSettings:")), keyEquivalent: ",")
         menu.addItem(.separator())
 

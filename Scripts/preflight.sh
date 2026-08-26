@@ -117,6 +117,24 @@ else
   bad "no Release bundle to check for Sparkle keys"
 fi
 
+step "The updater is wired to something"
+# Sparkle.framework shipped in 0.1.0 through 0.1.3 fully configured — embedded, signed,
+# with a valid public key and a published appcast — and completely inert: nothing ever
+# constructed UpdaterController, and no menu item existed to reach it. Every part looked
+# correct in isolation, which is exactly why nobody noticed.
+#
+# Checked in the SOURCE, because the failure is an absence: there is no symbol to look
+# for in the binary that distinguishes "wired" from "compiled but never called".
+updater_start=$( (grep -rl "UpdaterController.shared.start()" Sources/App --include='*.swift' 2>/dev/null || true) | wc -l | tr -d ' ')
+updater_menu=$( (grep -rl "UpdaterController.checkForUpdates" Sources/App --include='*.swift' 2>/dev/null || true) | wc -l | tr -d ' ')
+if [ "$updater_start" -eq 0 ]; then
+  bad "nothing calls UpdaterController.shared.start() - the updater never runs"
+elif [ "$updater_menu" -eq 0 ]; then
+  bad "no menu item targets UpdaterController.checkForUpdates - the user cannot check"
+else
+  ok "updater started at launch and reachable from the menu"
+fi
+
 # Unregister the throwaway app bundles this script just built.
 #
 # macOS registers any .app it notices, and each one becomes its own row in

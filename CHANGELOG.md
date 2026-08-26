@@ -24,6 +24,14 @@ Nothing yet.
 
 ### Fixed
 
+- **The auto-updater was never switched on.** `Sparkle.framework` has been embedded,
+  signed and notarised in every release since 0.1.0, and 0.1.2 added a valid signing key
+  and a published, correctly signed appcast. None of it ran: nothing ever constructed
+  `UpdaterController`, so `SPUStandardUpdaterController` was never created, and no
+  "Check for Updates…" menu item existed to reach it. `start()`'s own documentation said
+  "Call this from `applicationDidFinishLaunching`", and nothing did. Every piece was
+  correct in isolation, which is why it survived being configured twice.
+
 - **A member name could lie about its extension.** Names are attacker-controlled, and
   nothing escaped them: `invoice<U+202E>gnp.exe` rendered as `invoice exe.png`, because
   everything after a right-to-left override is drawn reversed. The name really did end in
