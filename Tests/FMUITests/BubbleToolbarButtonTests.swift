@@ -91,18 +91,26 @@ struct BubbleToolbarButtonTests {
         let cell: CGFloat = 30, gap: CGFloat = 16, pad: CGFloat = 16, labelBand: CGFloat = 20
         let actions = ToolbarActionStyle.allCases
         let width = pad * 2 + CGFloat(actions.count) * cell + CGFloat(actions.count - 1) * gap
-        let height = pad * 2 + cell + labelBand
+        let bandHeight = pad * 2 + cell + labelBand
+        let height = bandHeight * 2   // light over dark
 
         let strip = NSImage(size: NSSize(width: width, height: height))
         strip.lockFocus()
+        for (bandIndex, appearanceName) in [NSAppearance.Name.aqua, .darkAqua].enumerated() {
+        let appearance = NSAppearance(named: appearanceName)
+        let bandOrigin = height - CGFloat(bandIndex + 1) * bandHeight
+        appearance?.performAsCurrentDrawingAppearance {
         NSColor.windowBackgroundColor.setFill()
-        NSRect(x: 0, y: 0, width: width, height: height).fill()
+        NSRect(x: 0, y: bandOrigin, width: width, height: bandHeight).fill()
         for (index, action) in actions.enumerated() {
             let button = BubbleToolbarButton(
                 symbol: action.symbolName, tint: action.tint, title: action.title
             )
             let originX = pad + CGFloat(index) * (cell + gap)
-            button.frame = NSRect(x: originX, y: pad + labelBand, width: cell, height: cell)
+            button.appearance = appearance
+            button.frame = NSRect(
+                x: originX, y: bandOrigin + pad + labelBand, width: cell, height: cell
+            )
             if let rep = button.bitmapImageRepForCachingDisplay(in: button.bounds) {
                 button.cacheDisplay(in: button.bounds, to: rep)
                 if let cgImage = rep.cgImage {
@@ -114,7 +122,9 @@ struct BubbleToolbarButtonTests {
                 .foregroundColor: NSColor.labelColor,
             ])
             let size = label.size()
-            label.draw(at: NSPoint(x: originX + (cell - size.width) / 2, y: pad + 2))
+            label.draw(at: NSPoint(x: originX + (cell - size.width) / 2, y: bandOrigin + pad + 2))
+        }
+        }
         }
         strip.unlockFocus()
 
