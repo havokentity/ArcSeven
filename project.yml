@@ -201,7 +201,10 @@ targets:
       # `lipo -create`. It is a separate executable driven as a subprocess and is never
       # linked into this process - with the RAR handlers present, linking would import
       # the unRAR restriction, which is a GPL-incompatible "further restriction" under
-      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the SHA-256.
+      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the upstream COMMIT the
+      # binary was built from - not a SHA-256 of the binary, which differs on every build
+      # because it is compiled per release rather than mirrored. Per-release checksums
+      # live in SHA256SUMS.txt on the GitHub release.
       #
       # `optional: true` so a fresh clone can generate the project before bootstrapping.
       - path: vendor/bin/7zz
@@ -251,9 +254,10 @@ targets:
         product: Sparkle
       - target: QuickLookPreview
         embed: true
+      # codeSign: false — the appex is signed by Scripts/sign.sh, inside-out, with its own
+      # entitlements. Letting Xcode's embed phase sign it too would apply the host's.
       - target: ArcSevenFinder
         embed: true
-        codeSign: false
         codeSign: false
 
     entitlements:
@@ -447,9 +451,18 @@ targets:
         # UTImportedTypeDeclarations further down. com.rarlab.rar-archive is the one that
         # surprises people: it is a de-facto standard, not a system type.
         #
-        # LSHandlerRank is Alternate for everything. We export no format and own no
-        # format, so claiming Default would mean fighting Archive Utility, Installer and
-        # DiskImageMounter for their own file types on first launch.
+        # LSHandlerRank is Default for all 24 archive types, and None for the public.data
+        # catch-all at the bottom. It is NOT Alternate anywhere, whatever this comment used
+        # to say — an Alternate handler never wins a type whose Default handler is present,
+        # so an archiver that claimed only Alternate would never open a .7z by double-click
+        # on a Mac where Archive Utility already answers for it, which is every Mac.
+        #
+        # That is a real trade-off rather than a free win: on first launch LaunchServices
+        # can hand us types that Archive Utility, Installer or DiskImageMounter were
+        # opening before. It is bounded deliberately — the catch-all is `None` so we never
+        # become the fallback for arbitrary files, and Scripts/tools/SetDefaultHandler.swift
+        # skips .dmg, .pkg, .msi, .jar, .war and public.data, because double-clicking those
+        # is *doing something* rather than *looking inside*.
         #
         # CFBundleTypeRole is Editor only for the seven formats 7zz can actually create
         # (7z, zip, tar, gzip, bzip2, xz, wim). Everything else is Viewer - and RAR is
@@ -819,12 +832,23 @@ targets:
               - com.winzip.zipx-archive
 
   # =====================================================================================
-  # Quick Actions extension - declared, minimal
+  # Quick Actions extension - REMOVED, and there is deliberately no target below
   # =====================================================================================
-  # App Intents extension backing the Finder Quick Actions, Shortcuts, Spotlight and Siri
-  # surfaces: ExtractArchive, CompressFiles, TestArchive, ListArchiveContents. Real work
-  # is handed to the app over the shared app group, never performed in the extension -
-  # an appex has no business spawning a long-running 7zz.
+  # This banner used to introduce a `QuickActions:` target and now introduces nothing. The
+  # target was removed because Extensions/QuickActions/ has an Info.plist and entitlements
+  # but no code, and an appex with no executable is worse than no appex: it cannot carry
+  # entitlements at all, so verify-release.sh correctly failed it as "NOT sandboxed", and
+  # the bundle shipped dead weight the system might still try to load. Found by dry-running
+  # the release pipeline, not during a release.
+  #
+  # The intent is still on the roadmap - App Intents backing Finder Quick Actions,
+  # Shortcuts, Spotlight and Siri: ExtractArchive, CompressFiles, TestArchive,
+  # ListArchiveContents, with the real work handed to the app over the shared app group
+  # rather than performed in the extension, because an appex has no business spawning a
+  # long-running 7zz. Extensions/QuickActions/README.md says what bringing it back needs.
+  #
+  # Until someone writes those AppIntent implementations, nothing belongs here. Do not
+  # re-add a target for the plist alone.
   # =====================================================================================
   # Finder Sync extension - the top-level right-click menu
   # =====================================================================================
