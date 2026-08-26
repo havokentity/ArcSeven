@@ -51,8 +51,16 @@ public enum CompressArgumentBuilder {
         }
 
         // Word size.
-        if let words = request.wordSize.intValue {
-            switches.append("-mfb=\(words)")
+        //
+        // "Word size" is one dialog control standing for two unrelated properties.
+        // For the LZ codecs it is fast bytes, `-mfb=`; for PPMd it is the model
+        // order, `-mo=`, and PPMd rejects `-mfb=` outright — `-t7z -m0=PPMd -mfb=6`
+        // exits 2, `-mo=6` exits 0 and reports `PPMD:o6`. Same in zip. BZip2 and
+        // Copy have no such control at all. See
+        // `CompressionMethod.wordSizePropertyName` for the measured table.
+        if let words = request.wordSize.intValue,
+           let property = codec?.wordSizePropertyName {
+            switches.append("-m\(property)=\(words)")
         }
 
         // Solid block size. 7z only; `-ms=off` disables solid mode entirely.

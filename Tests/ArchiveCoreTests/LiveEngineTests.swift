@@ -334,6 +334,44 @@ struct LiveEngineTests {
         }
     }
 
+    /// The Add dialog's Word size combo means fast bytes for the LZ codecs and model
+    /// order for PPMd, which is a different property with a different name — and PPMd
+    /// rejects the fast-bytes spelling rather than ignoring it.
+    @Test("PPMd's word size is its model order")
+    func ppmdWordSize() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("payload.bin")
+            try writeIncompressibleFile(at: source, byteCount: 2 << 20)
+
+            let archive = dir.appendingPathComponent("order.7z")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.method = .ppmd
+            request.wordSize = .value(10)
+            _ = try await drain(engine.compress(request))
+
+            #expect(FileManager.default.fileExists(atPath: archive.path))
+            // o10 is the order asked for; mem24 is the level-5 default, left alone.
+            #expect(try await storedMethod(of: archive) == "PPMD:o10:mem24")
+        }
+    }
+
+    /// BZip2 has no word-size control, and rejects `-mfb=` rather than ignoring it.
+    @Test("A word size is dropped for a codec that has none")
+    func wordSizeDroppedForBZip2() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("a.txt")
+            try "content".write(to: source, atomically: true, encoding: .utf8)
+
+            let archive = dir.appendingPathComponent("bz.7z")
+            var request = CompressRequest(archiveURL: archive, inputs: [source], format: .sevenZip)
+            request.method = .bzip2
+            request.wordSize = .value(64)
+            _ = try await drain(engine.compress(request))
+
+            #expect(FileManager.default.fileExists(atPath: archive.path))
+        }
+    }
+
     /// Deflate's window is fixed by the format and the handler rejects `-md=` for it,
     /// so a stale dictionary size left on the request must not be forwarded.
     @Test("A dictionary size is dropped for a codec that has none")
