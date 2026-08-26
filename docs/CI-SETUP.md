@@ -15,18 +15,23 @@ contributors. That is the reason `ArchiveCore` and `FMKit` are AppKit-free and d
 nor the vendored `7zz`, so the parsers, the sort comparator and the exit-code mapper —
 the parts that actually break — are covered on every push.
 
-## Cost
+## Cost and throughput
 
-This repository is **private**, and GitHub bills macOS runners at a **10× minute
-multiplier**. A personal account's 2,000 free minutes per month is therefore about
-**200 macOS minutes**. A full CI run is three jobs; the release workflow is longer
-because it builds the vendored 7-Zip from source and waits on Apple's notary service.
+This repository is **public**, so standard GitHub-hosted runners are not billed and the
+10× macOS minute multiplier — which does apply to private repositories, and which earlier
+versions of this document budgeted against — does not come into it. There is no minute
+budget to protect.
 
-`ci.yml` already has `paths-ignore` for docs and Markdown, and
-`concurrency: cancel-in-progress`, so pushing twice in a minute does not pay twice.
-If minutes get tight, the honest lever is to drop the `pull_request` trigger to
-`types: [opened, synchronize]` or run the lint job on `ubuntu-latest` — SwiftLint has a
-Linux build and the lint job needs no Xcode.
+What is still finite is **wall-clock time and concurrency**. A full CI run is three jobs;
+the release workflow is much longer, because it builds 7-Zip from source and then waits on
+Apple's notary service, which is not a queue we control. `release.yml` sets
+`timeout-minutes: 90` for that reason, and a repository-wide `concurrency: release` group
+so two publishes can never interleave their asset uploads.
+
+`ci.yml` keeps `paths-ignore` for docs and Markdown and `concurrency: cancel-in-progress`,
+so pushing twice in a minute does not queue twice. If runs start backing up behind each
+other, the lever is to move the lint job to `ubuntu-latest` — SwiftLint has a Linux build
+and that job needs no Xcode — rather than to cut test coverage.
 
 ## Release secrets
 
