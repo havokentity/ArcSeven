@@ -301,11 +301,21 @@ public final class SettingsStore {
 
     /// Seed the registration domain with every default that is not "zero".
     ///
-    /// Call this once at launch if you want a bare `bool(forKey:)` on the standard defaults
-    /// domain to be correct in modules that never open the settings window. The seven
-    /// Settings-pane checkboxes are deliberately absent: they are all off upstream, and absent
-    /// already reads as `false`.
-    public static func registerDefaults(in defaults: UserDefaults = .standard) {
+    /// Called from `main.swift` before the delegate exists, and again from `init` above. Both
+    /// are needed and neither is redundant: `init` runs the first time the settings window is
+    /// opened, which is far too late for a module that reads `bool(forKey: "Options.MenuIcons")`
+    /// at launch and would otherwise get `false` for a setting whose shipped value is `true`.
+    /// Registering twice is harmless — the registration domain is replaced wholesale, not merged
+    /// per call, and it never shadows a value the user has actually set.
+    ///
+    /// `nonisolated` because it touches nothing but the `UserDefaults` it is handed, which is
+    /// itself thread-safe. The main-actor isolation it would otherwise inherit from the class is
+    /// about the observable UI state below, and has no business reaching a launch-time seed that
+    /// runs before there is any UI at all.
+    ///
+    /// The seven Settings-pane checkboxes are deliberately absent: they are all off upstream,
+    /// and absent already reads as `false`.
+    public nonisolated static func registerDefaults(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             SettingsKey.memUse.rawValue: 4,                 // OPT-26: the spin edit starts at 4 GB.
             SettingsKey.workDirType.rawValue: WorkDirType.systemTemp.rawValue,
