@@ -348,39 +348,56 @@ check_app() {
     # Provenance of the bundled engine.
     local vfile="$legal/THIRD_PARTY_LICENSES/7-Zip/VERSION.txt"
     if [ -f "$vfile" ]; then
-        local upstream_sha recorded_ver vendor="$REPO_ROOT/vendor/7zz/7zz"
+        # vendor/bin/7zz, not vendor/7zz/7zz. The latter has never existed: the binary is
+        # COMPILED to vendor/bin/ by vendor/build-7zz.sh, and vendor/bin/.gitignore is `*`.
+        # So this whole block used to take the `else` branch and warn, every single time —
+        # a compliance gate that could not fire, guarding the LGPL source offer.
+        local recorded_ver recorded_commit vendor="$REPO_ROOT/vendor/bin/7zz"
         recorded_ver="$(sed -n 's/^7-Zip version:[[:space:]]*//p' "$vfile" | head -n1 || true)"
-        upstream_sha="$(sed -n 's/^Binary SHA-256:[[:space:]]*//p' "$vfile" | head -n1 || true)"
+        recorded_commit="$(sed -n 's/^Upstream commit:[[:space:]]*//p' "$vfile" | head -n1 || true)"
         note "VERSION.txt records 7-Zip ${recorded_ver:-<unrecorded>}"
         if [ -z "$recorded_ver" ]; then fail "VERSION.txt has no '7-Zip version:' line"; fi
-        if [ -z "$upstream_sha" ]; then
-            fail "VERSION.txt has no 'Binary SHA-256:' line — the LGPL source offer is unverifiable"
-        elif [ -f "$vendor" ]; then
-            local vsha
-            vsha="$(shasum -a 256 "$vendor" | cut -d' ' -f1)"
-            if [ "$vsha" = "$upstream_sha" ]; then
-                pass "vendor/7zz/7zz matches the SHA-256 recorded in VERSION.txt"
-            else
-                fail "vendor/7zz/7zz does NOT match VERSION.txt (got $vsha)"
-            fi
-            # The bundled copy differs from the vendored one only by the code
-            # signature we appended. LC_UUID survives codesign, so it is the
-            # honest way to prove the shipped engine is the vendored upstream build.
-            if [ -f "$helper" ]; then
-                local u_vendor u_bundled
-                u_vendor="$(macho_uuids "$vendor")"
-                u_bundled="$(macho_uuids "$helper")"
-                if [ -z "$u_vendor" ] || [ -z "$u_bundled" ]; then
-                    warn "could not read Mach-O UUIDs (dwarfdump unavailable?) — skipping the provenance comparison"
-                elif [ "$u_vendor" = "$u_bundled" ]; then
-                    pass "bundled 7zz has the same Mach-O UUIDs as vendor/7zz/7zz (unmodified upstream build)"
-                else
-                    fail "bundled 7zz is not the vendored binary (UUID mismatch: '$u_bundled' vs '$u_vendor')"
-                fi
-            fi
+
+        # Reject placeholders as well as blanks. The file shipped for five releases with
+        # "FILLED BY Scripts/refresh-third-party-licenses.sh" where the checksums belong,
+        # and the old check passed it because a placeholder is not an empty string.
+        if grep -qiE '^(Binary|Source|License) SHA-256:.*(FILLED BY|TODO|TBD|XXX|PLACEHOLDER)' "$vfile"; then
+            fail "VERSION.txt still contains a placeholder where a value belongs"
+            grep -inE '^(Binary|Source|License) SHA-256:' "$vfile" | sed 's/^/        /'
+        fi
+
+        # The commit is what makes binary and source correspond, so it is the thing worth
+        # checking. A hash of the binary would not survive being rebuilt per release.
+        if [ -z "$recorded_commit" ]; then
+            fail "VERSION.txt has no 'Upstream commit:' line — nothing anchors the source offer"
         else
-            warn "vendor/7zz/7zz not present — cannot verify the recorded upstream SHA-256"
-            note "keep the pristine download in the repo so this check can run"
+            local pinned
+            pinned="$(git -C "$REPO_ROOT" submodule status vendor/7zip 2>/dev/null \
+                | awk '{gsub(/^[-+U]/, "", $1); print $1}')"
+            if [ -z "$pinned" ]; then
+                warn "submodule vendor/7zip is not checked out — cannot confirm the recorded commit"
+            elif [ "$pinned" = "$recorded_commit" ]; then
+                pass "VERSION.txt commit matches the pinned submodule ($recorded_commit)"
+            else
+                fail "VERSION.txt records $recorded_commit but the submodule is pinned at $pinned"
+            fi
+        fi
+
+        # LC_UUID survives codesign, so it is the honest way to show the shipped engine is
+        # the binary that was built here.
+        if [ -f "$vendor" ] && [ -f "$helper" ]; then
+            local u_vendor u_bundled
+            u_vendor="$(macho_uuids "$vendor")"
+            u_bundled="$(macho_uuids "$helper")"
+            if [ -z "$u_vendor" ] || [ -z "$u_bundled" ]; then
+                warn "could not read Mach-O UUIDs (dwarfdump unavailable?) — skipping the comparison"
+            elif [ "$u_vendor" = "$u_bundled" ]; then
+                pass "bundled 7zz has the same Mach-O UUIDs as vendor/bin/7zz"
+            else
+                fail "bundled 7zz is not the built binary (UUID mismatch: '$u_bundled' vs '$u_vendor')"
+            fi
+        elif [ ! -f "$vendor" ]; then
+            warn "vendor/bin/7zz not built — run ./vendor/build-7zz.sh to enable the UUID check"
         fi
         if grep -qi '^Modifications:[[:space:]]*NONE' "$vfile"; then
             pass "VERSION.txt asserts 'Modifications: NONE'"

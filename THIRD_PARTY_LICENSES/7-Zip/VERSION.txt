@@ -12,7 +12,7 @@
 # Format:  machine-readable "Key: value", one field per line; '#' begins a
 # comment; blank lines are ignored; values start at column 24.
 #
-# The SHA-256 fields are generated -- do not hand-edit them.  Regenerate the
+# Provenance for the bundled 7-Zip console binary.  Regenerate with
 # whole record with:
 #
 #     Scripts/refresh-third-party-licenses.sh
@@ -27,16 +27,31 @@ Upstream released:     2026-06-25
 Upstream project:      https://www.7-zip.org
 Upstream repository:   https://github.com/ip7z/7zip
 Upstream tag:          26.02
+Upstream commit:       f9d78aff31a5f2521ae7ddbdc97c4a8855808959
 
-Binary tarball:        7z2602-mac.tar.xz
-Binary URL:            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-mac.tar.xz
+Binary origin:         COMPILED, not downloaded.  vendor/build-7zz.sh builds the
+                       upstream commit below with upstream's own makefiles
+                       (cmpl_mac_arm64.mak, cmpl_mac_x64.mak) and lipos the two
+                       slices.  No patches are applied; the script refuses to
+                       build a modified tree without an explicit override.
 Binary path in app:    Contents/Helpers/7zz
 Binary architectures:  arm64 x86_64
-Binary SHA-256:        FILLED BY Scripts/refresh-third-party-licenses.sh
+Binary SHA-256:        per release -- see SHA256SUMS.txt on the GitHub release
+                       carrying that build.  Not recorded here: the binary is
+                       compiled per release rather than mirrored, so a value
+                       committed to this file would describe one developer's
+                       toolchain and would be wrong for every published build.
 
-Source tarball:        7z2602-src.tar.xz
-Source URL:            https://github.com/ip7z/7zip/releases/download/26.02/7z2602-src.tar.xz
-Source SHA-256:        FILLED BY Scripts/refresh-third-party-licenses.sh
+Source tarball:        7zip-<version>-src.tar.xz, generated from the pinned
+                       commit by Scripts/make-source-tarball.sh and attached to
+                       the same GitHub release as the .dmg, per LGPL-2.1 s4.
+Source SHA-256:        per release -- see SHA256SUMS.txt on that release.
+
+Corresponding source:  The binary and the source tarball are produced from the
+                       SAME pinned commit, which is what makes them correspond.
+                       The commit hash above is the anchor for that claim; it is
+                       checked against the submodule by Scripts/verify-release.sh
+                       and recorded again in vendor/bin/BUILD-INFO.txt.
 
 License file:          THIRD_PARTY_LICENSES/7-Zip/LICENSE.txt
 License URL:           https://www.7-zip.org/license.txt

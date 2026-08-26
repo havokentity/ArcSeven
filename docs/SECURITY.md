@@ -80,8 +80,11 @@ worth building and is not built.
 Through 0.1.5 this section described byte tracking, ceilings and a prompt as though they
 existed. None of it did; extraction ran to completion or to a full disk.
 
-`ListRequest`'s output-byte cap is a separate and narrower guard: it bounds what a
-malicious archive can make ArcSeven *buffer* while listing, not what it can make it write.
+**A correction, because this section has now been wrong twice.** The paragraph above
+replaced a false claim in 0.1.5 and introduced another: it credited `ListRequest` with an
+output-byte cap. `ListRequest` has no cap of any kind — it holds an archive URL, a format
+override, a password and a time zone. The cap lives on `ReadEntryRequest.maximumByteCount`
+and bounds a single-member read, not a listing. Listing a hostile archive is unbounded.
 
 ### 4. Passphrase exposure in the process table
 

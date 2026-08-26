@@ -422,13 +422,6 @@ targets:
             NSSendTypes: [NSFilenamesPboardType]
             NSRequiredContext:
               NSTextContent: FilePath
-          - NSMenuItem:
-              default: ArcSeven/Checksum
-            NSMessage: checksumService
-            NSPortName: ArcSeven
-            NSSendTypes: [NSFilenamesPboardType]
-            NSRequiredContext:
-              NSTextContent: FilePath
 
         # ---- Document types ---------------------------------------------------------------
         # Tier A entries below reference UTIs that macOS declares itself, in

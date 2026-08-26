@@ -132,6 +132,15 @@ public final class ServicesProvider: NSObject {
     // Fixing this properly means one owner reconciling project.yml's NSServices list
     // with `FinderRequestAction`. See the report accompanying this file.
 
+    @objc(testArchiveService:userData:error:)
+    func testArchiveService(
+        _ pasteboard: NSPasteboard,
+        userData: String?,
+        error: AutoreleasingUnsafeMutablePointer<NSString>
+    ) {
+        handle(.test, pasteboard: pasteboard, error: error)
+    }
+
     @objc(openArchiveService:userData:error:)
     func openArchiveService(
         _ pasteboard: NSPasteboard,
@@ -280,6 +289,7 @@ public final class ServicesProvider: NSObject {
         switch action {
         case .compress:           "compress"
         case .extract:            "extract"
+        case .test:               "test"
         case .extractLoose:       "extract"
         case .extractToSubfolder: "extract"
         case .open:               "open"

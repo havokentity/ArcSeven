@@ -305,6 +305,30 @@ public final class MainWindowController: NSWindowController {
         }
     }
 
+    /// Test an archive handed over by Finder, without opening it in a panel.
+    public func testArchiveFromFinder(_ urls: [URL]) {
+        let archives = urls.filter { FileSystemFolderProvider.isArchive($0) }
+        guard let first = archives.first else {
+            presentMessage(
+                "Nothing to test",
+                "None of the selected items look like an archive ArcSeven can read."
+            )
+            return
+        }
+        let request = TestRequest(archiveURL: first)
+        run(
+            operation: engine.test(request),
+            title: "Testing \(first.lastPathComponent)"
+        ) { [weak self] result in
+            self?.reportSuccess(
+                result,
+                title: "Test complete",
+                detail: "\(first.lastPathComponent) passed its integrity check.",
+                reveal: nil
+            )
+        }
+    }
+
     private func startFinderExtraction(
         of archive: URL, into destination: URL, listing: ArchiveListing? = nil
     ) {

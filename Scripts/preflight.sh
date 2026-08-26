@@ -178,6 +178,41 @@ else
   ok "$actual_tests tests in $actual_suites suites"
 fi
 
+step "Every declared Service has a selector behind it"
+# The Services menu is built from the plist, and the selector is resolved only when the
+# item is clicked — so a name that matches nothing produces a menu item that silently does
+# nothing, with no build-time or runtime signal. "Test Archive" and "Checksum" both shipped
+# that way. Checked against the BUILT plist, because project.yml is not what LaunchServices
+# reads.
+services_app=".build/preflight-Release/Build/Products/Release/ArcSeven.app"
+if [ -d "$services_app" ]; then
+  services_report="$(/usr/bin/python3 - "$services_app/Contents/Info.plist" <<'PYEOF'
+import json, subprocess, sys
+plist = sys.argv[1]
+out = subprocess.run(["plutil", "-extract", "NSServices", "json", "-o", "-", plist],
+                     capture_output=True, text=True).stdout
+try:
+    services = json.loads(out)
+except Exception:
+    print("ERROR could not read NSServices from the built plist")
+    raise SystemExit
+source = open("Sources/App/ServicesProvider.swift").read()
+dead = [e.get("NSMessage", "") for e in services
+        if f"@objc({e.get('NSMessage','')}:userData:error:)" not in source]
+print(("DEAD " + " ".join(dead)) if dead else f"OK {len(services)}")
+PYEOF
+)"
+  case "$services_report" in
+    OK*)    ok "${services_report#OK } Services, every one backed by a selector" ;;
+    DEAD*)  bad "Services with no implementation:${services_report#DEAD}"
+            info_line="they appear in the Services menu and do nothing when clicked"
+            printf '       %s\n' "$info_line" ;;
+    *)      bad "$services_report" ;;
+  esac
+else
+  bad "no Release bundle to check Services against"
+fi
+
 # Unregister the throwaway app bundles this script just built.
 #
 # macOS registers any .app it notices, and each one becomes its own row in

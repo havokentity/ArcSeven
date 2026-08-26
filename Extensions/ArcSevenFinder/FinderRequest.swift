@@ -126,6 +126,8 @@ public enum FinderRequestAction: String, Codable, Sendable, Hashable, CaseIterab
     case extractLoose
     /// Unpack into a folder named after the archive, always.
     case extractToSubfolder
+    /// Verify the selected archive's integrity without extracting it.
+    case test
     /// Browse the selection in the file manager window.
     case open
 }
