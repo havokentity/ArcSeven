@@ -240,7 +240,12 @@ public final class MainWindowController: NSWindowController {
     /// "Extract Here"-with-a-folder behaviour people expect from a context menu — no
     /// dialog, because someone who right-clicked and chose Extract has already made
     /// the decision the dialog would ask about.
-    public func extractFromFinder(_ urls: [URL]) {
+    /// Extract an archive handed over by Finder.
+    ///
+    /// - Parameter alwaysIntoSubfolder: `true` for the explicit "Extract to Subfolder"
+    ///   command. `false` — the "Extract Here" default — lets the archive decide; see
+    ///   ``extractionDestination(forArchive:rootEntryCount:)``.
+    public func extractFromFinder(_ urls: [URL], alwaysIntoSubfolder: Bool = false) {
         let archives = urls.filter { FileSystemFolderProvider.isArchive($0) }
         guard let first = archives.first else {
             presentMessage(
@@ -259,12 +264,76 @@ public final class MainWindowController: NSWindowController {
                     + "operation queue."
             )
         }
-        let destination = first
-            .deletingLastPathComponent()
-            .appendingPathComponent(first.deletingPathExtension().lastPathComponent)
-        var request = ExtractRequest(archiveURL: first, destinationURL: destination)
+
+        if alwaysIntoSubfolder {
+            startFinderExtraction(of: first, into: Self.subfolderDestination(for: first))
+            return
+        }
+
+        // Deciding needs the listing, and listing is a subprocess round trip, so this is
+        // the one path that has to reach the engine before it can build the request.
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            let destination: URL
+            do {
+                let listing = try await engine.list(ListRequest(archiveURL: first))
+                destination = Self.extractionDestination(
+                    forArchive: first, rootEntryCount: Self.rootEntryCount(of: listing)
+                )
+            } catch {
+                // Encrypted headers, a corrupt archive, a format 7zz declines: we cannot
+                // see inside, so we cannot rule out a scatter. Wrap, which is the choice
+                // that is merely mildly annoying when wrong.
+                destination = Self.subfolderDestination(for: first)
+            }
+            startFinderExtraction(of: first, into: destination)
+        }
+    }
+
+    private func startFinderExtraction(of archive: URL, into destination: URL) {
+        var request = ExtractRequest(archiveURL: archive, destinationURL: destination)
+        // Never destroys anything already on disk, which matters most for the loose case:
+        // the destination there is a directory full of the user's own files.
         request.overwriteMode = .autoRename
         startExtraction(request)
+    }
+
+    /// `<enclosing folder>/<archive name without extension>/`.
+    static func subfolderDestination(for archive: URL) -> URL {
+        archive
+            .deletingLastPathComponent()
+            .appendingPathComponent(archive.deletingPathExtension().lastPathComponent)
+    }
+
+    /// How many distinct items the archive has at its top level.
+    ///
+    /// Counted over every entry's first path component rather than over entries whose path
+    /// has no separator: an archive can describe `src/main.swift` without carrying an entry
+    /// for `src` at all — `zip -D` omits directory entries, and most tar streams do too —
+    /// and counting only explicit roots would read that as "no roots" and scatter it.
+    static func rootEntryCount(of listing: ArchiveListing) -> Int {
+        var roots: Set<String> = []
+        for entry in listing.entries {
+            let first = entry.path.split(separator: "/", omittingEmptySubsequences: true).first
+            if let first { roots.insert(String(first)) }
+        }
+        return roots.count
+    }
+
+    /// Where "Extract Here" should put things.
+    ///
+    /// One root item means the archive already contains its own folder — or is a single
+    /// file — so wrapping it produces `project-1.0/project-1.0/…`, which is the papercut
+    /// this avoids. Several root items means extracting loose would scatter them across
+    /// the enclosing folder, mixed in with whatever is already there and with no way to
+    /// tell afterwards which files just arrived. That is unrecoverable by hand; an
+    /// unwanted folder is one drag to fix. The asymmetry is what decides the default.
+    ///
+    /// Zero roots — an empty or unreadable listing — wraps, for the same reason.
+    static func extractionDestination(forArchive archive: URL, rootEntryCount: Int) -> URL {
+        rootEntryCount == 1
+            ? archive.deletingLastPathComponent()
+            : subfolderDestination(for: archive)
     }
 
     /// Compress items handed over by Finder, opening the Add dialog pre-filled.

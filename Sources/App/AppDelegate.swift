@@ -172,6 +172,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             controller.openDocument(at: first)
         case .extract:
             controller.extractFromFinder(urls)
+        case .extractToSubfolder:
+            controller.extractFromFinder(urls, alwaysIntoSubfolder: true)
         case .compress:
             controller.compressFromFinder(urls)
         }

@@ -850,3 +850,29 @@ sources the app ships. Grep for `module-guard` to find every instance.
 
 **Any new file that imports a sibling module must use this form**, or the app target
 fails with "Unable to resolve module dependency".
+
+## D-0.1.4-1 — "Extract Here" decides where to put things
+
+**Windows 7zFM.** `Extract Here` extracts into the current folder, unconditionally. A
+scattering archive scatters.
+
+**ArcSeven.** `Extract Here` inspects the archive first. One top-level item — a folder, or
+a single file — extracts loose, because the archive already provides its own containment
+and wrapping it produces `project-1.0/project-1.0/…`. Two or more top-level items are
+wrapped in a folder named after the archive.
+
+**Why.** The two failure modes are not symmetric. An unwanted wrapper is one drag to undo.
+Forty loose files landing in Downloads, mixed with everything already there, cannot be
+undone by hand — nothing afterwards distinguishes what just arrived. And the person
+clicking cannot know which kind of archive it is before it opens; the command is chosen
+from habit, not from knowledge of the root-entry count.
+
+An unreadable listing — encrypted headers, a corrupt archive — wraps, for the same reason.
+
+`Extract to Subfolder` in the Services menu always wraps, for anyone who wants that every
+time. Until 0.1.4 both Services verbs called the same code and both wrapped, so
+`Extract Here` was the one that lied.
+
+`-spe` (`eliminateRootDuplication`) is 7-Zip's own partial answer and remains available; it
+only fires when the root folder's name matches the archive's, so it misses `archive.zip`
+containing `src/`.

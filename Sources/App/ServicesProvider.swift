@@ -156,7 +156,10 @@ public final class ServicesProvider: NSObject {
         userData: String?,
         error: AutoreleasingUnsafeMutablePointer<NSString>
     ) {
-        handle(.extract, pasteboard: pasteboard, error: error)
+        // Distinct from `.extract`, which decides for itself. Until 0.1.4 both verbs sent
+        // `.extract`, so the two menu items were the same command with two names — and
+        // "Extract Here" was the one that lied.
+        handle(.extractToSubfolder, pasteboard: pasteboard, error: error)
     }
 
     @objc(extractFilesService:userData:error:)
