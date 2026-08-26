@@ -49,6 +49,24 @@ public final class MainWindowController: NSWindowController {
     /// leave items behind in it.
     var passwordStore: any ArchivePasswordStore = KeychainArchivePasswordStore()
 
+    /// How a disk delete reaches the Trash.
+    ///
+    /// `TrashService.trash(_:)`'s BATCH overload, which carries on past a failure and
+    /// reports the whole selection at once. A `var` so a test can substitute it: proving
+    /// that the batch call happens, and that a `volumeHasNoTrash` answer is honoured,
+    /// must not require moving the tester's files into their real Trash.
+    var trashItems: @MainActor ([URL]) -> TrashSummary = { TrashService.trash($0) }
+
+    /// What the last disk delete decided to tell the user.
+    ///
+    /// Recorded because the alternative is an alert sheet, which a test cannot inspect —
+    /// and "the UI must offer the permanent delete instead and say why" is a behaviour
+    /// `TrashService` documents, not a comment. Nothing in the app reads this.
+    private(set) var lastDeleteOutcome: DeleteOutcome?
+
+    /// Set by ``deleteSelection(from:)``; see ``lastDeleteOutcome``.
+    func recordDeleteOutcome(_ outcome: DeleteOutcome) { lastDeleteOutcome = outcome }
+
     private var activePanel: PanelViewController? {
         panels.indices.contains(activePanelIndex) ? panels[activePanelIndex] : nil
     }

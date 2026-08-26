@@ -438,16 +438,123 @@ extension MainWindowController {
         }
 
         // On disk, Delete means "move to Trash" — the Mac meaning, and recoverable.
+        //
+        // Through the BATCH overload. The loop over the single-item `trash(_:)` that
+        // stood here built its own failure strings out of `localizedDescription` and
+        // threw the typed error away, so `TrashError.volumeHasNoTrash` — whose whole
+        // documented contract is "the UI must offer the permanent delete instead and say
+        // why" — arrived as an untyped sentence and offered nothing. On a network share
+        // or a read-only disk image, Delete simply reported a failure the user had no
+        // way to act on.
         let urls = items.compactMap(\.url)
-        var trashed = 0
+        let summary = trashItems(urls)
+        panel.reload()
+
+        let outcome = Self.deleteOutcome(for: summary, attempted: urls.count)
+        recordDeleteOutcome(outcome)
+        switch outcome {
+        case .silent:
+            break
+        case let .offerPermanentDelete(untrashable, alsoFailed):
+            offerPermanentDelete(untrashable, alsoFailed: alsoFailed)
+        case let .report(trashed, attempted, failures):
+            presentMessage(
+                "Moved \(trashed) of \(attempted) to the Trash",
+                failures.prefix(5).joined(separator: "\n")
+            )
+        }
+    }
+
+    /// What a disk delete has to tell the user.
+    ///
+    /// Pure, so the decision can be asserted without an alert sheet in the way.
+    enum DeleteOutcome: Equatable {
+        /// Everything reached the Trash. Say nothing — this is the common case, and an
+        /// alert confirming that Delete deleted things is noise.
+        case silent
+
+        /// Some items are on a volume with no Trash. There is nowhere to put them, so
+        /// the only thing left to offer is the permanent delete, with the reason
+        /// attached. `alsoFailed` carries any *other* failures in the same selection, so
+        /// they are not lost behind this dialog.
+        case offerPermanentDelete(items: [URL], alsoFailed: [String])
+
+        /// Ordinary failures: no permission, already gone.
+        case report(trashed: Int, attempted: Int, failures: [String])
+    }
+
+    /// Classify a batch outcome.
+    ///
+    /// The no-Trash case wins over the others when both are present: it is the only one
+    /// with an action attached, and burying it in a list of sentences is what the old
+    /// code did.
+    static func deleteOutcome(for summary: TrashSummary, attempted: Int) -> DeleteOutcome {
+        guard !summary.isCompleteSuccess else { return .silent }
+
+        var untrashable: [URL] = []
+        var others: [String] = []
+        for failure in summary.failures {
+            if case .volumeHasNoTrash = failure.error {
+                untrashable.append(failure.source)
+            } else {
+                others.append(
+                    "\(failure.source.lastPathComponent): "
+                        + (failure.error.errorDescription ?? "could not be moved to the Trash.")
+                )
+            }
+        }
+
+        if !untrashable.isEmpty {
+            return .offerPermanentDelete(items: untrashable, alsoFailed: others)
+        }
+        return .report(trashed: summary.trashed.count, attempted: attempted, failures: others)
+    }
+
+    /// The dialog `TrashError.volumeHasNoTrash` has always documented and never had.
+    ///
+    /// `.critical`, and Cancel is the default: this is the one delete in the app that
+    /// cannot be undone, so Return must not perform it.
+    private func offerPermanentDelete(_ urls: [URL], alsoFailed others: [String]) {
+        guard let window, !urls.isEmpty else { return }
+
+        let names = urls.map(\.lastPathComponent).prefix(5).joined(separator: "\n")
+        var body = "The volume they are on has no Trash — network shares, read-only "
+            + "volumes and some disk images do not have one — so there is nowhere to put "
+            + "them back from. Deleting them removes them permanently.\n\n\(names)"
+        if urls.count > 5 { body += "\n… and \(urls.count - 5) more" }
+        if !others.isEmpty {
+            body += "\n\nAlso not deleted:\n" + others.prefix(3).joined(separator: "\n")
+        }
+
+        let alert = NSAlert()
+        alert.messageText = urls.count == 1
+            ? "\(urls[0].lastPathComponent) cannot be moved to the Trash"
+            : "\(urls.count) items cannot be moved to the Trash"
+        alert.informativeText = body
+        alert.alertStyle = .critical
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Delete Permanently")
+        alert.beginSheetModal(for: window) { [weak self] response in
+            guard response == .alertSecondButtonReturn else { return }
+            self?.permanentlyDelete(urls)
+        }
+    }
+
+    /// The only unlink in the app, and it is behind the confirmation above.
+    private func permanentlyDelete(_ urls: [URL]) {
+        let manager = FileManager.default
         var failures: [String] = []
         for url in urls {
-            do { _ = try TrashService.trash(url); trashed += 1 } catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+            do {
+                try manager.removeItem(at: url)
+            } catch {
+                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+            }
         }
-        panel.reload()
+        for panel in panels { panel.reload() }
         if !failures.isEmpty {
             presentMessage(
-                "Moved \(trashed) of \(urls.count) to the Trash",
+                "Some items could not be deleted",
                 failures.prefix(5).joined(separator: "\n")
             )
         }
