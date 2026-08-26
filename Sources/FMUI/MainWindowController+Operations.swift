@@ -517,17 +517,47 @@ extension MainWindowController {
     }
 
     /// Info — the Properties inspector.
+    ///
+    /// One inspector per window, reused. Until 0.1.5 every press of ⌘I built a NEW
+    /// controller; the previous one kept itself alive through its own `selfRetain` and
+    /// stayed attached as a child window at the same origin, so two presses gave two
+    /// stacked panels and nothing ever closed the one underneath. Reusing the instance
+    /// also means the panel keeps the size and position the user gave it.
     func showInfo(for panel: PanelViewController) {
         guard let window else { return }
         guard let archive = panel.provider as? ArchiveFolderProvider else {
             presentMessage("No archive open", "Open an archive to see its properties.")
             return
         }
-        let inspector = PropertiesInspectorController(
-            listing: archive.listing,
-            entry: panel.selectedItems.first?.entry
-        )
+
+        let entry = panel.selectedItems.first?.entry
+        if let existing = propertiesInspector {
+            // Re-render before showing: a panel the user closed and reopened must not
+            // come back describing whatever was selected when they closed it.
+            existing.update(listing: archive.listing, entry: entry)
+            existing.present(in: window)
+            return
+        }
+
+        let inspector = PropertiesInspectorController(listing: archive.listing, entry: entry)
         inspector.present(in: window)
         propertiesInspector = inspector      // held so it is not deallocated while shown
+    }
+
+    /// Push the panel's current selection into the inspector, if one is open.
+    ///
+    /// The other half of the same defect: `update(listing:entry:)` existed, was correct,
+    /// documented itself as the hook a panel owner calls on selection changes, and had
+    /// ZERO call sites — so the panel showed a frozen snapshot of whatever was selected
+    /// when ⌘I was pressed, while `docs/DIVERGENCES.md` D-27 and `docs/FIDELITY.md`
+    /// PRP-01 both described it as following the selection live.
+    ///
+    /// Only archives have properties to inspect, so a panel that has left the archive
+    /// leaves the panel showing the last archive rather than blanking it — closing it is
+    /// the user's call, and an empty inspector answers no question.
+    func refreshPropertiesInspector(from panel: PanelViewController) {
+        guard let inspector = propertiesInspector else { return }
+        guard let archive = panel.provider as? ArchiveFolderProvider else { return }
+        inspector.update(listing: archive.listing, entry: panel.selectedItems.first?.entry)
     }
 }

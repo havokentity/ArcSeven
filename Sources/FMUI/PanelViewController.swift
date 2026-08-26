@@ -485,6 +485,16 @@ public final class PanelViewController: NSViewController {
 
     // MARK: Selection
 
+    /// Select rows by index, as clicking them would.
+    ///
+    /// The table itself is private, and everything that reads a selection reads it
+    /// through ``selectedItems``, so without this there is no way to put a panel into a
+    /// selected state — which is precisely the state the Properties inspector is
+    /// supposed to follow, and precisely why nothing noticed that it did not.
+    func selectRows(_ indexes: IndexSet) {
+        tableView.selectRowIndexes(indexes, byExtendingSelection: false)
+    }
+
     /// The rows the user has selected, excluding the ".." row.
     public var selectedItems: [FolderItem] {
         tableView.selectedRowIndexes.compactMap { index in

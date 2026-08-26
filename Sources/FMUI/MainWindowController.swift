@@ -457,10 +457,16 @@ extension MainWindowController: PanelViewControllerDelegate {
         // 7zFM titles the window with the focused panel's path, falling back to the
         // app name when there is none.
         window?.title = panel.provider.displayPath.isEmpty ? "ArcSeven" : panel.provider.displayPath
+        // Stepping into a nested archive changes the listing under the inspector too,
+        // not just the selection.
+        refreshPropertiesInspector(from: panel)
     }
 
     public func panelDidChangeSelection(_ panel: PanelViewController) {
         if let index = panels.firstIndex(where: { $0 === panel }) { activePanelIndex = index }
+        // The selection-changed hook `PropertiesInspectorController.update(listing:entry:)`
+        // documents itself as being called from, and for two releases was not.
+        refreshPropertiesInspector(from: panel)
     }
 
     public func panel(_ panel: PanelViewController, didFailWith error: any Error) {
