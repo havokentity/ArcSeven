@@ -34,6 +34,9 @@ playground.xcworkspace
 # .swiftpm
 
 .build/
+# Xcode's build directory when a local -derivedDataPath is used. 361 files of it were
+# committed once in fc44099; untracked here so it cannot happen twice.
+build/
 
 # CocoaPods
 #
