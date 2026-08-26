@@ -269,9 +269,10 @@ public final class ServicesProvider: NSObject {
 
     private static func verb(for action: FinderRequestAction) -> String {
         switch action {
-        case .compress: "compress"
-        case .extract:  "extract"
-        case .open:     "open"
+        case .compress:           "compress"
+        case .extract:            "extract"
+        case .extractToSubfolder: "extract"
+        case .open:               "open"
         }
     }
 }

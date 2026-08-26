@@ -135,6 +135,26 @@ else
   ok "updater started at launch and reachable from the menu"
 fi
 
+step "The two FinderRequest copies agree on the wire format"
+# FinderRequest.swift exists twice — once for the app, once for the appex — because the
+# file has to compile into both targets and Xcode will not share one. Nothing keeps them
+# in step, and they have already drifted: the extension gained a `launchURL` the app copy
+# never got.
+#
+# Comments drifting is untidy. The ACTION ENUM drifting is a breakage: the extension writes
+# the action as a string and the app decodes it, so a case the reader does not know fails
+# the whole decode and the request is dropped on the floor with no error the user can see.
+app_cases=$( (grep -oE "^    case [a-z][A-Za-z]*$" Sources/App/FinderRequest.swift || true) | sort)
+ext_cases=$( (grep -oE "^    case [a-z][A-Za-z]*$" Extensions/ArcSevenFinder/FinderRequest.swift || true) | sort)
+if [ -z "$app_cases" ]; then
+  bad "no FinderRequestAction cases found in the app copy - has the file moved?"
+elif [ "$app_cases" != "$ext_cases" ]; then
+  bad "FinderRequestAction differs between the two copies"
+  diff <(printf '%s\n' "$app_cases") <(printf '%s\n' "$ext_cases") | sed 's/^/    /' || true
+else
+  ok "$(printf '%s\n' "$app_cases" | wc -l | tr -d ' ') actions, identical in both copies"
+fi
+
 # Unregister the throwaway app bundles this script just built.
 #
 # macOS registers any .app it notices, and each one becomes its own row in

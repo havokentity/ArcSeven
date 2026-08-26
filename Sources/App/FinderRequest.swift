@@ -42,8 +42,12 @@ import Foundation
 public enum FinderRequestAction: String, Codable, Sendable, Hashable, CaseIterable {
     /// Add the selection to a new archive.
     case compress
-    /// Unpack the selected archive(s).
+    /// Unpack the selected archive(s), choosing a destination by inspecting the archive:
+    /// loose when it holds a single root item, wrapped in a folder when it would otherwise
+    /// scatter its contents over the enclosing directory.
     case extract
+    /// Unpack into a folder named after the archive, always.
+    case extractToSubfolder
     /// Browse the selected archive in the file manager window.
     case open
 }
