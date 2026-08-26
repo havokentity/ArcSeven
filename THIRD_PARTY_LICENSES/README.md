@@ -17,11 +17,11 @@ table, it is not distributed with ArcSeven.**
 | Component | Version | License (SPDX) | License text | Role in ArcSeven | Linkage |
 |---|---|---|---|---|---|
 | **7-Zip** (`7zz` console program)<br>Igor Pavlov | 26.02 (2026-06-25) | `LGPL-2.1-or-later AND BSD-3-Clause AND BSD-2-Clause AND LicenseRef-unRAR-restriction` | [`7-Zip/LICENSE.txt`](7-Zip/LICENSE.txt) — verbatim upstream `license.txt`<br>[`7-Zip/LGPL-2.1.txt`](7-Zip/LGPL-2.1.txt) — full LGPL-2.1<br>[`7-Zip/VERSION.txt`](7-Zip/VERSION.txt) — version, URLs, SHA-256 | The archive engine. Every list, extract, add, update, delete, test, hash and benchmark operation is performed by this binary. | **SEPARATE PROCESS — NOT LINKED.** Bundled unmodified at `ArcSeven.app/Contents/Helpers/7zz` and driven over argv / stdout / exit codes. No 7-Zip code is compiled into, statically linked to, or dynamically loaded by ArcSeven. |
-| **Sparkle**<br>Sparkle Project | *not yet vendored* (planned: 2.x) | `MIT` | `Sparkle/LICENSE` — added in the same commit that vendors the framework | Automatic update checks against the signed appcast (planned for the release milestone). | **LINKED.** `Sparkle.framework`, embedded in `ArcSeven.app/Contents/Frameworks/` and linked into the app binary. MIT is GPL-compatible, so the combined work remains distributable under GPL-3.0-or-later. |
+| **Sparkle**<br>Sparkle Project | 2.9.6 | `MIT` | [`Sparkle/LICENSE`](Sparkle/LICENSE) — verbatim upstream `LICENSE` | Automatic update checks against the signed appcast, and the `Check for Updates…` menu item. | **LINKED.** `Sparkle.framework`, embedded in `ArcSeven.app/Contents/Frameworks/` and linked into the app binary. MIT is GPL-compatible, so the combined work remains distributable under GPL-3.0-or-later. |
 
-**No other third-party code is currently vendored.** ArcSeven has no Swift Package
-Manager dependencies, no CocoaPods, no Carthage, and no vendored source from any
-other project. Everything else in `Sources/` is first-party code under
+**No other third-party code is currently vendored.** Sparkle is ArcSeven's only Swift
+Package Manager dependency. There are no CocoaPods, no Carthage, and no vendored
+source from any other project. Everything else in `Sources/` is first-party code under
 GPL-3.0-or-later. The `vendor/` directory holds upstream 7-Zip *build inputs*
 only — never code copied into ArcSeven's own modules.
 

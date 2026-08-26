@@ -20,8 +20,14 @@ source for exactly the binaries shipped in that release.
 This NOTICE records the attribution and license obligations that attach to the
 third-party software distributed alongside ArcSeven.  It is part of the
 "documentation" for the purposes of the unRAR license restriction reproduced in
-section 2 below, and it is reproduced verbatim inside the application bundle
-(Help > Acknowledgements) and in README.md.
+section 2 below.
+
+It is shipped verbatim in three places, so that a recipient of any artifact can
+read it without network access:
+
+    ArcSeven.app/Contents/Resources/Legal/NOTICE
+    the Legal folder of the distributed disk image
+    the root of the source repository
 
 ================================================================================
 1.  BUNDLED THIRD-PARTY SOFTWARE:  7-Zip  ("7zz")
@@ -132,15 +138,15 @@ GitHub Release that carries the ArcSeven disk image:
     https://github.com/havokentity/ArcSeven/releases
 
 Every ArcSeven release page carries the upstream 7-Zip source archive
-(7z<version>-src.tar.xz) alongside the ArcSeven .dmg, mirrored bit-for-bit from
-the upstream release.  The filename, the download URL and the SHA-256 of both
+(7zip-<version>-src.tar.xz -- for example 7zip-26.02-src.tar.xz) alongside the
+ArcSeven .dmg, mirrored bit-for-bit from the upstream release.  The filename, the download URL and the SHA-256 of both
 that archive and the shipped binary are recorded in
 THIRD_PARTY_LICENSES/7-Zip/VERSION.txt, so any recipient can verify that the
 source offered matches the binary shipped.
 
 No time-limited written offer is relied upon:  access to the source is offered
 from the same place, at the same time, and for as long as the binary itself is
-offered.  Anyone who receives a ArcSeven disk image by some other route may obtain
+offered.  Anyone who receives an ArcSeven disk image by some other route may obtain
 the identical source archive from that release page, or from the upstream
 project at <https://www.7-zip.org> and <https://github.com/ip7z/7zip>.
 
