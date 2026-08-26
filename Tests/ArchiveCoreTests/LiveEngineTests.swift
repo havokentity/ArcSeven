@@ -390,6 +390,63 @@ struct LiveEngineTests {
         }
     }
 
+    /// tar's dialect is not reported by `l -slt`, so this reads the ustar magic out of
+    /// the first header block instead: bytes 257..<265 are `ustar  \0` for GNU and
+    /// `ustar\0` `00` for POSIX. That is the whole difference, and it is the only
+    /// place it is visible.
+    private func ustarMagic(of archive: URL) throws -> [UInt8] {
+        let header = try Data(contentsOf: archive).prefix(265)
+        return Array(header[257..<265])
+    }
+
+    /// tar's only level is Store, so gating the method switch on `level > 0` meant the
+    /// Add dialog's GNU/POSIX combo was enabled and wired to nothing: every tar came
+    /// out in the default dialect whatever the user picked.
+    @Test("The tar dialect reaches the archive")
+    func tarDialect() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("a.txt")
+            try "content".write(to: source, atomically: true, encoding: .utf8)
+
+            let gnu = dir.appendingPathComponent("gnu.tar")
+            var gnuRequest = CompressRequest(archiveURL: gnu, inputs: [source], format: .tar)
+            gnuRequest.level = .store
+            gnuRequest.method = .gnuTar
+            _ = try await drain(engine.compress(gnuRequest))
+
+            let posix = dir.appendingPathComponent("posix.tar")
+            var posixRequest = CompressRequest(archiveURL: posix, inputs: [source], format: .tar)
+            posixRequest.level = .store
+            posixRequest.method = .posixTar
+            _ = try await drain(engine.compress(posixRequest))
+
+            #expect(try ustarMagic(of: gnu) == Array("ustar  \0".utf8))
+            #expect(try ustarMagic(of: posix) == Array("ustar\0".utf8) + Array("00".utf8))
+        }
+    }
+
+    /// The single-stream handlers reject `-m0=`, so choosing the one method their
+    /// combo offers used to fail the whole compression.
+    @Test("An explicit method on a single-stream handler is accepted")
+    func singleStreamMethod() async throws {
+        try await withTemporaryDirectory { dir in
+            let source = dir.appendingPathComponent("a.txt")
+            try "content".write(to: source, atomically: true, encoding: .utf8)
+
+            let gz = dir.appendingPathComponent("a.txt.gz")
+            var gzip = CompressRequest(archiveURL: gz, inputs: [source], format: .gzip)
+            gzip.method = .deflate
+            _ = try await drain(engine.compress(gzip))
+            #expect(FileManager.default.fileExists(atPath: gz.path))
+
+            let bz2 = dir.appendingPathComponent("a.txt.bz2")
+            var bzip2 = CompressRequest(archiveURL: bz2, inputs: [source], format: .bzip2)
+            bzip2.method = .bzip2
+            _ = try await drain(engine.compress(bzip2))
+            #expect(FileManager.default.fileExists(atPath: bz2.path))
+        }
+    }
+
     @Test("Listing a non-archive fails rather than returning an empty listing")
     func notAnArchive() async throws {
         try await withTemporaryDirectory { dir in

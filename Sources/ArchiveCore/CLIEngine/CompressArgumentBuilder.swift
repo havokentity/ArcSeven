@@ -25,8 +25,14 @@ public enum CompressArgumentBuilder {
         switches.append("-mx=\(request.level.rawValue)")
 
         // Method. Only meaningful for formats that offer a choice.
-        if let method = request.method, request.level.rawValue > 0 {
-            switches.append("-m0=\(method.rawValue)")
+        //
+        // The level gate is not `> 0` alone. Store clears the Method combo for the
+        // compressing formats, but tar's ONLY level is 0 and its two "methods" are
+        // header dialects rather than codecs, so gating on the level dropped the
+        // GNU/POSIX choice entirely — the combo was enabled and connected to
+        // nothing. `isTarDialect` is exactly the exception.
+        if let method = request.method, request.level.rawValue > 0 || method.isTarDialect {
+            switches.append("-m\(Self.methodProperty(for: request.format))=\(method.switchValue)")
         }
 
         // The codec that will actually run. `method == nil` is the dialog's `*`
@@ -91,6 +97,31 @@ public enum CompressArgumentBuilder {
         }
 
         return switches
+    }
+
+    /// The `-m` property that names the codec, which is not spelled the same way for
+    /// every handler.
+    ///
+    /// `-m0=` addresses coder 0 of a chain. Only the multi-coder containers have a
+    /// chain, and the single-stream handlers reject the index outright rather than
+    /// ignoring it. Verified against the vendored 26.02 (0 = accepted, 2 =
+    /// `E_INVALIDARG`):
+    ///
+    ///     format   -m0=   -mm=
+    ///     7z         0      0
+    ///     zip        0      0
+    ///     xz         0      0
+    ///     tar        2      0
+    ///     bzip2      2      0
+    ///     gzip       2      0
+    ///
+    /// `-mm=` is therefore a universal alias, and `-m0=` is kept for 7z and zip only
+    /// because that is the spelling those handlers have always been given here —
+    /// both compose identically with a `-m1=` filter chain typed into the Parameters
+    /// field (`-m0=BCJ -m1=LZMA2` and `-mm=BCJ -m1=LZMA2` both yield
+    /// `Method = BCJ LZMA2`).
+    private static func methodProperty(for format: ArchiveFormat) -> String {
+        format == .sevenZip || format == .zip ? "0" : "m"
     }
 
     /// Path-mode and housekeeping switches.
