@@ -447,6 +447,41 @@ struct LiveEngineTests {
         }
     }
 
+    /// `eliminateRootDuplication` documented itself as `-spe` and then never emitted
+    /// it, so the Extract dialog's checkbox and the Settings key that both feed it
+    /// were two controls wired to nothing.
+    @Test("eliminateRootDuplication drops the duplicated root folder")
+    func eliminateRootDuplication() async throws {
+        try await withTemporaryDirectory { dir in
+            // An archive holding one top-level folder, extracted into a destination
+            // of the same name — the shape that produces Foo/Foo.
+            let root = dir.appendingPathComponent("Foo", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            try "one".write(to: root.appendingPathComponent("one.txt"),
+                            atomically: true, encoding: .utf8)
+
+            let archive = dir.appendingPathComponent("foo.7z")
+            var compress = CompressRequest(archiveURL: archive, inputs: [root], format: .sevenZip)
+            compress.baseDirectory = dir
+            _ = try await drain(engine.compress(compress))
+
+            let nested = dir.appendingPathComponent("plain/Foo", isDirectory: true)
+            _ = try await drain(
+                engine.extract(ExtractRequest(archiveURL: archive, destinationURL: nested))
+            )
+            #expect(FileManager.default.fileExists(atPath: nested.appendingPathComponent("Foo/one.txt").path),
+                    "without -spe the stored root is recreated under the destination")
+
+            let flattened = dir.appendingPathComponent("eliminated/Foo", isDirectory: true)
+            var request = ExtractRequest(archiveURL: archive, destinationURL: flattened)
+            request.eliminateRootDuplication = true
+            _ = try await drain(engine.extract(request))
+            #expect(FileManager.default.fileExists(atPath: flattened.appendingPathComponent("one.txt").path))
+            #expect(!FileManager.default.fileExists(atPath: flattened.appendingPathComponent("Foo").path),
+                    "-spe must not leave a second Foo behind")
+        }
+    }
+
     /// `keepBrokenFiles` used to send `-tzip:kb`, which is not a switch 26.02 has and
     /// which forced the zip handler onto every archive besides. Setting it did not
     /// salvage anything — it failed the extraction outright.
