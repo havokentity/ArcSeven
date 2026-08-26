@@ -155,6 +155,29 @@ else
   ok "$(printf '%s\n' "$app_cases" | wc -l | tr -d ' ') actions, identical in both copies"
 fi
 
+step "The README test badge matches reality"
+# A hand-written count in a public README is a fact with nothing keeping it true: it was
+# already two releases stale by 0.1.5, claiming 261 tests in 30 suites against an actual
+# 274 in 32. Small, but it is the same drift as every other "two things that must agree"
+# bug this script guards, and the README is the first thing anyone reads.
+readme_badge="$(grep -oE 'tests-[0-9]+%20in%20[0-9]+%20suites' README.md | head -1)"
+# Captured with sed groups, not two greps: the %20 separators contain digits, so
+# `grep -oE '[0-9]+%20suites'` happily reads "2032" out of "%2032%20suites".
+badge_tests="$(printf '%s' "$readme_badge" | /usr/bin/sed -E 's/^tests-([0-9]+)%20in%20([0-9]+)%20suites$/\1/')"
+badge_suites="$(printf '%s' "$readme_badge" | /usr/bin/sed -E 's/^tests-([0-9]+)%20in%20([0-9]+)%20suites$/\2/')"
+# Reuses the run from the `swift test` step above rather than paying for a second one.
+actual="$(printf '%s' "$TEST_SUMMARY" | grep -oE '[0-9]+ tests in [0-9]+ suites')"
+actual_tests="$(printf '%s' "$actual" | awk '{print $1}')"
+actual_suites="$(printf '%s' "$actual" | awk '{print $4}')"
+if [ -z "$actual_tests" ]; then
+  bad "could not read the test count from the swift test output"
+elif [ "$badge_tests" != "$actual_tests" ] || [ "$badge_suites" != "$actual_suites" ]; then
+  bad "README badge says ${badge_tests:-?} tests in ${badge_suites:-?} suites; actual is $actual_tests in $actual_suites"
+  printf '       fix: tests-%s%%20in%%20%s%%20suites\n' "$actual_tests" "$actual_suites"
+else
+  ok "$actual_tests tests in $actual_suites suites"
+fi
+
 # Unregister the throwaway app bundles this script just built.
 #
 # macOS registers any .app it notices, and each one becomes its own row in
