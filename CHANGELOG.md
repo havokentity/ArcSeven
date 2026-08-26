@@ -20,6 +20,35 @@ calls M1.
 
 Nothing yet.
 
+## [0.1.3] - 2026-08-26
+
+### Fixed
+
+- **A member name could lie about its extension.** Names are attacker-controlled, and
+  nothing escaped them: `invoice<U+202E>gnp.exe` rendered as `invoice exe.png`, because
+  everything after a right-to-left override is drawn reversed. The name really did end in
+  `.exe`. Control characters and bidi overrides are now escaped to visible `\u{XXXX}` in
+  the file panel and the Properties inspector. Ordinary right-to-left letters are left
+  alone — an Arabic or Hebrew filename still renders as itself.
+
+### Added
+
+- The Compress sheet now says that a password is briefly visible to other users signed in
+  to this Mac while the archive is being created. This is unavoidable with a subprocess
+  engine: `7zz a` has no stdin prompt, so the passphrase must go on the command line.
+  Reading an encrypted archive is unaffected.
+- `DialogsTests`, which the repo had no equivalent of. Dialogs are built imperatively from
+  arrays of views, where a wrong index compiles cleanly and traps when the sheet opens.
+- `ExtractionContainmentTests`, which builds hostile archives at the byte level and
+  asserts nothing is written outside the destination.
+
+### Changed
+
+- `docs/SECURITY.md` now describes the protections that exist. Four of its nine sections
+  claimed ArcSeven-side mitigations that were never implemented — most importantly §3,
+  which described decompression-bomb ceilings that do not exist and are not scheduled.
+  Path-traversal and symlink containment are real but are 7-Zip's, not ArcSeven's.
+
 ## [0.1.2] - 2026-08-26
 
 **The auto-updater works for the first time.** Every earlier build shipped without a feed
