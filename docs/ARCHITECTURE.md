@@ -244,22 +244,24 @@ Then: convert/recompress, batch operations, a persistent pausable operation queu
 
 ## 4. Module breakdown
 
-What a build produces **today** — verified with `find` on a fresh Debug build, not from
-memory:
+What a build produces **today** — checked against a fresh Debug build, not from memory:
 
 ```
 ArcSeven.app
 ├── Contents/MacOS/ArcSeven ................ AppKit host
 ├── Contents/Helpers/7zz ................... 7-Zip console binary, built from the pinned
-│                                            submodule by vendor/build-7zz.sh, signed
+│                                            submodule by vendor/build-7zz.sh, signed.
+│                                            The copy phase is `optional: true`, so this
+│                                            is absent until you bootstrap — a build with
+│                                            no engine still links, and says so at launch
 ├── Contents/Frameworks/Sparkle.framework .. the only linked third-party dependency
 ├── Contents/PlugIns/QuickLookPreview.appex
 ├── Contents/PlugIns/ArcSevenFinder.appex .. Finder Sync, the right-click menu
 └── Contents/Resources/Legal/ .............. LICENSE, NOTICE, THIRD_PARTY_LICENSES
 ```
 
-Two frameworks and one appex that earlier drafts of this document listed here do **not**
-exist and are not on their way:
+A framework and an appex that earlier drafts of this document listed here do **not** exist
+and are not on their way:
 
 - `Contents/Frameworks/ArchiveCore.framework` — there is no such framework and never was.
   `project.yml` lists `Sources/ArchiveCore` and `Sources/FMKit` in the app target's own
