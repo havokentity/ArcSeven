@@ -15,36 +15,6 @@ import Testing
 import ArchiveCore
 @testable import FMKit
 
-/// The provider only needs an engine to hand to `ArchiveFolderProvider`; nothing here
-/// descends into an archive, so every method answers emptily.
-private struct InertEngine: ArchiveEngine {
-    var identifier: String { "inert" }
-
-    func capabilities() async throws -> EngineCapabilities {
-        EngineCapabilities(versionDescription: "inert")
-    }
-
-    func list(_ request: ListRequest) async throws -> ArchiveListing {
-        ArchiveListing(url: request.archiveURL, entries: [])
-    }
-
-    func extract(_ request: ExtractRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func test(_ request: TestRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func compress(_ request: CompressRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func delete(_ request: DeleteRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func rename(_ request: RenameRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func hash(_ request: HashRequest) -> ArchiveOperationStream { Self.noEvents() }
-    func benchmark(_ request: BenchmarkRequest) -> ArchiveOperationStream { Self.noEvents() }
-
-    func readEntry(_ request: ReadEntryRequest) -> AsyncThrowingStream<Data, any Error> {
-        AsyncThrowingStream { $0.finish() }
-    }
-
-    private static func noEvents() -> ArchiveOperationStream {
-        AsyncThrowingStream { $0.finish() }
-    }
-}
-
 @Suite("Package rows")
 final class PackageRowTests: Sendable {
     private let root: URL
