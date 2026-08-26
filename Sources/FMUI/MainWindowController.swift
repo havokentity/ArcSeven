@@ -288,10 +288,12 @@ public final class MainWindowController: NSWindowController {
         Task { @MainActor [weak self] in
             guard let self else { return }
             let destination: URL
+            var listing: ArchiveListing?
             do {
-                let listing = try await engine.list(ListRequest(archiveURL: first))
+                let fetched = try await engine.list(ListRequest(archiveURL: first))
+                listing = fetched
                 destination = Self.extractionDestination(
-                    forArchive: first, rootEntryCount: Self.rootEntryCount(of: listing)
+                    forArchive: first, rootEntryCount: Self.rootEntryCount(of: fetched)
                 )
             } catch {
                 // Encrypted headers, a corrupt archive, a format 7zz declines: we cannot
@@ -299,16 +301,18 @@ public final class MainWindowController: NSWindowController {
                 // that is merely mildly annoying when wrong.
                 destination = Self.subfolderDestination(for: first)
             }
-            startFinderExtraction(of: first, into: destination)
+            startFinderExtraction(of: first, into: destination, listing: listing)
         }
     }
 
-    private func startFinderExtraction(of archive: URL, into destination: URL) {
+    private func startFinderExtraction(
+        of archive: URL, into destination: URL, listing: ArchiveListing? = nil
+    ) {
         var request = ExtractRequest(archiveURL: archive, destinationURL: destination)
         // Never destroys anything already on disk, which matters most for the loose case:
         // the destination there is a directory full of the user's own files.
         request.overwriteMode = .autoRename
-        startExtraction(request)
+        startExtraction(request, listing: listing)
     }
 
     /// The folder the archive itself sits in — no wrapper, whatever it contains.

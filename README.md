@@ -15,7 +15,7 @@ Written from scratch in Swift 6 and AppKit. Universal, notarised, and free softw
 [![Release](https://img.shields.io/github/v/release/havokentity/ArcSeven)](https://github.com/havokentity/ArcSeven/releases/latest)
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black)](#requirements)
 [![Architecture](https://img.shields.io/badge/arch-arm64%20%2B%20x86__64-lightgrey)](#requirements)
-[![Tests](https://img.shields.io/badge/tests-274%20in%2032%20suites-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-283%20in%2033%20suites-brightgreen)](#tests)
 
 <img src="docs/images/toolbar.png" alt="The ArcSeven toolbar in light and dark appearance: Add, Extract, Test, Copy, Move, Delete and Info as colour-coded badges" width="620">
 
@@ -71,8 +71,10 @@ Honest list, because a list of features is worth little without one.
   survive a relaunch.
 - **Keymap presets.** Key equivalents are hard-coded; the Finder / Commander / Classic
   presets are not built.
-- **Decompression-bomb ceilings.** Extraction is not bounded by a ratio or byte limit.
-  See [`docs/SECURITY.md`](docs/SECURITY.md) §3, which says so plainly.
+- **Live decompression-bomb metering.** Extraction now *asks* before running when the
+  archive declares an alarming expansion, but the figures come from the archive’s own
+  header. Nothing meters the bytes as they are written, so an archive that lies about its
+  sizes is not caught. See [`docs/SECURITY.md`](docs/SECURITY.md) §3.
 
 ## How it works
 

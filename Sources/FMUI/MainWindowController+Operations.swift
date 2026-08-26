@@ -133,15 +133,91 @@ extension MainWindowController {
                 resolveOverwrite(for: request, in: archive.listing) { resolved in
                     guard let resolved else { return }
                     request = resolved
-                    self.startExtraction(request)
+                    self.startExtraction(request, listing: archive.listing)
                 }
             } else {
-                startExtraction(request)
+                startExtraction(request, listing: archive.listing)
             }
         }
     }
 
-    func startExtraction(_ request: ExtractRequest) {
+    /// Extract, asking first when the archive says it will expand to something alarming.
+    ///
+    /// The listing is already in hand at every call site, so the check is free. Pass `nil`
+    /// only where no listing exists — the check is then skipped rather than guessed at.
+    func startExtraction(_ request: ExtractRequest, listing: ArchiveListing?) {
+        guard let listing else {
+            startExtraction(request)
+            return
+        }
+        let estimate = ExpansionPolicy.estimate(
+            listing: listing,
+            selectedEntries: request.selectedEntries,
+            destination: request.destinationURL
+        )
+        guard estimate.warrantsConfirmation else {
+            startExtraction(request)
+            return
+        }
+        confirmExpansion(estimate, of: request.archiveURL) { [weak self] in
+            self?.startExtraction(request)
+        }
+    }
+
+    /// Ask, rather than refuse.
+    ///
+    /// Legitimate archives reach absurd ratios — a sparse disk image, a log of one repeated
+    /// line, a tarball of zeros — so blocking them would be wrong. The dialog leads with the
+    /// numbers so the decision can be an informed one.
+    private func confirmExpansion(
+        _ estimate: ExpansionEstimate,
+        of archive: URL,
+        proceed: @escaping @MainActor () -> Void
+    ) {
+        guard let window else { return }
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+
+        var reasons: [String] = []
+        if estimate.exceedsAvailableSpace, let available = estimate.availableBytes {
+            reasons.append(
+                "That is more than the \(formatter.string(fromByteCount: Int64(available))) "
+                    + "free on the destination volume."
+            )
+        }
+        if estimate.exceedsRatioCeiling, let ratio = estimate.ratio {
+            reasons.append(
+                "It expands to about \(Int(ratio.rounded()))× the size of the archive, which "
+                    + "is the shape of a decompression bomb."
+            )
+        }
+        if estimate.exceedsAbsoluteCeiling {
+            reasons.append("Extractions this large are unusual.")
+        }
+        if estimate.unsizedEntryCount > 0 {
+            reasons.append(
+                "\(estimate.unsizedEntryCount) member(s) declare no size, so the real total "
+                    + "may be larger."
+            )
+        }
+
+        let alert = NSAlert()
+        alert.messageText = "\(archive.lastPathComponent) says it will expand to "
+            + formatter.string(fromByteCount: Int64(min(estimate.declaredBytes, UInt64(Int64.max))))
+        alert.informativeText = reasons.joined(separator: "\n\n")
+            + "\n\nThese figures come from the archive's own header and cannot be trusted "
+            + "further than the archive can."
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "Extract Anyway")
+        alert.addButton(withTitle: "Cancel")
+        alert.beginSheetModal(for: window) { response in
+            if response == .alertFirstButtonReturn { proceed() }
+        }
+    }
+
+    /// Private on purpose: everything outside goes through `startExtraction(_:listing:)`,
+    /// so the expansion check cannot be skipped by picking the shorter overload.
+    private func startExtraction(_ request: ExtractRequest) {
         run(
             operation: engine.extract(request),
             title: "Extracting \(request.archiveURL.lastPathComponent)"
@@ -382,7 +458,7 @@ extension MainWindowController {
             var request = ExtractRequest(archiveURL: archive.archiveURL, destinationURL: destination)
             request.selectedEntries = items.map(\.path)
             request.overwriteMode = .autoRename
-            startExtraction(request)
+            startExtraction(request, listing: archive.listing)
             return
         }
 

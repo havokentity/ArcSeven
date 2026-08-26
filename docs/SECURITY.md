@@ -57,16 +57,31 @@ extraction — and no dialog exposes it. It is always effectively `true`.
 
 A few hundred kilobytes can expand to petabytes. Nested archives multiply this.
 
-**Not mitigated.** Through 0.1.2 this section claimed extraction tracked bytes written
-against declared sizes and against absolute and ratio ceilings, pausing to ask the
-user before filling the disk. No such tracking exists. Extraction runs to completion
-or to a full disk.
+**Mitigation, partial.** Before extraction runs, `ExpansionPolicy` totals the uncompressed
+size the archive declares for the members being extracted and compares it against three
+ceilings: an absolute one (64 GiB), an expansion ratio (300×, ignored below a 1 GiB result
+so that a tiny file of zeros does not cry wolf), and the free space on the destination
+volume. Crossing any of them asks the user, showing the figures, and offers to proceed.
 
-The one real limit is `ListRequest`'s output-byte cap, which bounds what a malicious
-archive can make ArcSeven *buffer* while listing — not what it can make it write.
+**It asks rather than refuses**, deliberately. Sparse disk images, logs of one repeated
+line and tarballs of zeros all reach absurd ratios honestly, and blocking them would be
+wrong.
 
-Implementing the ceilings is worthwhile and is not yet scheduled. Until then, this
-section describes an absent control rather than an implemented one.
+**What this does not do.** The figures come from the archive's own header, which is
+attacker-controlled. An archive that understates every member's size passes the check and
+then writes whatever it likes: there is no live byte accounting and no mid-write kill. So
+this catches the bomb built by the standard recipe — whose headers are honest, because the
+compressor wrote them — and does not catch one built specifically to defeat it.
+
+A real guarantee needs the extraction to be metered as it runs and the child killed when it
+overruns, which the subprocess engine cannot do without polling the destination. That is
+worth building and is not built.
+
+Through 0.1.5 this section described byte tracking, ceilings and a prompt as though they
+existed. None of it did; extraction ran to completion or to a full disk.
+
+`ListRequest`'s output-byte cap is a separate and narrower guard: it bounds what a
+malicious archive can make ArcSeven *buffer* while listing, not what it can make it write.
 
 ### 4. Passphrase exposure in the process table
 
