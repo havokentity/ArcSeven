@@ -46,15 +46,19 @@
 // DUPLICATE-SOURCE WARNING
 // ---------------------------------------------------------------------------------------
 // `Sources/App/FinderRequest.swift` is a second copy of this contract, written in parallel
-// for the app target; `project.yml` currently compiles that one into ArcSeven and this one
-// into FinderSync.appex. The two agree on everything that crosses the boundary — directory
-// layout, file naming, JSON keys, ISO-8601 dates, the three action raw values — so the
-// handoff works today, but two copies of a wire format drift the moment one side is edited.
+// for the app target; `project.yml` compiles that one into ArcSeven and this one into
+// ArcSevenFinder.appex. The two agree on everything that crosses the boundary — directory
+// layout, file naming, JSON keys, ISO-8601 dates, and all SIX `FinderRequestAction` raw
+// values (`compress`, `extract`, `extractLoose`, `extractToSubfolder`, `test`, `open`) —
+// so the handoff works today, but two copies of a wire format drift the moment one side is
+// edited. `extractLoose` and `extractToSubfolder` were added to both in 0.1.4; that they
+// had to be added twice is the cost this banner is about.
 //
 // This file is deliberately a **source-compatible superset** of that one: same
-// `FinderRequestAction`, `FinderRequestError` and `FinderRequestStore` spellings, plus the
-// `arcseven://` half that the other copy is missing entirely. Consolidating is therefore a
-// project.yml change and a deletion, not a merge: add this path to the app target's
+// `FinderRequestAction`, `FinderRequestError` and `FinderRequestStore` spellings, plus
+// `ArcSevenURLScheme` and `FinderRequest.isStale(asOf:maximumAge:)`, which the other copy
+// does not have. Consolidating is therefore a project.yml change and a deletion, not a
+// merge: add `Extensions/ArcSevenFinder/FinderRequest.swift` to the app target's
 // `sources:` and delete `Sources/App/FinderRequest.swift`. Until then, any edit here must
 // be mirrored there.
 

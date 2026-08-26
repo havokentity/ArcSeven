@@ -93,7 +93,7 @@ Everything that writes.
 - **Options sub-dialog**, adapted: the "NTFS" group becomes a **"macOS"** group (symbolic links, hard links, extended attributes / resource forks, POSIX ACLs), plus the Time group (timestamp precision combo, mtime/ctime/atime "explicitly set" mini-checkboxes, set-archive-time-to-latest, preserve-source-atime).
 - OK-time validation in 7zFM's exact order: zip ASCII password check → zip+AES length ≤ 99 → password match → **memory-limit refusal with the exact five-line message** → path resolution → volume parsing → persistence.
 - In-place archive update: add, delete, rename, mkdir inside an open archive.
-- **Temp-file open/edit write-back**: extract to a `7zO`-prefixed temp dir, snapshot size+timestamps, watch via `DispatchSource` + `NSWorkspace.didTerminateApplicationNotification`, on change prompt *"File '{0}' was modified. Do you want to update it in the archive?"*, write back on the main actor, and — faithfully — **leave modified-but-declined temp files on disk**, which is why `Tools ▸ Delete Temporary Files…` exists.
+- **Temp-file open/edit write-back**: extract to an `ArcSeven-`-prefixed temp dir (the Windows original uses `7zO`; the shipped nested-archive code already uses `ArcSeven-nested-`, and `TempManager` should match it, not the Windows string), snapshot size+timestamps, watch via `DispatchSource` + `NSWorkspace.didTerminateApplicationNotification`, on change prompt *"File '{0}' was modified. Do you want to update it in the archive?"*, write back on the main actor, and — faithfully — **leave modified-but-declined temp files on disk**, which is why `Tools ▸ Delete Temporary Files…` exists.
 - Split file / Combine files, Comment (`Ctrl+Z` → `⌥⌘K`), **CRC submenu in exact order** (CRC-32, CRC-64, XXH64, MD5, SHA-1, SHA-256, SHA-384, SHA-512, SHA3-256, BLAKE2sp, `*`), Checksum information window with the uppercase-for-≤8-byte / lowercase-for->8-byte digest rule and the `-<extra>` group suffix, Test, **Benchmark** window (driving `7zz b`), Memory-usage-request dialog.
 
 **Exit:** create an AES-256 7z with encrypted headers, split into volumes, at a non-default dictionary and thread count, and have `7z l -slt` on Windows report byte-identical settings.
@@ -102,7 +102,7 @@ Everything that writes.
 
 ### M4 — Settings + system integration *(3–4 weeks)* → **v1.0**
 - All six Options tabs, adapted (see fidelity matrix rows 39–44).
-- `CFBundleDocumentTypes` + `UTImportedTypeDeclarations` for Tier A + Tier B formats; **export nothing** (`org.7-zip.7-zip-archive` is system-declared and belongs to Igor Pavlov — import it). `LSHandlerRank = Alternate` for system types so you don't fight Archive Utility on install.
+- `CFBundleDocumentTypes` + `UTImportedTypeDeclarations` for Tier A + Tier B formats; **export nothing** (`org.7-zip.7-zip-archive` is system-declared and belongs to Igor Pavlov — import it). This was planned as `LSHandlerRank = Alternate` for system types, to avoid fighting Archive Utility on install; the shipped plist uses `Default` for all 24 archive types instead, because an Alternate handler never wins a type that already has a Default one and would never open a `.7z` by double-click. `None` on the `public.data` catch-all keeps the blast radius bounded. See the comment above `CFBundleDocumentTypes` in `project.yml`.
 - LaunchServices default-handler management (the "System" tab's macOS equivalent).
 - **Finder Quick Actions** (App Intents-backed extensions): Open archive, Extract Here, Extract to "name", Extract to…, Add to "name.7z", Add to archive…, Test archive, Compute checksum ▸. **Authenticated transport only** — App Group inbox with a per-request nonce and replay protection, or `NSXPCConnection` with `setCodeSigningRequirement(_:)` validating the peer Team ID. Never an unauthenticated URL scheme naming a pasteboard.
 - **Services** menu with a nested `ArcSeven/…` submenu as the always-works fallback; Share extension.
@@ -178,7 +178,7 @@ Then: convert/recompress, batch operations, a persistent pausable operation queu
 |---|---|---|---|
 | 25 | `Enter` open · `Shift+Enter` open outside · `Alt+Enter` properties · dbl-click; **hard cap of 20 items** (`Too many items`) | `⌘↓` open · `⌥⌘↓` open outside · `⌘I` properties · dbl-click. Same 20-item cap and message. `Return` = rename (Finder convention) | **adapted** |
 | 26 | `Open Inside` (`Ctrl+PgDn`) / `Open Inside *` / `Open Inside #` / `Open Outside` | Same four commands; `*`/`#` map to `-t*` / `-t#` | **1:1** |
-| 27 | Nested archives via `7zO`-prefixed temp dirs and sub-streams; title accumulates `…\outer.7z\inner.zip\` | Identical model (M5 uses `Agent`/`AgentProxy` for true sub-stream nesting); same temp-dir prefix | **1:1** |
+| 27 | Nested archives via `7zO`-prefixed temp dirs and sub-streams; title accumulates `…\outer.7z\inner.zip\` | Identical model (M5 uses `Agent`/`AgentProxy` for true sub-stream nesting). **Different prefix**: `ArchiveFolderProvider` writes `ArcSeven-nested-<uuid>`, not `7zO…`. The Windows prefix is an implementation detail nothing outside 7-Zip depends on, and a name that says which app made the directory is worth more in `/var/folders` than byte-compatibility with a string no user reads | **adapted** |
 | 28 | Temp-file edit write-back prompt; **modified-but-declined temp files deliberately left on disk** | Identical, including the deliberate leak — which is why row 44 exists | **1:1** |
 | 29 | `Backspace` up · `Tab` switch pane · `Alt+Up` same folder in other pane · `Alt+Left/Right` focused subfolder in other pane | `⌘↑` up (`⌫` alias) · `Tab` · `⌥⌘↑` · `⌥⌘←/→`. Note `⌃Tab` is reserved for window tabs | **1:1** (keys adapted) |
 | 30 | Two different "root" concepts: menu `Open Root Folder` (Computer/Documents/Network) vs the `\` key (drive-letter list) | One `Computer` root listing volumes + Home/Documents/Network shares. `/` key → `Go to Folder ⇧⌘G` | **adapted** |
@@ -244,15 +244,38 @@ Then: convert/recompress, batch operations, a persistent pausable operation queu
 
 ## 4. Module breakdown
 
+What a build produces **today** — verified with `find` on a fresh Debug build, not from
+memory:
+
 ```
 ArcSeven.app
 ├── Contents/MacOS/ArcSeven ................ AppKit host
-├── Contents/Helpers/7zz ................... bundled upstream binary (unmodified, signed)
-├── Contents/Frameworks/ArchiveCore.framework
-├── Contents/Frameworks/Sparkle.framework
-├── Contents/XPCServices/ArchiveEngine.xpc . M5 in-process engine (no RAR)
+├── Contents/Helpers/7zz ................... 7-Zip console binary, built from the pinned
+│                                            submodule by vendor/build-7zz.sh, signed
+├── Contents/Frameworks/Sparkle.framework .. the only linked third-party dependency
 ├── Contents/PlugIns/QuickLookPreview.appex
-├── Contents/PlugIns/QuickActions*.appex ... App Intents-backed Finder actions
+├── Contents/PlugIns/ArcSevenFinder.appex .. Finder Sync, the right-click menu
+└── Contents/Resources/Legal/ .............. LICENSE, NOTICE, THIRD_PARTY_LICENSES
+```
+
+Two frameworks and one appex that earlier drafts of this document listed here do **not**
+exist and are not on their way:
+
+- `Contents/Frameworks/ArchiveCore.framework` — there is no such framework and never was.
+  `project.yml` lists `Sources/ArchiveCore` and `Sources/FMKit` in the app target's own
+  `sources:`, so the app is **one** Swift module even though SwiftPM sees six library
+  targets over the same files. (That is what the `#if canImport(...)` module-guards
+  around intra-project imports are for.) The module breakdown that follows describes
+  *code organisation*, not bundle layout.
+- `Contents/PlugIns/QuickActions*.appex` — the target was removed. `Extensions/QuickActions/`
+  holds a plist, entitlements and a README for an extension nobody has written; an appex
+  with no executable cannot carry entitlements, so shipping the shell failed
+  `verify-release.sh` as "NOT sandboxed".
+
+Still planned, and marked as such wherever they appear below:
+
+```
+├── Contents/XPCServices/ArchiveEngine.xpc . M5 in-process engine (no RAR)
 └── Contents/Library/Spotlight/ArcSeven.mdimporter  (M6)
 ```
 
@@ -260,7 +283,7 @@ ArcSeven.app
 `ArchiveEngine` protocol · `SevenZipCLIEngine` (process spawn, process-group cancel, `@listfile`+`-scsUTF-8`) · `SevenZipXPCEngine` (M5) · `StreamTokenizer` (backspace-aware byte reader) · `SLTParser` (ten-hyphen state machine, dictionary-per-item) · `ExitCodeMapper` (1 = warning) · `ArchiveListing` / `ArchiveEntry` models · `HashService` · `BenchmarkService` · `FormatCatalog` (7 creatable formats, level masks, method arrays, dictionary/word/solid/thread enumerations) · `MemoryEstimator` (7-Zip's exact formula) · `VolumeSizeParser` (space-separated, `-` terminates).
 
 **`FMKit`** — the file-manager domain, no views.
-`FolderProvider` protocol · `FileSystemFolder` · `VolumesFolder` · `RootFolder` · `ArchiveFolder` (nested via `_parentFolders` chain) · `XattrFolder` · `HashFolder` · `PanelModel` (selection, focus, marks, flat mode) · `SortEngine` (the exact comparator) · `ColumnModel` (PROPID table, widths, alignment, visibility, per-type persistence) · `HistoryStore` · `FavoritesStore` (10 slots) · `CopyHistoryStore` · `TempManager` (`7zO` prefix, edit-watch, deliberate-leak policy) · `OperationCoordinator`.
+`FolderProvider` protocol · `FileSystemFolder` · `VolumesFolder` · `RootFolder` · `ArchiveFolder` (nested via `_parentFolders` chain) · `XattrFolder` · `HashFolder` · `PanelModel` (selection, focus, marks, flat mode) · `SortEngine` (the exact comparator) · `ColumnModel` (PROPID table, widths, alignment, visibility, per-type persistence) · `HistoryStore` · `FavoritesStore` (10 slots) · `CopyHistoryStore` · `TempManager` (`ArcSeven-` prefix, edit-watch, deliberate-leak policy) · `OperationCoordinator`.
 
 **`FMUI`** — AppKit.
 `MainWindowController` · `PanelViewController` (table + path bar + status bar) · `FileListTableController` (data source, type-select, reuse) · `IconGridController` (`NSCollectionView` for modes 0–1) · `PathBarView` · `StatusBarView` · `ToolbarController` · `MenuController` (menu construction, dynamic File menu, Favorites rebuild, timestamp submenu relabel, check/radio state) · `ShortcutMap` (`.finder` / `.commander` / `.custom` + recorder) · `DragController` (`NSFilePromiseProvider` out, `NSFilePromiseReceiver` in) · `QuickLookController`.

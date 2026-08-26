@@ -425,36 +425,37 @@ final class FinderSyncExtension: FIFinderSync {
 }
 
 // ---------------------------------------------------------------------------------------
-// INTEGRATION NOTES — three things outside this directory that this code depends on
+// INTEGRATION NOTES — what this code depends on outside this directory
 // ---------------------------------------------------------------------------------------
 //
-// 1. `project.yml`, target `FinderSync`, is missing `PRODUCT_MODULE_NAME`.
-//    `PRODUCT_NAME: FinderSync` makes the Swift module name `FinderSync`, which is also the
-//    name of Apple's framework. A module cannot import itself, so `import FinderSync` above
-//    is discarded ("file is part of module 'FinderSync'; ignoring import") and the target
-//    fails with `cannot find type 'FIFinderSync' in scope`. Verified by compiling this file
-//    with `-module-name FinderSync`. One line under `settings.base` fixes it and keeps both
-//    the product name and the principal-class string intact:
+// Two of the three notes that used to live here described problems that have since been
+// fixed. They are kept, marked, because the reasoning is what stops each one recurring.
 //
-//        PRODUCT_MODULE_NAME: ArcSevenFinderSync
+// 1. RESOLVED — the module-name collision. This target used to be called `FinderSync`,
+//    which made the Swift module name `FinderSync` too: the same name as Apple's
+//    framework. A module cannot import itself, so `import FinderSync` above was discarded
+//    ("file is part of module 'FinderSync'; ignoring import") and the target failed with
+//    `cannot find type 'FIFinderSync' in scope`. The target is now `ArcSevenFinder`, with
+//    `PRODUCT_NAME: ArcSevenFinder`, so no `PRODUCT_MODULE_NAME` override is needed.
+//    `NSExtensionPrincipalClass` is `$(PRODUCT_MODULE_NAME).FinderSyncExtension`, which
+//    resolves through the same name. Do not rename this target back.
 //
-// 2. The app does not handle `arcseven://` yet. `Sources/App/AppDelegate.swift`'s
-//    `application(_:open:)` passes every URL to `openDocument(at:)`, which will try to open
-//    the scheme URL as an archive. It needs, before that call:
+// 2. RESOLVED — the app handles `arcseven://`. `Sources/App/AppDelegate.swift`'s
+//    `application(_:open:)` filters `scheme == "arcseven"` before anything reaches
+//    `openDocument(at:)`, and `handleFinderRequest(_:)` reads the request, removes it, and
+//    routes the action. Two differences from what this note originally prescribed, both
+//    deliberate on the app's side: it uses `FinderRequestStore.read(id:)` followed by
+//    `remove(id:)` rather than `consume(id:)` — removing even when the action then fails,
+//    so an unsatisfiable request is not retried on every launch — and staleness is handled
+//    by `FinderRequestStore.pruneStale()` at launch rather than by an `isStale()` check at
+//    the point of use.
 //
-//        if let id = ArcSevenURLScheme.requestID(from: url) {
-//            let request = try FinderRequestStore.consume(id: id)   // one-shot, see the store
-//            guard !request.isStale() else { return }               // replay guard
-//            … act on request.action and request.urls …
-//            return
-//        }
-//
-//    plus a sweep of `FinderRequestStore.pendingRequestIDs()` once the window exists, for
-//    requests handed over during a cold launch. `CFBundleURLTypes` is already declared.
-//
-// 3. There are two copies of the request contract. `Sources/App/FinderRequest.swift` is a
-//    parallel copy compiled into the app; this directory's `FinderRequest.swift` is compiled
-//    into the appex. They agree on the wire today, and this one is written as a
-//    source-compatible superset of that one, so consolidating means adding
-//    `Extensions/FinderSync/FinderRequest.swift` to the app target's `sources:` and deleting
-//    the other file — not a merge. Until someone does, every edit to either must be mirrored.
+// 3. STILL TRUE — there are two copies of the request contract.
+//    `Sources/App/FinderRequest.swift` is compiled into the app; this directory's
+//    `FinderRequest.swift` is compiled into the appex. They agree on the wire, and this one
+//    is a source-compatible superset (it additionally carries `ArcSevenURLScheme` and
+//    `isStale(asOf:maximumAge:)`), so consolidating means adding
+//    `Extensions/ArcSevenFinder/FinderRequest.swift` to the app target's `sources:` and
+//    deleting the other file — not a merge. Until someone does, every edit to either must
+//    be mirrored. Note the path: it is `Extensions/ArcSevenFinder/`, not
+//    `Extensions/FinderSync/`, which has not existed since the target was renamed.
