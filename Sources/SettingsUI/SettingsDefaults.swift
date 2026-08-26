@@ -64,6 +64,12 @@ public enum SettingsKey: String, CaseIterable, Sendable {
     case menuIcons = "Options.MenuIcons"
     case elimDup = "Options.ElimDup"
     /// Upstream `WriteZone`; the Zone.Identifier stream becomes `com.apple.quarantine` (D-08).
+    ///
+    /// RESERVED, AND DELIBERATELY NOT WRITTEN. Extraction propagates unconditionally — see
+    /// ``SettingsStore/quarantinePropagation`` — so there is no user choice to persist, and a
+    /// key holding one would be a value nothing honours. Kept in the ledger because the name
+    /// is audited against `HKCU\Software\7-Zip\Options\WriteZone` whether or not it has a
+    /// value, and because whoever makes FMUI consult it will want the same spelling.
     case writeZone = "Options.WriteZone"
     /// Bitmask of enabled context-menu verbs, indexed by `ContextMenuVerb.allCases`.
     case contextMenu = "Options.ContextMenu"
@@ -123,11 +129,11 @@ public enum WorkDirType: Int, CaseIterable, Sendable {
 
 /// `WriteZone` (OPT-11), retargeted from `Zone.Identifier` to `com.apple.quarantine` (D-08).
 ///
-/// Upstream also accepts raw values ≥ 3 typed into the registry and shows them in the combo;
-/// an unknown stored value therefore falls back to `.never` for display but is left on disk.
+/// The vocabulary, not a live setting: ArcSeven ships pinned to ``always`` and offers no way
+/// to change it. See ``SettingsStore/quarantinePropagation``.
 ///
 /// The cases are spelled `never` / `always` rather than `no` / `yes`; the raw values are the
-/// upstream ones and are what persists, so this is a spelling of the API, not of the setting.
+/// upstream ones, so this is a spelling of the API, not of the setting.
 public enum QuarantinePropagation: Int, CaseIterable, Sendable {
     case never = 0
     case always = 1
@@ -241,10 +247,21 @@ public final class SettingsStore {
     public var cascadedMenu: Bool { didSet { writeIntegration(.cascadedMenu, cascadedMenu) } }
     public var menuIcons: Bool { didSet { writeIntegration(.menuIcons, menuIcons) } }
     public var elimDup: Bool { didSet { write(.elimDup, elimDup) } }
-    public var quarantinePropagation: QuarantinePropagation {
-        didSet { write(.writeZone, quarantinePropagation.rawValue) }
-    }
     public var contextMenuMask: Int { didSet { writeIntegration(.contextMenu, contextMenuMask) } }
+
+    /// What extraction actually does with `com.apple.quarantine`. A constant, not a setting.
+    ///
+    /// `MainWindowController+Operations` propagates after every extraction, unconditionally,
+    /// and this is the one place that says so. It was a three-way picker bound to
+    /// `Options.WriteZone` that defaulted to `.never` and whose footnote said propagation was
+    /// "off by default, as on Windows" — three untruths at once: nothing read the key, the
+    /// behaviour was always-on, and the pane told the user it was off.
+    ///
+    /// Pinned rather than restored as a working control on purpose. Upstream's `No` maps here
+    /// onto turning Gatekeeper off for the entire contents of a downloaded archive, which is
+    /// the regression `Support/Quarantine.swift` opens by refusing to write a function for.
+    /// The safe behaviour is already the shipped behaviour; the only bug was the pane.
+    public nonisolated static let quarantinePropagation: QuarantinePropagation = .always
 
     // MARK: Language pane
 
@@ -288,9 +305,6 @@ public final class SettingsStore {
         cascadedMenu = defaults.bool(forKey: SettingsKey.cascadedMenu.rawValue)
         menuIcons = defaults.bool(forKey: SettingsKey.menuIcons.rawValue)
         elimDup = defaults.bool(forKey: SettingsKey.elimDup.rawValue)
-        quarantinePropagation = QuarantinePropagation(
-            rawValue: defaults.integer(forKey: SettingsKey.writeZone.rawValue)
-        ) ?? .never
         contextMenuMask = defaults.integer(forKey: SettingsKey.contextMenu.rawValue)
 
         language = defaults.string(forKey: SettingsKey.language.rawValue) ?? ""

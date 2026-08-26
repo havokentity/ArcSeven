@@ -16,9 +16,13 @@
 //
 // The rest of the tab survives intact because it is all policy rather than registration:
 // cascaded vs inline (`setSubmenu(_:for:)`), icons (`NSMenuItem.image`), the per-verb
-// checklist, Eliminate duplication of root folder, and Zone.Identifier propagation retargeted
-// onto `com.apple.quarantine` (D-08). Dropped: the `(32-bit)` checkbox, which has no meaning
-// anywhere on macOS, and the three `Compress and email` rows, which become one Share row.
+// checklist, and Eliminate duplication of root folder. Dropped: the `(32-bit)` checkbox,
+// which has no meaning anywhere on macOS, and the three `Compress and email` rows, which
+// become one Share row.
+//
+// Also dropped, and for a different reason: upstream's `Propagate Zone.Id stream` combo
+// (OPT-11, retargeted onto `com.apple.quarantine` by D-08). Its macOS equivalent is not a
+// preference — see the Extraction section below.
 
 import SwiftUI
 #if canImport(FinderSync)
@@ -126,10 +130,14 @@ struct IntegrationPane: View {
     private var extractionSection: some View {
         Section {
             Toggle("Eliminate duplication of root folder", isOn: $store.elimDup)
-            Picker("Propagate quarantine flag:", selection: $store.quarantinePropagation) {
-                Text("No").tag(QuarantinePropagation.never)
-                Text("Yes").tag(QuarantinePropagation.always)
-                Text("For documents and executables").tag(QuarantinePropagation.documentsAndExecutables)
+
+            // Upstream's three-way combo, deliberately not reproduced. It was here, bound to
+            // `Options.WriteZone`, showing "No" — while extraction propagated unconditionally
+            // and nothing read the key. Stating the behaviour is the honest control: there is
+            // no choice to offer, and offering one would mean shipping upstream's "No".
+            LabeledContent("Quarantine flag:") {
+                Text(quarantineDescription)
+                    .foregroundStyle(.secondary)
             }
         } header: {
             Text("Extraction")
@@ -140,10 +148,22 @@ struct IntegrationPane: View {
                 shows: when an archive contains exactly one top-level folder with the \
                 archive’s own name, extracting to a new folder does not nest it twice. \
                 Quarantine propagation copies the archive’s com.apple.quarantine attribute \
-                onto the files extracted from it, so Gatekeeper still asks about a downloaded \
-                application after it has been unpacked. It is off by default, as on Windows.
+                onto everything extracted from it, so Gatekeeper still asks about a downloaded \
+                application after it has been unpacked. 7-Zip makes this a choice and defaults \
+                it off; ArcSeven does not, because switching it off would let anything inside a \
+                downloaded archive launch with no Gatekeeper check at all.
                 """
             )
+        }
+    }
+
+    /// Read from the store rather than written in place, so the pane cannot drift from the
+    /// behaviour the way it did when this was a picker.
+    private var quarantineDescription: String {
+        switch SettingsStore.quarantinePropagation {
+        case .never: "Not propagated"
+        case .always: "Always propagated"
+        case .documentsAndExecutables: "Propagated for documents and executables"
         }
     }
 
