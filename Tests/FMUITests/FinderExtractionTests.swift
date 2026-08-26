@@ -111,4 +111,40 @@ struct FinderExtractionTests {
         let tarball = URL(fileURLWithPath: "/tmp/backup.tar.gz")
         #expect(MainWindowController.subfolderDestination(for: tarball).path == "/tmp/backup.tar")
     }
+
+    /// "Extract Loose" ignores the archive entirely — that is the whole point of having it
+    /// beside the smart one.
+    @Test("Loose extraction targets the enclosing folder whatever the archive holds")
+    func looseIgnoresContents() {
+        let loose = MainWindowController.looseDestination(for: archive)
+        #expect(loose.path == "/Users/x/Downloads")
+
+        // The distinction from smart: for an archive that WOULD scatter, smart wraps and
+        // loose still does not. That divergence is the reason the command exists.
+        let scattering = MainWindowController.extractionDestination(
+            forArchive: archive, rootEntryCount: 40
+        )
+        #expect(scattering.path == "/Users/x/Downloads/project-1.0")
+        #expect(loose.path != scattering.path)
+
+        // And for a self-contained archive the two agree, so the extra command costs
+        // nothing in the common case.
+        let selfContained = MainWindowController.extractionDestination(
+            forArchive: archive, rootEntryCount: 1
+        )
+        #expect(loose.path == selfContained.path)
+    }
+
+    /// The naming trap. 7-Zip's own "extract without folder structure" is `-e`, which
+    /// flattens paths INSIDE the archive so `src/a.txt` and `docs/a.txt` collide as
+    /// `a.txt`. "Extract Loose" is about the wrapper only and must leave `pathMode` alone.
+    @Test("Loose extraction is not path flattening")
+    func looseIsNotFlattening() {
+        var request = ExtractRequest(
+            archiveURL: archive, destinationURL: archive.deletingLastPathComponent()
+        )
+        request.overwriteMode = .autoRename
+        #expect(request.pathMode == .fullPaths,
+                "loose must preserve the archive's directory structure")
+    }
 }

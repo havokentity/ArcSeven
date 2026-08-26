@@ -240,12 +240,18 @@ public final class MainWindowController: NSWindowController {
     /// "Extract Here"-with-a-folder behaviour people expect from a context menu — no
     /// dialog, because someone who right-clicked and chose Extract has already made
     /// the decision the dialog would ask about.
+    /// How a Finder extraction decides where to put things.
+    public enum FinderExtractionMode: Sendable {
+        /// Let the archive decide. See ``extractionDestination(forArchive:rootEntryCount:)``.
+        case smart
+        /// Never wrap.
+        case loose
+        /// Always wrap in a folder named after the archive.
+        case subfolder
+    }
+
     /// Extract an archive handed over by Finder.
-    ///
-    /// - Parameter alwaysIntoSubfolder: `true` for the explicit "Extract to Subfolder"
-    ///   command. `false` — the "Extract Here" default — lets the archive decide; see
-    ///   ``extractionDestination(forArchive:rootEntryCount:)``.
-    public func extractFromFinder(_ urls: [URL], alwaysIntoSubfolder: Bool = false) {
+    public func extractFromFinder(_ urls: [URL], mode: FinderExtractionMode = .smart) {
         let archives = urls.filter { FileSystemFolderProvider.isArchive($0) }
         guard let first = archives.first else {
             presentMessage(
@@ -265,9 +271,16 @@ public final class MainWindowController: NSWindowController {
             )
         }
 
-        if alwaysIntoSubfolder {
+        switch mode {
+        case .subfolder:
             startFinderExtraction(of: first, into: Self.subfolderDestination(for: first))
             return
+        case .loose:
+            // No listing needed: the answer does not depend on what is inside.
+            startFinderExtraction(of: first, into: Self.looseDestination(for: first))
+            return
+        case .smart:
+            break
         }
 
         // Deciding needs the listing, and listing is a subprocess round trip, so this is
@@ -296,6 +309,16 @@ public final class MainWindowController: NSWindowController {
         // the destination there is a directory full of the user's own files.
         request.overwriteMode = .autoRename
         startExtraction(request)
+    }
+
+    /// The folder the archive itself sits in — no wrapper, whatever it contains.
+    ///
+    /// Only ever the *wrapper* question. The archive's own directory structure is preserved
+    /// either way; flattening that is `ExtractPathMode.noPaths`, a different setting with a
+    /// confusingly similar name in 7-Zip's own vocabulary ("extract without folder
+    /// structure"), which is why this command is not called "Extract Without Folder".
+    static func looseDestination(for archive: URL) -> URL {
+        archive.deletingLastPathComponent()
     }
 
     /// `<enclosing folder>/<archive name without extension>/`.

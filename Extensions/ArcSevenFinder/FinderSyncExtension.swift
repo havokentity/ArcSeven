@@ -259,7 +259,16 @@ final class FinderSyncExtension: FIFinderSync {
         addItem(to: submenu, title: "Compress…", action: #selector(compressWithArcSeven(_:)))
 
         if Self.everyItemLooksLikeAnArchive(urls) {
+            // Three, not one. "Extract Here" decides for itself, which is right as a default
+            // but wrong as the only option: someone who knows what is in the archive should
+            // not have to accept a guess. The two explicit commands sit beneath it.
             addItem(to: submenu, title: "Extract Here", action: #selector(extractWithArcSeven(_:)))
+            addItem(to: submenu, title: "Extract Loose", action: #selector(extractLoose(_:)))
+            addItem(
+                to: submenu,
+                title: "Extract to Subfolder",
+                action: #selector(extractToSubfolder(_:))
+            )
         }
 
         addItem(to: submenu, title: "Open in ArcSeven", action: #selector(openWithArcSeven(_:)))
@@ -325,6 +334,10 @@ final class FinderSyncExtension: FIFinderSync {
     @objc private func compressWithArcSeven(_ sender: AnyObject?) { handOff(.compress) }
 
     @objc private func extractWithArcSeven(_ sender: AnyObject?) { handOff(.extract) }
+
+    @objc private func extractLoose(_ sender: AnyObject?) { handOff(.extractLoose) }
+
+    @objc private func extractToSubfolder(_ sender: AnyObject?) { handOff(.extractToSubfolder) }
 
     @objc private func openWithArcSeven(_ sender: AnyObject?) { handOff(.open) }
 

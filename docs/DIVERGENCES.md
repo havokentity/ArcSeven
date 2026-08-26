@@ -869,9 +869,27 @@ from habit, not from knowledge of the root-entry count.
 
 An unreadable listing — encrypted headers, a corrupt archive — wraps, for the same reason.
 
-`Extract to Subfolder` in the Services menu always wraps, for anyone who wants that every
-time. Until 0.1.4 both Services verbs called the same code and both wrapped, so
-`Extract Here` was the one that lied.
+Three commands, in the Finder submenu and in Services:
+
+| Command | Wrapper folder |
+| --- | --- |
+| `Extract Here` | Only when the archive would otherwise scatter |
+| `Extract Loose` | Never |
+| `Extract to Subfolder` | Always |
+
+Windows 7zFM's own `Extract Here` is the unconditional one, so `Extract Loose` is the
+faithful behaviour and `Extract Here` is the divergence. It keeps the name because it is
+the right default for a command people click from habit, and because the archive it is
+pointed at is usually self-contained, where the two agree exactly.
+
+**On the name.** `Extract Loose`, not "Extract Without Folder": 7-Zip already uses "without
+folder structure" for `-e`, which flattens the paths *inside* the archive so `src/a.txt`
+and `docs/a.txt` collide as `a.txt`. That is `ExtractPathMode.noPaths` and a different
+setting entirely. Every one of these three preserves the archive's internal structure; they
+differ only in whether a wrapper is created around it.
+
+Until 0.1.4 both Services verbs called the same code and both wrapped, so `Extract Here`
+was the one that lied.
 
 `-spe` (`eliminateRootDuplication`) is 7-Zip's own partial answer and remains available; it
 only fires when the root folder's name matches the archive's, so it misses `archive.zip`

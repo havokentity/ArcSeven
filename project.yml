@@ -372,6 +372,13 @@ targets:
             NSKeyEquivalent:
               default: ^$X
           - NSMenuItem:
+              default: ArcSeven/Extract Loose
+            NSMessage: extractLooseService
+            NSPortName: ArcSeven
+            NSSendTypes: [NSFilenamesPboardType]
+            NSRequiredContext:
+              NSTextContent: FilePath
+          - NSMenuItem:
               default: ArcSeven/Extract to Subfolder
             NSMessage: extractToSubfolderService
             NSPortName: ArcSeven

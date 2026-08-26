@@ -150,6 +150,15 @@ public final class ServicesProvider: NSObject {
         handle(.extract, pasteboard: pasteboard, error: error)
     }
 
+    @objc(extractLooseService:userData:error:)
+    func extractLooseService(
+        _ pasteboard: NSPasteboard,
+        userData: String?,
+        error: AutoreleasingUnsafeMutablePointer<NSString>
+    ) {
+        handle(.extractLoose, pasteboard: pasteboard, error: error)
+    }
+
     @objc(extractToSubfolderService:userData:error:)
     func extractToSubfolderService(
         _ pasteboard: NSPasteboard,
@@ -271,6 +280,7 @@ public final class ServicesProvider: NSObject {
         switch action {
         case .compress:           "compress"
         case .extract:            "extract"
+        case .extractLoose:       "extract"
         case .extractToSubfolder: "extract"
         case .open:               "open"
         }

@@ -470,6 +470,26 @@
 			<key>NSMenuItem</key>
 			<dict>
 				<key>default</key>
+				<string>ArcSeven/Extract Loose</string>
+			</dict>
+			<key>NSMessage</key>
+			<string>extractLooseService</string>
+			<key>NSPortName</key>
+			<string>ArcSeven</string>
+			<key>NSRequiredContext</key>
+			<dict>
+				<key>NSTextContent</key>
+				<string>FilePath</string>
+			</dict>
+			<key>NSSendTypes</key>
+			<array>
+				<string>NSFilenamesPboardType</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSMenuItem</key>
+			<dict>
+				<key>default</key>
 				<string>ArcSeven/Extract to Subfolder</string>
 			</dict>
 			<key>NSMessage</key>

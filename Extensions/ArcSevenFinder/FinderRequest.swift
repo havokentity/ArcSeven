@@ -118,6 +118,12 @@ public enum FinderRequestAction: String, Codable, Sendable, Hashable, CaseIterab
     /// loose when it holds a single root item, wrapped in a folder when it would otherwise
     /// scatter its contents over the enclosing directory.
     case extract
+    /// Unpack into the enclosing folder, always — no wrapper, whatever the archive holds.
+    ///
+    /// Distinct from `.noPaths` extraction, which is a different idea entirely: that
+    /// flattens the directory structure INSIDE the archive. This only decides whether a
+    /// wrapper folder is created around it.
+    case extractLoose
     /// Unpack into a folder named after the archive, always.
     case extractToSubfolder
     /// Browse the selection in the file manager window.
