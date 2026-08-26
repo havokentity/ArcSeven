@@ -146,18 +146,6 @@ struct IntegrationPane: View {
         }
     }
 
-    /// One sentence for both sections, because it is one missing read.
-    ///
-    /// `FinderSyncExtension.menu(for:)` builds a fixed menu and says so in its own header. It
-    /// is a separate, sandboxed process, so honouring these means a shared-suite defaults read
-    /// on Finder's UI thread — which is why it wants a snapshot refreshed by
-    /// `arcSevenIntegrationDidChange`, the notification this window already posts to nobody.
-    private let menuPolicyNotice = """
-        The Finder extension builds a fixed menu. Honouring these means ArcSevenFinder \
-        reading the shared defaults suite and observing arcSevenIntegrationDidChange, which \
-        it does not do yet.
-        """
-
     private var extractionSection: some View {
         Section {
             Toggle("Eliminate duplication of root folder", isOn: $store.elimDup)
@@ -197,6 +185,20 @@ struct IntegrationPane: View {
         case .documentsAndExecutables: "Propagated for documents and executables"
         }
     }
+
+    // MARK: Notices
+
+    /// One sentence for both menu sections, because it is one missing read.
+    ///
+    /// `FinderSyncExtension.menu(for:)` builds a fixed menu and says so in its own header. It
+    /// is a separate, sandboxed process, so honouring these means a shared-suite defaults read
+    /// on Finder's UI thread — which is why it wants a snapshot refreshed by
+    /// `arcSevenIntegrationDidChange`, the notification this window already posts to nobody.
+    private let menuPolicyNotice = """
+        The Finder extension builds a fixed menu. Honouring these means ArcSevenFinder \
+        reading the shared defaults suite and observing arcSevenIntegrationDidChange, which \
+        it does not do yet.
+        """
 
     // MARK: Verb checklist
 
