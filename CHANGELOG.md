@@ -24,112 +24,35 @@ Nothing yet.
 
 ## [0.1.6] - 2026-08-27
 
-The largest correctness release so far. Three of these destroy or lose data, and one
-made every non-default compression setting fail outright.
-
-### Fixed — data loss
-
-- **Deleting one member could delete several.** `*` and `?` are legal in a macOS filename,
-  and 7-Zip matches every member name it is given as a *wildcard*. Selecting the single row
-  `note*.txt` and pressing Delete removed `note*.txt`, `noteA.txt` and `noteB.txt` — exit 0,
-  no warning, and nothing afterwards to say what had gone. Extraction had the mirror flaw:
-  the pattern pulled in members you had not selected and overwrote whatever they landed on.
-  Member names are now matched literally.
-- **"Ask before overwrite" overwrote everything.** Clicking `Yes` — meaning *this file* —
-  applied to the whole run, so a sheet naming one file could replace fifty. The engine
-  cannot be answered mid-run, so the buttons that cannot be honoured are now withdrawn: one
-  collision offers `Yes`/`No`, several offer only the bulk answers, and `Return` is never
-  the destructive one.
-- **Extraction had no ceiling of any kind.** It now totals the size the archive declares and
-  asks before running when that crosses 64 GiB, 300× the archive, or the free space on the
-  destination. It asks rather than refuses — sparse images and logs of one repeated line
-  reach absurd ratios honestly.
-
-### Fixed — compression
-
-- **Every explicit dictionary size failed**, writing no archive. `-md=N` is read as a log2
-  exponent, so even the smallest value offered — 64 KiB — was out of range. The property
-  also varies by codec, and the codec is not the one the dialog shows: a zip left on `*` is
-  Deflate, which rejects `-md=` outright.
-- PPMd's word size is a model order (`-mo=`), not a fast-bytes count. The tar dialect
-  (GNU/POSIX) never reached the command line at all. `keepBrokenFiles` sent a switch 26.02
-  rejects, which failed *every* extraction it was set on.
-- `Eliminate duplication of root folder` now works — the switch was never emitted, so both
-  the Extract checkbox and its Settings key were dead.
-
-### Fixed — security and compliance
-
-- **Sparkle's MIT licence was never shipped**, though the framework has been linked into
-  every release since 0.1.0.
-- **The LGPL provenance record shipped with literal placeholders** where its checksums
-  belong, and the release gate meant to catch that hashed a path no build has ever
-  produced. It now describes what actually happens and anchors on the pinned commit.
-- **A release missing the Sparkle signing key silently broke auto-update for every existing
-  install** — it published anyway, became `releases/latest`, and every installed copy's feed
-  began returning 404. A stable tag without the key now fails before publishing.
-- The passphrase-exposure warning was built, styled and never added to the view hierarchy.
-
-### Fixed — controls that did nothing
-
-- **The Settings window was write-only.** No key but `Lang` had a consumer, and
-  `registerDefaults` was never called at launch — so until you first opened Settings, three
-  keys read as the *opposite* of their shipped default. Wired where a consumer exists,
-  honestly disabled where one does not.
-- **Six File List toggles** are now read by the panel.
-- **"Remember in Keychain" stored nothing**, with a tooltip saying otherwise. Now real,
-  including the read path and eviction of a passphrase that stops working.
-- **The Properties inspector never updated** and stacked a new panel on every ⌘I.
-- **Double-clicking a `.app` did nothing at all.**
-- Two Services menu items had no code behind them; three more were duplicates of other
-  items. Quick Look claimed ten formats and could only refuse six of them.
-
-### Added
-
-- Colour-coded toolbar buttons; **Help ▸ Acknowledgements & Licences**; `Extract Loose`
-  alongside `Extract Here` and `Extract to Subfolder`, all three now in the Finder menu.
-
-### Notes
-
-- Nested archive browsing works and always has — the README said otherwise. Leaving one
-  does not: `..` from a nested root lands in the temp directory. Treat it as one-way.
-- 392 tests in 48 suites, up from 274.
+The largest correctness release so far. Three of these lose data, and one made every
+non-default compression setting fail outright.
 
 ### Fixed
 
-- **The file list now obeys Settings ▸ File List.** Five of the switches on that pane stored a
-  preference that no module ever read: `Show ".." item`, `Show real file icons`,
-  `Show grid lines`, `Single-click to open an item` and `Alternative selection mode`. Every one
-  of them is now consulted by the panel, and moving one redraws every open panel immediately
-  rather than at the next launch.
+- **Deleting one member could delete several.** `*` and `?` are legal in a macOS filename
+  and 7-Zip matched member names as wildcards, so deleting `note*.txt` also removed
+  `noteA.txt` and `noteB.txt` — exit 0, no warning. Extraction had the mirror flaw.
+- **"Ask before overwrite" overwrote everything.** `Yes` meant *this file* but applied to
+  the whole run, so a sheet naming one file could replace fifty.
+- **Extraction had no size ceiling.** It now asks before an archive that declares an
+  alarming expansion — 64 GiB, 300× the archive, or more than the free space.
+- **Every explicit dictionary size failed**, writing no archive. PPMd word size, the tar
+  dialect, `Keep broken files` and `Eliminate duplication of root folder` were broken too.
+- **The Settings window was write-only** — until you first opened it, three keys read as the
+  *opposite* of their default. Six File List toggles, "Remember in Keychain", the live
+  Properties inspector, double-clicking a `.app`, two dead Services items and six Quick Look
+  formats that could only refuse: all now work, or are gone.
+- **Compliance:** Sparkle's MIT licence was never shipped, the LGPL provenance record
+  carried placeholders where its checksums belong, and a release missing the Sparkle signing
+  key silently broke auto-update for every existing install.
 
-  Two of them were doing visible harm in the off position, which is the shipped default. The
-  `..` row was always synthesised, so a setting documented as off-by-default behaved as though
-  it were on; and every file on disk got its own icon fetched from the filesystem, which is the
-  *on* behaviour — off is meant to be one icon per file type.
+### Added
 
-  `Alternative selection mode` was not implemented at all. It now keeps Norton-style marks
-  apart from the system selection: `Insert` marks the focused row and moves down, marked rows
-  are drawn in the accent colour, and Extract, Test, Delete and the rest act on the marks
-  whenever there are any. Marks are dropped when you navigate and kept across a refresh.
-  `Shift`+arrow range marking (FIDELITY KEY-29) is still to come.
+- Colour-coded toolbar buttons, **Help ▸ Acknowledgements & Licences**, and `Extract Loose`
+  beside `Extract Here` and `Extract to Subfolder`.
 
-### Removed
-
-- **`Full row select`**, which had no second position to offer. `NSTableView` selects and
-  highlights whole rows always, so neither setting of that checkbox described anything the
-  list could do — and the off default described the one thing it certainly never does. The
-  checkbox is gone rather than left inert; see
-  [`docs/DIVERGENCES.md`](docs/DIVERGENCES.md) D-29.
-
-### Changed
-
-- Settings-pane keys are read through `Support/Defaults.swift`, the single map from 7-Zip's
-  `HKCU\Software\7-Zip\FM` value names to ours, rather than by each reader spelling the key
-  out for itself. A test pins those names against the ones the settings window writes, so the
-  writer and the reader can no longer drift apart in silence.
-
-- `Show Finder ▸ menu` is the one switch on the pane still stored and unread, and it keeps the
-  notice saying so: the submenu it governs does not exist yet.
+**Note:** nested archives browse but are one-way — `..` from inside one lands in the temp
+directory. 392 tests, up from 274. Full detail in the commit history.
 
 ## [0.1.5] - 2026-08-26
 
