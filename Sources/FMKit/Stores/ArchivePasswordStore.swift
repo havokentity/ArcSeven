@@ -66,7 +66,7 @@ public struct KeychainArchivePasswordStore: ArchivePasswordStore {
 
     /// - Parameter service: Overridden only by tests, which use their own service so a
     ///   test run cannot collide with — or delete — the user's real items.
-    public init(service: String = KeychainArchivePasswordStore.defaultService) {
+    public init(service: String = Self.defaultService) {
         self.service = service
     }
 

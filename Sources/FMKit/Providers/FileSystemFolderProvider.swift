@@ -7,6 +7,9 @@ import Foundation
 #if canImport(ArchiveCore)   // module-guard
 import ArchiveCore
 #endif
+#if canImport(Support)   // module-guard
+import Support
+#endif
 
 /// Presents a filesystem directory to a panel.
 public struct FileSystemFolderProvider: FolderProvider {
@@ -18,8 +21,19 @@ public struct FileSystemFolderProvider: FolderProvider {
     private let engine: any ArchiveEngine
 
     /// An explicit answer to "list hidden items?", or `nil` to follow the user's
+    /// Whether this provider follows the user's setting or pins an answer.
+    ///
+    /// An enum rather than `Bool?`: three states spelled out beats a nil that the reader has
+    /// to be told means "ask the defaults".
+    public enum HiddenFilePolicy: Sendable {
+        /// Read the user's preference on every load.
+        case followSetting
+        case show
+        case hide
+    }
+
     /// setting. See ``showsHiddenFiles``.
-    private let showsHiddenFilesOverride: Bool?
+    private let hiddenFilePolicy: HiddenFilePolicy
 
     /// The `UserDefaults` key the UI writes to turn hidden items on and off.
     ///
@@ -31,7 +45,8 @@ public struct FileSystemFolderProvider: FolderProvider {
     /// - Important: This is **not** `FM.ShowDots`. That key is 7zFM's `Show ".." item`
     ///   (FIDELITY OPT-18) — the synthetic parent row — and has nothing to do with
     ///   dot-files despite the name.
-    public static let showHiddenFilesKey = "FM.ShowHiddenFiles"
+    /// Re-exported so callers need not import Support just to name the key.
+    public static var showHiddenFilesKey: String { Defaults.showHiddenFilesKey }
 
     /// Whether items the filesystem marks hidden are listed.
     ///
@@ -44,20 +59,24 @@ public struct FileSystemFolderProvider: FolderProvider {
     /// from a snapshot would need the panel to rebuild it whenever the setting changed,
     /// and `panel.reload()` alone would show the stale answer.
     public var showsHiddenFiles: Bool {
-        showsHiddenFilesOverride
-            ?? UserDefaults.standard.bool(forKey: Self.showHiddenFilesKey)
+        switch hiddenFilePolicy {
+        case .followSetting: Defaults.showsHiddenFiles()
+        case .show: true
+        case .hide: false
+        }
     }
 
-    /// - Parameter showsHiddenFiles: Pass `nil` — the default — to follow the user's
-    ///   setting. Only tests and callers that must pin the behaviour pass a value.
+    /// - Parameter hiddenFiles: `.followSetting` — the default — reads the user's
+    ///   preference on every load. Only tests and callers that must pin the behaviour pass
+    ///   `.show` or `.hide`.
     public init(
         directoryURL: URL,
         engine: any ArchiveEngine,
-        showsHiddenFiles: Bool? = nil
+        hiddenFiles: HiddenFilePolicy = .followSetting
     ) {
         self.directoryURL = directoryURL.standardizedFileURL
         self.engine = engine
-        self.showsHiddenFilesOverride = showsHiddenFiles
+        self.hiddenFilePolicy = hiddenFiles
     }
 
     public var kind: FolderKind { .fileSystem }
@@ -161,7 +180,7 @@ public struct FileSystemFolderProvider: FolderProvider {
             // The override travels with the navigation: a caller that pinned the
             // behaviour meant it for the whole walk, not just the level it opened.
             return Self(
-                directoryURL: url, engine: engine, showsHiddenFiles: showsHiddenFilesOverride
+                directoryURL: url, engine: engine, hiddenFiles: hiddenFilePolicy
             )
         }
         if Self.isArchive(url) {
@@ -175,7 +194,7 @@ public struct FileSystemFolderProvider: FolderProvider {
         let parent = directoryURL.deletingLastPathComponent().standardizedFileURL
         guard parent.path != directoryURL.path else { return nil }
         return Self(
-            directoryURL: parent, engine: engine, showsHiddenFiles: showsHiddenFilesOverride
+            directoryURL: parent, engine: engine, hiddenFiles: hiddenFilePolicy
         )
     }
 

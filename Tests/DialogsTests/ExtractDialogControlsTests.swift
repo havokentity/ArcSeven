@@ -62,8 +62,10 @@ struct ExtractDialogControlsTests {
     func controlSetIsHonest() {
         let titles = sheetButtonTitles(makeDialog())
         #expect(
-            titles == ["", "Browse…", "Show password",
-                       "Eliminate duplication of root folder", "Extract", "Cancel"],
+            titles == [
+                "", "Browse…", "Show password",
+                "Eliminate duplication of root folder", "Extract", "Cancel",
+            ],
             "unexpected control set: \(titles.sorted())"
         )
     }

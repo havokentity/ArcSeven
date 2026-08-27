@@ -15,6 +15,7 @@ import Foundation
 import Testing
 import ArchiveCore
 @testable import FMKit
+@testable import Support
 
 /// `.serialized` because two of these tests write the same `UserDefaults` key. Run in
 /// parallel they race, and the failure looks like an inverted filter rather than like a
@@ -56,16 +57,18 @@ final class HiddenFileFilterTests: Sendable {
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
-    private func names(showingHidden: Bool?) async throws -> Set<String> {
+    private func names(
+        _ policy: FileSystemFolderProvider.HiddenFilePolicy
+    ) async throws -> Set<String> {
         let provider = FileSystemFolderProvider(
-            directoryURL: root, engine: engine, showsHiddenFiles: showingHidden
+            directoryURL: root, engine: engine, hiddenFiles: policy
         )
         return Set(try await provider.loadChildren().map(\.name))
     }
 
     @Test("Hidden items are left out of the listing")
     func hiddenItemsAreFiltered() async throws {
-        let listed = try await names(showingHidden: false)
+        let listed = try await names(.hide)
         #expect(listed == ["visible.txt", "sub"])
         #expect(!listed.contains(".DS_Store"))
         #expect(!listed.contains(".git"))
@@ -74,7 +77,7 @@ final class HiddenFileFilterTests: Sendable {
 
     @Test("Turning the setting on lists them again")
     func hiddenItemsCanBeShown() async throws {
-        let listed = try await names(showingHidden: true)
+        let listed = try await names(.show)
         #expect(listed == ["visible.txt", "sub", ".DS_Store", ".git", "Flagged"])
     }
 
@@ -83,7 +86,7 @@ final class HiddenFileFilterTests: Sendable {
     /// work without registering a default.
     @Test("With nothing stored, hidden items are hidden")
     func defaultIsToHide() async throws {
-        let defaults = UserDefaults.standard
+        let defaults = Defaults.store
         let key = FileSystemFolderProvider.showHiddenFilesKey
         let saved = defaults.object(forKey: key)
         defaults.removeObject(forKey: key)
@@ -101,7 +104,7 @@ final class HiddenFileFilterTests: Sendable {
     /// whole reload path.
     @Test("The listing follows the FM.ShowHiddenFiles default without rebuilding the provider")
     func settingDrivesTheListing() async throws {
-        let defaults = UserDefaults.standard
+        let defaults = Defaults.store
         let key = FileSystemFolderProvider.showHiddenFilesKey
         let saved = defaults.object(forKey: key)
         defer {
@@ -125,7 +128,7 @@ final class HiddenFileFilterTests: Sendable {
     @Test("The answer travels with navigation, down and up")
     func filteringSurvivesNavigation() async throws {
         let provider = FileSystemFolderProvider(
-            directoryURL: root, engine: engine, showsHiddenFiles: false
+            directoryURL: root, engine: engine, hiddenFiles: .hide
         )
         let sub = try #require(
             try await provider.loadChildren().first { $0.name == "sub" }
