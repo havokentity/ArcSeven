@@ -365,6 +365,23 @@ public final class MainWindowController: NSWindowController {
     @objc public func copyAction(_ sender: Any?) { perform(.copy) }
     @objc public func moveAction(_ sender: Any?) { perform(.move) }
     @objc public func showSettings(_ sender: Any?) { SettingsWindowController.shared.show() }
+
+    /// 7zFM's `Insert` (KEY-28): mark the focused row and move down.
+    ///
+    /// A command rather than a raw key handler because that is how every other panel verb
+    /// reaches the panel here, and because a menu item is the only way the binding is
+    /// discoverable — Apple keyboards have no `Insert` key to press.
+    @objc public func markAction(_ sender: Any?) { activePanel?.toggleMark() }
+}
+
+/// Marking is meaningless outside alternative selection mode, so the item greys out with the
+/// mode off rather than sitting there doing nothing — the same stance as D-13 takes on the
+/// toolbar. Every other item routed here keeps AppKit's default "enabled if it responds".
+extension MainWindowController: NSMenuItemValidation {
+    public func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        guard menuItem.action == #selector(markAction(_:)) else { return true }
+        return activePanel?.listSettings.alternativeSelection ?? false
+    }
 }
 
 // MARK: - Panel delegate

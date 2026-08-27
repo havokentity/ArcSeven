@@ -28,7 +28,7 @@ it is a bug — file it, don't rationalise it.
 | Destructive operations | [D-03](#d-03--delete-moves-to-the-trash-by-default) |
 | Formats and archive features | [D-04](#d-04--the-ntfs-group-in-the-add-options-sub-dialog-becomes-a-macos-group) · [D-05](#d-05--zstd-stays-decode-only) · [D-07](#d-07--no-windows-sfx-stub-is-bundled-so-sfx-is-off-by-default) · [D-16](#d-16--link-types-junction-and-wsl-are-dropped) · [D-17](#d-17--ntfs-alternate-data-streams-become-extended-attributes) |
 | System integration | [D-06](#d-06--the-options-system-tab-becomes-launchservices-default-app-handling) · [D-08](#d-08--zoneid-propagation-becomes-comapplequarantine-propagation) · [D-11](#d-11--shell-extension-registration-becomes-a-finder-sync-extension-toggle) · [D-18](#d-18--the-system--shell-menu-becomes-a-finder--submenu) · [D-20](#d-20--the-two-root-concepts-collapse-into-one) · [D-22](#d-22--raw-physical-device-browsing--is-dropped) |
-| Dropped features | [D-09](#d-09--version-control-integration-ver-edit--commit--revert--diff-is-dropped) · [D-10](#d-10--the-diagnostic-messages-dialog-is-dropped) · [D-12](#d-12--use-large-memory-pages-is-dropped) · [D-19](#d-19--the-edit-menu-column-break-becomes-a-separator) |
+| Dropped features | [D-09](#d-09--version-control-integration-ver-edit--commit--revert--diff-is-dropped) · [D-10](#d-10--the-diagnostic-messages-dialog-is-dropped) · [D-12](#d-12--use-large-memory-pages-is-dropped) · [D-19](#d-19--the-edit-menu-column-break-becomes-a-separator) · [D-29](#d-29--full-row-select-is-dropped-nstableview-has-no-other-mode) |
 | Presentation and text | [D-13](#d-13--toolbar-buttons-are-validated-not-permanently-enabled) · [D-24](#d-24--the-progress-window-is-non-modal) · [D-25](#d-25--shipped-string-typos-are-fixed) · [D-27](#d-27--properties-is-a-non-modal-inspector) |
 | Correctness on macOS | [D-23](#d-23--names-are-compared-and-matched-after-nfc-normalisation) |
 | Scheduling | [D-26](#d-26--the-language-tab-ships-structurally-with-one-entry) |
@@ -622,6 +622,39 @@ recorded rather than rediscovered: an earlier architecture sketch listed both bi
 
 **Reversible?** **Yes** — Classic restores per-pane function-key bindings, and the Custom preset can
 bind anything.
+
+---
+
+### D-29 — Full row select is dropped: NSTableView has no other mode
+
+| | |
+|---|---|
+| **Windows 7zFM** | `Options ▸ Settings ▸ Full row select`, **default off**, sets `LVS_EX_FULLROWSELECT` on the report-mode list view. With it off, only the Name column highlights and only a click in that column selects the row; the rest of each row is dead space you can start a rubber-band drag in. With it on, a click anywhere in the row selects it and the whole row highlights. |
+| **ArcSeven** | The checkbox is **removed**. `NSTableView` behaves as though the option were permanently on, and the key `FM.FullRow` is reserved but never written. |
+| **Affects** | OPT-20, PST-10 |
+
+**Rationale.** There is no per-cell selection mode on `NSTableView` to switch *out of*. A click
+anywhere in a row selects that row, and the highlight spans the row, on every
+`selectionHighlightStyle` and every `style` AppKit offers; `.none` suppresses the highlight
+drawing entirely rather than confining it to one column, which is a different setting with a
+different meaning. So neither position of the checkbox describes anything the list could
+actually do, and the off position — the shipped default — describes the one thing it certainly
+never does.
+
+The checkbox is gone rather than left inert on purpose. A control that stores a value nothing
+acts on is worse than an absent one: it looks like it worked, so the unchanged behaviour reads
+as a bug somewhere else entirely, and the setting gets flipped back and forth to no effect.
+That was true of all seven switches on this pane until the five that *can* be honoured were
+wired up; this is the one that cannot be.
+
+The key name survives in `SettingsKey` with no property behind it, on the same terms as
+`Options.WriteZone` (see [D-08](#d-08--zoneid-propagation-becomes-comapplequarantine-propagation)):
+the fidelity ledger audits `HKCU\Software\7-Zip\FM\FullRow` by name whether or not ArcSeven
+ever gives it a value, and whoever revisits this will want the same spelling.
+
+**Reversible?** **No.** Restoring it would mean drawing and hit-testing the list by hand
+instead of using `NSTableView`, to reproduce a mode whose purpose on Windows — keeping the
+other columns free for rubber-band selection — has no counterpart here.
 
 ---
 

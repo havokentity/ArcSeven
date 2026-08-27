@@ -19,7 +19,6 @@ import ArchiveCore
 #if canImport(FMKit)   // module-guard
 import FMKit
 #endif
-import UniformTypeIdentifiers
 
 /// Told when the panel's contents or selection change, so the window can retitle
 /// itself and update its toolbar.
@@ -62,7 +61,24 @@ public final class PanelViewController: NSViewController {
     private var loadToken = 0
 
     /// `true` while a load is in flight, so the spinner and the empty state agree.
-    private var isLoading = false
+    ///
+    /// Internal, not private, so a test can wait for a load to settle rather than sleep.
+    var isLoading = false
+
+    /// Where the Settings ▸ File List switches are read from.
+    ///
+    /// Injected by tests, which must not write the five keys into the standard domain and so
+    /// change the appearance of the tester's own installed copy of the app.
+    var listSettingsStore: UserDefaults = .standard
+
+    /// The Settings ▸ File List switches (OPT-18…OPT-23), consumed in PanelListSettings.swift.
+    ///
+    /// Computed, never stored: `Support/Defaults.swift` reads settings through on every call
+    /// so a change cannot leave a stale copy behind, and this follows that rule.
+    var listSettings: PanelListSettings { PanelListSettings(reading: listSettingsStore) }
+
+    /// Paths marked in alternative selection mode (OPT-23), kept apart from the OS selection.
+    var markedPaths: Set<String> = []
 
     public weak var delegate: (any PanelViewControllerDelegate)?
 
@@ -74,7 +90,8 @@ public final class PanelViewController: NSViewController {
 
     /// Internal, not private: the path bar is drawn in PanelViewController+PathBar.swift.
     let pathControl = NSPathControl()
-    private let tableView = NSTableView()
+    /// Internal for the same reason: the list settings are applied in PanelListSettings.swift.
+    let tableView = NSTableView()
     private let scrollView = NSScrollView()
     private let statusLabel = NSTextField(labelWithString: "")
     private let selectionLabel = NSTextField(labelWithString: "")
@@ -182,6 +199,9 @@ public final class PanelViewController: NSViewController {
         tableView.rowHeight = 20
         tableView.target = self
         tableView.doubleAction = #selector(rowDoubleClicked(_:))
+        tableView.action = #selector(rowClicked(_:))
+        applyListSettings()
+        startObservingListSettings()
 
         // Dragging OUT. `.copy` for both, because nothing here is a move: dragging a
         // member out of an archive extracts a copy, and dragging a file off a panel
@@ -264,6 +284,7 @@ public final class PanelViewController: NSViewController {
 
     /// Navigate to a new level.
     public func go(to provider: any FolderProvider) {
+        clearMarks()
         self.provider = provider
         rebuildColumns(for: provider)
         updatePathControl()
@@ -275,7 +296,9 @@ public final class PanelViewController: NSViewController {
         isLoading = false
         spinner.stopAnimation(nil)
 
-        let parentRow = hasParent
+        // OPT-18 / DOT-01: `..` needs BOTH a parent to point at and the switch on. The
+        // root folder shows none whatever the switch says, which is upstream's rule too.
+        let parentRow = hasParent && listSettings.showDots
             ? FolderItem(path: "..", name: "..", isNavigable: true, isDirectory: true)
             : nil
         rows = SortEngine.sort(children, by: sort, parentItem: parentRow)
@@ -406,7 +429,7 @@ public final class PanelViewController: NSViewController {
     @objc private func rowDoubleClicked(_ sender: Any?) {
         // A double-click in the blank area below the rows reports -1.
         guard tableView.clickedRow >= 0 else { return }
-        open(rowAt: tableView.clickedRow)
+        openIfDoubleClick(rowAt: tableView.clickedRow)
     }
 
     /// Go up one level. Bound to Cmd+Up.
@@ -434,15 +457,6 @@ public final class PanelViewController: NSViewController {
     func selectRows(_ indexes: IndexSet) {
         tableView.selectRowIndexes(indexes, byExtendingSelection: false)
     }
-
-    /// The rows the user has selected, excluding the ".." row.
-    public var selectedItems: [FolderItem] {
-        tableView.selectedRowIndexes.compactMap { index in
-            guard rows.indices.contains(index) else { return nil }
-            let item = rows[index]
-            return item.isParentRow ? nil : item
-        }
-    }
 }
 
 // MARK: - Status bar
@@ -465,7 +479,7 @@ extension PanelViewController {
         statusLabel.stringValue = parts.joined(separator: ", ")
     }
 
-    private func updateSelectionStatus() {
+    func updateSelectionStatus() {
         let selected = selectedItems
         guard !selected.isEmpty else {
             selectionLabel.stringValue = ""
@@ -610,8 +624,12 @@ extension PanelViewController: NSTableViewDelegate {
             ColumnModel.defaultAlignment(for: property) == .trailing ? .right : .left
 
         if property == .name {
-            cell.imageView?.image = Self.icon(for: item)
+            cell.imageView?.image = Self.icon(
+                for: item, showRealFileIcons: listSettings.showRealFileIcons
+            )
         }
+        // OPT-23: a mark is not the system selection, so it needs a colour of its own.
+        cell.textField?.textColor = isMarked(rowAt: row) ? .controlAccentColor : .labelColor
         return cell
     }
 
@@ -663,25 +681,5 @@ extension PanelViewController: NSTableViewDelegate {
             ])
         }
         return cell
-    }
-
-    /// The icon for a row.
-    private static func icon(for item: FolderItem) -> NSImage {
-        let image: NSImage
-        if item.isParentRow {
-            image = NSImage(systemSymbolName: "arrow.turn.left.up", accessibilityDescription: "Parent folder")
-                ?? NSWorkspace.shared.icon(for: .folder)
-        } else if item.isDirectory {
-            image = NSWorkspace.shared.icon(for: .folder)
-        } else if let url = item.url {
-            image = NSWorkspace.shared.icon(forFile: url.path)
-        } else {
-            // Inside an archive there is no file on disk to ask about, so fall back to
-            // the type implied by the extension.
-            let type = UTType(filenameExtension: (item.name as NSString).pathExtension)
-            image = NSWorkspace.shared.icon(for: type ?? .data)
-        }
-        image.size = NSSize(width: 16, height: 16)
-        return image
     }
 }

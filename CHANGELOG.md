@@ -18,7 +18,42 @@ calls M1.
 
 ## [Unreleased]
 
-Nothing yet.
+### Fixed
+
+- **The file list now obeys Settings ▸ File List.** Five of the switches on that pane stored a
+  preference that no module ever read: `Show ".." item`, `Show real file icons`,
+  `Show grid lines`, `Single-click to open an item` and `Alternative selection mode`. Every one
+  of them is now consulted by the panel, and moving one redraws every open panel immediately
+  rather than at the next launch.
+
+  Two of them were doing visible harm in the off position, which is the shipped default. The
+  `..` row was always synthesised, so a setting documented as off-by-default behaved as though
+  it were on; and every file on disk got its own icon fetched from the filesystem, which is the
+  *on* behaviour — off is meant to be one icon per file type.
+
+  `Alternative selection mode` was not implemented at all. It now keeps Norton-style marks
+  apart from the system selection: `Insert` marks the focused row and moves down, marked rows
+  are drawn in the accent colour, and Extract, Test, Delete and the rest act on the marks
+  whenever there are any. Marks are dropped when you navigate and kept across a refresh.
+  `Shift`+arrow range marking (FIDELITY KEY-29) is still to come.
+
+### Removed
+
+- **`Full row select`**, which had no second position to offer. `NSTableView` selects and
+  highlights whole rows always, so neither setting of that checkbox described anything the
+  list could do — and the off default described the one thing it certainly never does. The
+  checkbox is gone rather than left inert; see
+  [`docs/DIVERGENCES.md`](docs/DIVERGENCES.md) D-29.
+
+### Changed
+
+- Settings-pane keys are read through `Support/Defaults.swift`, the single map from 7-Zip's
+  `HKCU\Software\7-Zip\FM` value names to ours, rather than by each reader spelling the key
+  out for itself. A test pins those names against the ones the settings window writes, so the
+  writer and the reader can no longer drift apart in silence.
+
+- `Show Finder ▸ menu` is the one switch on the pane still stored and unread, and it keeps the
+  notice saying so: the submenu it governs does not exist yet.
 
 ## [0.1.5] - 2026-08-26
 

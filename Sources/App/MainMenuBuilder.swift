@@ -135,6 +135,17 @@ enum MainMenuBuilder {
         )
         remove.keyEquivalentModifierMask = [.command]
         menu.addItem(remove)
+
+        // 7zFM marks with `Insert` (FIDELITY KEY-28). Apple keyboards do not have one, and
+        // the row itself names ⌃Space as the substitute. Greyed out unless Options ▸ Settings
+        // ▸ Alternative selection mode is on, which is the only mode where marks exist.
+        menu.addItem(.separator())
+        let mark = NSMenuItem(
+            title: "Mark Item", action: Selector(("markAction:")), keyEquivalent: " "
+        )
+        mark.keyEquivalentModifierMask = [.control]
+        menu.addItem(mark)
+
         let item = NSMenuItem()
         item.submenu = menu
         return item

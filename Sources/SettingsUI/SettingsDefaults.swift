@@ -32,6 +32,14 @@ public enum SettingsKey: String, CaseIterable, Sendable {
     // Every one of these is **off** by default on Windows, and that is preserved.
     case showDots = "FM.ShowDots"
     case showRealFileIcons = "FM.ShowRealFileIcons"
+    /// Upstream `Full row select` (OPT-20).
+    ///
+    /// RESERVED, AND DELIBERATELY NOT WRITTEN, on the same terms as ``writeZone`` below.
+    /// `NSTableView` selects and highlights whole rows always and offers no per-cell mode
+    /// to switch out of, so neither position of the checkbox describes anything the list
+    /// could do differently. The checkbox is gone rather than inert; the name stays because
+    /// it is audited against `HKCU\Software\7-Zip\FM\FullRow` whether or not it holds a
+    /// value. See DIVERGENCES D-29.
     case fullRow = "FM.FullRow"
     case showGrid = "FM.ShowGrid"
     case singleClick = "FM.SingleClick"
@@ -220,7 +228,6 @@ public final class SettingsStore {
 
     public var showDots: Bool { didSet { writeList(.showDots, showDots) } }
     public var showRealFileIcons: Bool { didSet { writeList(.showRealFileIcons, showRealFileIcons) } }
-    public var fullRow: Bool { didSet { writeList(.fullRow, fullRow) } }
     public var showGrid: Bool { didSet { writeList(.showGrid, showGrid) } }
     public var singleClick: Bool { didSet { writeList(.singleClick, singleClick) } }
     public var alternativeSelection: Bool { didSet { writeList(.alternativeSelection, alternativeSelection) } }
@@ -284,7 +291,6 @@ public final class SettingsStore {
 
         showDots = defaults.bool(forKey: SettingsKey.showDots.rawValue)
         showRealFileIcons = defaults.bool(forKey: SettingsKey.showRealFileIcons.rawValue)
-        fullRow = defaults.bool(forKey: SettingsKey.fullRow.rawValue)
         showGrid = defaults.bool(forKey: SettingsKey.showGrid.rawValue)
         singleClick = defaults.bool(forKey: SettingsKey.singleClick.rawValue)
         alternativeSelection = defaults.bool(forKey: SettingsKey.alternativeSelection.rawValue)
@@ -327,8 +333,8 @@ public final class SettingsStore {
     /// about the observable UI state below, and has no business reaching a launch-time seed that
     /// runs before there is any UI at all.
     ///
-    /// The seven Settings-pane checkboxes are deliberately absent: they are all off upstream,
-    /// and absent already reads as `false`.
+    /// The Settings-pane checkboxes are deliberately absent: they are all off upstream, and
+    /// absent already reads as `false`.
     nonisolated public static func registerDefaults(in defaults: UserDefaults = .standard) {
         defaults.register(defaults: [
             SettingsKey.memUse.rawValue: 4,                 // OPT-26: the spin edit starts at 4 GB.

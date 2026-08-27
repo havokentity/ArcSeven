@@ -719,7 +719,7 @@ order, with the second renamed.
 | **Tab 5 — `Settings`** (`SettingsPage2.rc`, defaults from `RegistryUtils.cpp` `CFmSettings::Load`) | | | | | |
 | OPT-18 | `Show ".." item` | Checkbox, **default off** | Identical, default off | **1:1** | See DOT-01 |
 | OPT-19 | `Show real file &icons` | Checkbox, **default off** — per-file icon extraction instead of per-extension | Identical: off → `NSWorkspace.icon(for: UTType)`; on → `NSWorkspace.icon(forFile:)` | **1:1** | |
-| OPT-20 | `&Full row select` | Checkbox, **default off** (so clicks on other columns remain usable — an explicit upstream comment) | Identical, default off | **1:1** | |
+| OPT-20 | `&Full row select` | Checkbox, **default off** (so clicks on other columns remain usable — an explicit upstream comment) | — | **Dropped** | `NSTableView` is always full-row and has no other mode. [D-29](DIVERGENCES.md#d-29--full-row-select-is-dropped-nstableview-has-no-other-mode) |
 | OPT-21 | `Show &grid lines` | Checkbox, **default off** | Identical (`NSTableView.gridStyleMask`) | **1:1** | |
 | OPT-22 | `&Single-click to open an item` | Checkbox, **default off** | Identical | **1:1** | |
 | OPT-23 | `&Alternative selection mode` | Checkbox, **default off** — Norton-style marks, single OS selection | Identical model and default | **1:1** | See KEY-28/29 |
@@ -843,7 +843,7 @@ auditable against the original.
 | PST-07 | `FM\FolderShortcuts` | the 10 favourites | `FM.FolderShortcuts` | **1:1** | |
 | PST-08 | `FM\CopyHistory` | copy/move destination MRU | `FM.CopyHistory` | **1:1** | |
 | PST-09 | `FM\FlatViewArc0/1` | per-panel flat-view-in-archive | `FM.FlatViewArc0` / `1` | **1:1** | |
-| PST-10 | `FM\ShowDots`, `ShowRealFileIcons`, `FullRow`, `ShowGrid`, `SingleClick`, `AlternativeSelection`, `ShowSystemMenu` | Settings tab | Same names under `FM.` | **1:1** | |
+| PST-10 | `FM\ShowDots`, `ShowRealFileIcons`, `FullRow`, `ShowGrid`, `SingleClick`, `AlternativeSelection`, `ShowSystemMenu` | Settings tab | Same names under `FM.`, except `FullRow`, whose name is reserved and never written | **Adapted** | Names read through `Support/Defaults.swift`; `FullRow` dropped per [D-29](DIVERGENCES.md#d-29--full-row-select-is-dropped-nstableview-has-no-other-mode) |
 | PST-11 | `FM\Viewer`, `Editor`, `Diff` | Editor tab | `FM.Viewer`, `FM.Editor`, `FM.Diff` | **1:1** | |
 | PST-12 | `FM\Columns\<FolderTypeID>` | per-folder-type column order, widths, visibility, sort column + direction | `FM.Columns.<FolderTypeID>` | **1:1** | |
 | PST-13 | `Lang` | selected language file | `Lang` | **Deferred** | OPT-27 |
@@ -860,19 +860,18 @@ Each is cross-referenced above.
 
 1. The title bar is *only* the path — no app name, no filename decoration (WIN-01).
 2. The default is **one** pane, not two (PAN-02).
-3. `Show ".." item` is **off** by default (DOT-01).
-4. `Full row select` is **off** by default (OPT-20).
-5. Folders always sort before files and `..` always sorts first — neither is inverted by descending order (SRT-01, SRT-02).
-6. The View menu's sort radio falls back to "Name" for any column outside Name/Type/Date/Size/Unsorted (MV-06).
-7. Toolbar buttons are never disabled on Windows — failures are reported after the click (TB-08; adapted, restorable).
-8. Modified temp files are deliberately left on disk when the write-back is declined (TMP-07).
-9. Two entries in the property-name table both render as `Errors` (§6.1).
-10. The Extract dialog's sticky `kCurPaths` behaviour (EXT-07).
-11. The BZip2 dictionary combo is labelled in KiB although bzip2's block unit is 100 000 bytes (ADD-14).
-12. The dictionary-size formatter has no GB unit, so 1 GiB renders as `1024 MB` (ADD-14).
-13. The `Comment` command aborts silently for handlers whose comment property is not a string (CMT-02).
-14. The hard cap of 20 simultaneously-opened items (MF-02).
-15. `Create File`'s label is `File Name:` while `Create Folder`'s is `Folder name:` (CMB-02).
+3. `Show ".." item` is **off** by default (DOT-01), so a fresh install shows no `..` row.
+4. Folders always sort before files and `..` always sorts first — neither is inverted by descending order (SRT-01, SRT-02).
+5. The View menu's sort radio falls back to "Name" for any column outside Name/Type/Date/Size/Unsorted (MV-06).
+6. Toolbar buttons are never disabled on Windows — failures are reported after the click (TB-08; adapted, restorable).
+7. Modified temp files are deliberately left on disk when the write-back is declined (TMP-07).
+8. Two entries in the property-name table both render as `Errors` (§6.1).
+9. The Extract dialog's sticky `kCurPaths` behaviour (EXT-07).
+10. The BZip2 dictionary combo is labelled in KiB although bzip2's block unit is 100 000 bytes (ADD-14).
+11. The dictionary-size formatter has no GB unit, so 1 GiB renders as `1024 MB` (ADD-14).
+12. The `Comment` command aborts silently for handlers whose comment property is not a string (CMT-02).
+13. The hard cap of 20 simultaneously-opened items (MF-02).
+14. `Create File`'s label is `File Name:` while `Create Folder`'s is `Folder name:` (CMB-02).
 
 Shipped **string typos** are the one category we fix rather than reproduce — see
 [D-25](DIVERGENCES.md#d-25--shipped-string-typos-are-fixed).
