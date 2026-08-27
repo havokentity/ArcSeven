@@ -3,18 +3,19 @@
 //
 // Options ▸ Settings, kept.
 //
-// Seven checkboxes and a memory ceiling. Every one of the seven means something on macOS —
-// they are all about how the file list draws and behaves, not about Windows — so all seven
-// survive, with their upstream captions and, more importantly, their upstream defaults:
-// **every checkbox here is off**, which surprises people who expect ".." to be shown or the
-// full row to be clickable. That is deliberate (FIDELITY OPT-18…OPT-24, DOT-01).
+// Six checkboxes and a memory ceiling, with their upstream captions and, more importantly,
+// their upstream defaults: **every checkbox here is off**, which surprises people who expect
+// ".." to be shown. That is deliberate (FIDELITY OPT-18…OPT-24, DOT-01).
 //
-// The one drop is `Use large memory pages`, which needs `SeLockMemoryPrivilege` and has no
-// macOS equivalent at all (DIVERGENCES D-12). It is not replaced by anything.
+// Five of the six are live: FMUI's `PanelListSettings` reads their keys straight off the
+// standard domain and the panel observes `arcSevenListSettingsDidChange`, so moving one here
+// redraws every open panel. `Show Finder ▸ menu` is the one that still stores and does
+// nothing, because the submenu it governs (MF-25) does not exist yet, so it keeps its notice.
 //
-// Every control on this pane is currently disabled, and that is the honest state rather than
-// a regression: nothing outside this window has ever read `FM.ShowDots` and the six keys
-// beside it, and nothing emits `-mmemuse`. See `NotYetApplied` in SettingsPaneChrome.swift.
+// Two drops. `Use large memory pages` needs `SeLockMemoryPrivilege` and has no macOS
+// equivalent (DIVERGENCES D-12). `Full row select` (OPT-20) has no macOS equivalent either
+// for the opposite reason — `NSTableView` is always full-row, so the checkbox had no second
+// position to offer (DIVERGENCES D-29). Neither is replaced by anything.
 
 import SwiftUI
 
@@ -34,24 +35,19 @@ struct SettingsPane: View {
 
     private var fileListSection: some View {
         Section {
-            // Disabled as a group rather than by disabling the Section, which would dim the
-            // notice explaining the disabling along with them.
-            Group {
-                Toggle("Show “..” item", isOn: $store.showDots)
-                Toggle("Show real file icons", isOn: $store.showRealFileIcons)
-                Toggle("Full row select", isOn: $store.fullRow)
-                Toggle("Show grid lines", isOn: $store.showGrid)
-                Toggle("Single-click to open an item", isOn: $store.singleClick)
-                Toggle("Alternative selection mode", isOn: $store.alternativeSelection)
-                Toggle("Show Finder ▸ menu", isOn: $store.showSystemMenu)
-            }
-            .disabled(true)
+            Toggle("Show “..” item", isOn: $store.showDots)
+            Toggle("Show real file icons", isOn: $store.showRealFileIcons)
+            Toggle("Show grid lines", isOn: $store.showGrid)
+            Toggle("Single-click to open an item", isOn: $store.singleClick)
+            Toggle("Alternative selection mode", isOn: $store.alternativeSelection)
 
+            // Still stored and still unread, so it keeps the notice the other five lost.
+            Toggle("Show Finder ▸ menu", isOn: $store.showSystemMenu)
+                .disabled(true)
             NotYetApplied(
                 """
-                The file list does not read these seven yet. FMUI’s panel view has to consult \
-                them — and observe arcSevenListSettingsDidChange, which this window already \
-                posts and nothing yet receives — before a switch here can change anything.
+                The Finder ▸ submenu this switch governs does not exist yet, so there is \
+                nothing for it to show or hide. The five switches above it are live.
                 """
             )
         } header: {
@@ -59,12 +55,15 @@ struct SettingsPane: View {
         } footer: {
             Footnote(
                 """
-                All seven are off by default, as in 7-Zip, and describe how the file list is \
-                meant to draw and behave: “..” shown outside the root folder, whole-row \
-                selection, grid lines, single-click open, and each file’s own icon instead of \
-                one icon per file type. Alternative selection mode is the Norton-style scheme, \
-                where marks are kept separately from the system selection. “Finder ▸” adds the \
-                submenu with Reveal in Finder, Quick Look, Open With, Get Info and Tags.
+                All six are off by default, as in 7-Zip, and describe how the file list draws \
+                and behaves: “..” shown outside the root folder, grid lines, single-click \
+                open, and each file’s own icon instead of one icon per file type. \
+                Alternative selection mode is the Norton-style scheme, where marks are kept \
+                separately from the system selection: Edit ▸ Mark Item (⌃Space) marks the \
+                focused row and moves down, and marks are what Extract, Test and Delete then \
+                act on. “Finder ▸” \
+                adds the submenu with Reveal in Finder, Quick Look, Open With, Get Info and \
+                Tags.
                 """
             )
         }

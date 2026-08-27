@@ -44,10 +44,50 @@ public enum Defaults {
     /// parent row instead.
     public static let showHiddenFilesKey = "FM.ShowHiddenFiles"
 
+    // MARK: Keys — Settings ▸ File List
+
+    /// The five switches on Options ▸ Settings that describe how the file list draws and
+    /// behaves (FIDELITY OPT-18…OPT-23, PST-10). `SettingsUI` writes them; `FMUI` reads them
+    /// here. Both spellings are 7-Zip's own, and `PanelListSettingsTests` pins these against
+    /// `SettingsKey` so the writer and the reader cannot drift apart in silence.
+    ///
+    /// `FM.FullRow` is deliberately absent: `NSTableView` is always full-row, so the setting
+    /// has no second position and the checkbox was withdrawn (DIVERGENCES D-29).
+    public static let showDotsKey = "FM.ShowDots"
+    public static let showRealFileIconsKey = "FM.ShowRealFileIcons"
+    public static let showGridKey = "FM.ShowGrid"
+    public static let singleClickKey = "FM.SingleClick"
+    public static let alternativeSelectionKey = "FM.AlternativeSelection"
+
     // MARK: Reads
 
     /// Absent means `false`: a fresh install hides hidden files, matching Finder.
     public static func showsHiddenFiles(in store: UserDefaults? = nil) -> Bool {
         (store ?? Self.store).bool(forKey: showHiddenFilesKey)
+    }
+
+    /// Show the `..` row in a folder that has a parent (OPT-18 / DOT-01).
+    public static func showsParentRow(in store: UserDefaults? = nil) -> Bool {
+        (store ?? Self.store).bool(forKey: showDotsKey)
+    }
+
+    /// Ask the filesystem for each file's own icon rather than its type's icon (OPT-19).
+    public static func showsRealFileIcons(in store: UserDefaults? = nil) -> Bool {
+        (store ?? Self.store).bool(forKey: showRealFileIconsKey)
+    }
+
+    /// Draw grid lines between rows and columns (OPT-21).
+    public static func showsGridLines(in store: UserDefaults? = nil) -> Bool {
+        (store ?? Self.store).bool(forKey: showGridKey)
+    }
+
+    /// One click opens a row rather than only selecting it (OPT-22).
+    public static func opensOnSingleClick(in store: UserDefaults? = nil) -> Bool {
+        (store ?? Self.store).bool(forKey: singleClickKey)
+    }
+
+    /// Norton-style marks, kept apart from the system selection (OPT-23).
+    public static func usesAlternativeSelection(in store: UserDefaults? = nil) -> Bool {
+        (store ?? Self.store).bool(forKey: alternativeSelectionKey)
     }
 }
