@@ -8,15 +8,91 @@ SPDX-License-Identifier: GPL-3.0-or-later
 All notable changes to ArcSeven are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
-adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html). Because nothing has been
-released yet, everything so far sits under `Unreleased`, grouped by the milestone that delivered it
-rather than by date.
+adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Each version's section is what the in-app updater shows: `Scripts/appcast.sh` lifts it
+straight out of this file and embeds it in the appcast, so anything written here is read by
+users in the update dialog.
 
 The milestone numbering has drifted from [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) §2 —
 vendoring and engine verification took a milestone of their own, so the shipped M2 is what §2
 calls M1.
 
 ## [Unreleased]
+
+Nothing yet.
+
+## [0.1.6] - 2026-08-27
+
+The largest correctness release so far. Three of these destroy or lose data, and one
+made every non-default compression setting fail outright.
+
+### Fixed — data loss
+
+- **Deleting one member could delete several.** `*` and `?` are legal in a macOS filename,
+  and 7-Zip matches every member name it is given as a *wildcard*. Selecting the single row
+  `note*.txt` and pressing Delete removed `note*.txt`, `noteA.txt` and `noteB.txt` — exit 0,
+  no warning, and nothing afterwards to say what had gone. Extraction had the mirror flaw:
+  the pattern pulled in members you had not selected and overwrote whatever they landed on.
+  Member names are now matched literally.
+- **"Ask before overwrite" overwrote everything.** Clicking `Yes` — meaning *this file* —
+  applied to the whole run, so a sheet naming one file could replace fifty. The engine
+  cannot be answered mid-run, so the buttons that cannot be honoured are now withdrawn: one
+  collision offers `Yes`/`No`, several offer only the bulk answers, and `Return` is never
+  the destructive one.
+- **Extraction had no ceiling of any kind.** It now totals the size the archive declares and
+  asks before running when that crosses 64 GiB, 300× the archive, or the free space on the
+  destination. It asks rather than refuses — sparse images and logs of one repeated line
+  reach absurd ratios honestly.
+
+### Fixed — compression
+
+- **Every explicit dictionary size failed**, writing no archive. `-md=N` is read as a log2
+  exponent, so even the smallest value offered — 64 KiB — was out of range. The property
+  also varies by codec, and the codec is not the one the dialog shows: a zip left on `*` is
+  Deflate, which rejects `-md=` outright.
+- PPMd's word size is a model order (`-mo=`), not a fast-bytes count. The tar dialect
+  (GNU/POSIX) never reached the command line at all. `keepBrokenFiles` sent a switch 26.02
+  rejects, which failed *every* extraction it was set on.
+- `Eliminate duplication of root folder` now works — the switch was never emitted, so both
+  the Extract checkbox and its Settings key were dead.
+
+### Fixed — security and compliance
+
+- **Sparkle's MIT licence was never shipped**, though the framework has been linked into
+  every release since 0.1.0.
+- **The LGPL provenance record shipped with literal placeholders** where its checksums
+  belong, and the release gate meant to catch that hashed a path no build has ever
+  produced. It now describes what actually happens and anchors on the pinned commit.
+- **A release missing the Sparkle signing key silently broke auto-update for every existing
+  install** — it published anyway, became `releases/latest`, and every installed copy's feed
+  began returning 404. A stable tag without the key now fails before publishing.
+- The passphrase-exposure warning was built, styled and never added to the view hierarchy.
+
+### Fixed — controls that did nothing
+
+- **The Settings window was write-only.** No key but `Lang` had a consumer, and
+  `registerDefaults` was never called at launch — so until you first opened Settings, three
+  keys read as the *opposite* of their shipped default. Wired where a consumer exists,
+  honestly disabled where one does not.
+- **Six File List toggles** are now read by the panel.
+- **"Remember in Keychain" stored nothing**, with a tooltip saying otherwise. Now real,
+  including the read path and eviction of a passphrase that stops working.
+- **The Properties inspector never updated** and stacked a new panel on every ⌘I.
+- **Double-clicking a `.app` did nothing at all.**
+- Two Services menu items had no code behind them; three more were duplicates of other
+  items. Quick Look claimed ten formats and could only refuse six of them.
+
+### Added
+
+- Colour-coded toolbar buttons; **Help ▸ Acknowledgements & Licences**; `Extract Loose`
+  alongside `Extract Here` and `Extract to Subfolder`, all three now in the Finder menu.
+
+### Notes
+
+- Nested archive browsing works and always has — the README said otherwise. Leaving one
+  does not: `..` from a nested root lands in the temp directory. Treat it as one-way.
+- 392 tests in 48 suites, up from 274.
 
 ### Fixed
 
