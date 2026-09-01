@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // End-to-end navigation against a REAL archive built by the vendored 7zz.

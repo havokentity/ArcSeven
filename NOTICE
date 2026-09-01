@@ -1,17 +1,18 @@
 ArcSeven
 Copyright (C) 2026 Rajesh D'Monte
 
-ArcSeven is free software: you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation, either version 3 of the License, or (at your option) any later
-version.  SPDX-License-Identifier: GPL-3.0-or-later
+ArcSeven is licensed under the Apache License, Version 2.0.
+SPDX-License-Identifier: Apache-2.0
 
-ArcSeven is distributed in the hope that it will be useful, but WITHOUT ANY
-WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR
-A PARTICULAR PURPOSE.  See the GNU General Public License for more details.
-You should have received a copy of the GNU General Public License along with
-this program; the complete text is in the file LICENSE at the root of this
-distribution.  If not, see <https://www.gnu.org/licenses/>.
+You may obtain a copy of the License at
+
+    https://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, ArcSeven is
+distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND,
+either express or implied. See the License for the specific language governing
+permissions and limitations under the License. The complete text is in the file
+LICENSE at the root of this distribution.
 
 The complete corresponding source code for ArcSeven is published at
 <https://github.com/havokentity/ArcSeven>, and every tagged release carries the
@@ -47,9 +48,9 @@ unmodified, upstream-built executable located at
 ArcSeven invokes 7zz as an independent process and communicates with it only over
 its documented command-line surface: argv, standard input/output/error, and
 process exit codes.  ArcSeven does not link against, statically or dynamically
-embed, or modify any 7-Zip code.  7zz and ArcSeven are separate programs that are
-merely distributed together; the distribution is an "aggregate" within the
-meaning of GNU GPL version 3 section 5 and GNU LGPL version 2.1 section 2.
+embed, or modify any 7-Zip code.  7zz and ArcSeven are separate programs
+distributed together. ArcSeven's Apache-2.0 license does not replace or modify
+the licenses that govern 7zz.
 
 The exact upstream version, the source archive it was built from, and the
 SHA-256 checksums of both are recorded in

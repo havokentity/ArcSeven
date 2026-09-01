@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // The menu bar, built in code rather than from a nib.
@@ -28,7 +28,8 @@ enum MainMenuBuilder {
 
     /// Help, whose only job today is reaching the licences.
     ///
-    /// ArcSeven is GPL-3.0 and bundles LGPL and MIT components; the notices are copied into
+    /// ArcSeven is Apache-2.0 and bundles LGPL, BSD, unRAR-restricted, and MIT components;
+    /// the notices are copied into
     /// `Contents/Resources/Legal/` precisely so a recipient of the disk image can read them
     /// without a network. Shipping them where nothing in the app points at them makes that
     /// gesture worth very little. NOTICE claimed this menu existed before it did.

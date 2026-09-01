@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // Draws the per-format document icons and emits one .iconset per format.

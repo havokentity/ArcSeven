@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // Shared setup for the two suites that exercise Settings ▸ File List.

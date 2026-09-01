@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // The overwrite confirmation — 7zFM's `IDD_OVERWRITE` (FIDELITY §12.4, OVR-01…OVR-08).

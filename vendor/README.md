@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (C) 2026 Rajesh D'Monte -->
 
 # `vendor/` — the 7-Zip vendoring policy
@@ -6,12 +6,12 @@
 Everything in this directory exists to answer one question with evidence rather
 than assertion:
 
-> **Is the `7zz` inside ArcSeven.app byte-for-byte a build of unmodified upstream
+> **Is the `7zz` inside ArcSeven.app a verifiable build of unmodified upstream
 > 7-Zip, from a specific published commit?**
 
-The answer has to be *yes*, provably, on every build, because ArcSeven's entire
-licence posture rests on it. The scripts here are written to make "no" a build
-failure rather than a discovery made later by someone else.
+The answer has to be *yes*, provably, on every release build. The scripts here
+make an unverified or modified helper a build failure rather than a discovery
+made later by someone else.
 
 ---
 
@@ -79,26 +79,18 @@ missing, precisely to catch someone dropping a Homebrew binary into
 
 ---
 
-## The rule that makes this legal
+## The licence boundary
 
-ArcSeven is **GPL-3.0-or-later**. Upstream 7-Zip is **LGPL-2.1-or-later**, except
-that the RAR decoder files carry an *additional* clause inherited from unRAR:
-the code may not be used to re-create the RAR compression algorithm, and any
-redistribution must state that it may not be used to build a RAR-compatible
-archiver.
-
-That extra clause is a **"further restriction"** in the sense of **GPLv3 §7**.
-GPLv3 does not let a licensee impose one on downstream recipients. So a work
-that *combines* GPL-3.0 code with the RAR-encumbered 7-Zip code into a single
-program has a real, unresolved conflict. Debian and Fedora reach the same
-conclusion from the other direction and strip the RAR decoder as non-free.
-
-ArcSeven sidesteps this rather than arguing about it:
+ArcSeven's first-party code is **Apache-2.0**. Upstream 7-Zip is
+**LGPL-2.1-or-later**, except that the RAR decoder files carry an additional
+restriction inherited from unRAR: the code may not be used to re-create the RAR
+compression algorithm. ArcSeven preserves those upstream terms and keeps the
+components easy to identify:
 
 ```
 ArcSeven.app/
 └── Contents/
-    ├── MacOS/ArcSeven        GPL-3.0-or-later, first-party, our code
+    ├── MacOS/ArcSeven        Apache-2.0, first-party, our code
     └── Helpers/7zz            LGPL-2.1 + unRAR, upstream, UNMODIFIED
                                ── executed with Process(), talking over
                                   argv / stdout / stderr / exit codes
@@ -107,13 +99,13 @@ ArcSeven.app/
 * `7zz` is a **separate executable**, spawned as a **subprocess**.
 * It is **never linked** into the app — not statically, not dynamically, not via
   `dlopen`. There is no `7z.so`, no `7z.dylib`, no `libarchive` shim, nothing.
-* The only interface is the process boundary: arguments in, bytes out, an exit
-  code. That is arm's-length aggregation, not a combined work.
+* The only interface is the process boundary: arguments in, bytes out, and an
+  exit code. The app and helper remain independently licensed components.
 * Upstream's terms are satisfied by shipping the binary unmodified with its
   licence text (`THIRD_PARTY_LICENSES/7-Zip/`) and the unRAR paragraph
   reproduced verbatim in `NOTICE`.
 
-**Three things must all stay true, or the argument collapses:**
+**Three release invariants keep the boundary and compliance evidence clear:**
 
 1. `7zz` is unmodified. → enforced by `build-7zz.sh` (see below).
 2. `7zz` runs as its own process. → `Sources/ArchiveCore/CLIEngine/` only ever
@@ -121,9 +113,10 @@ ArcSeven.app/
 3. The licence texts ship with the binary. → `project.yml` copies `LICENSE`,
    `NOTICE` and `THIRD_PARTY_LICENSES/` into `Contents/Resources/Legal/`.
 
-This is also why ArcSeven is not on the Mac App Store: Apple's Licensed Application
-End User Licence Agreement adds restrictions that GPLv3 §7 does not permit
-either. Distribution is Developer ID + notarized DMG, plus a Homebrew Cask.
+The current distribution is a Developer ID-signed and notarized DMG, with a
+Homebrew Cask as an additional avenue. A future Mac App Store build would need
+a separate sandbox and entitlement review; the Apache-2.0 licence itself does
+not prevent App Store distribution.
 
 ---
 
@@ -197,13 +190,16 @@ signature verifies.
 
 ---
 
-## The future in-process engine must be built WITHOUT RAR
+## Policy for a future in-process engine
 
 Milestone M5 replaces the read path with an in-process engine in an XPC service
 (`Contents/XPCServices/ArchiveEngine.xpc`), driving `IInArchive`/`IOutArchive`
 through the COM-style entry points that `CPP/7zip/Bundles/Format7zF` exports.
-That engine **links** 7-Zip code. The moment linking enters the picture, the §7
-argument above stops applying — so the RAR handlers must not be in that binary.
+That engine **links** 7-Zip code, which creates a different compliance profile
+from the current subprocess helper. The project policy is to omit RAR from that
+linked engine so the unRAR-restricted portion remains confined to the separate
+`7zz` process. Any linked distribution must also satisfy the LGPL's applicable
+source, notice, modification, relinking, and reverse-engineering conditions.
 
 Upstream ships the switch for exactly this. From `DOC/readme.txt` (lines
 184–196), `DISABLE_RAR=1` "removes whole RAR related code from compilation",
@@ -237,8 +233,8 @@ Consequences to design around, not discover late:
 * Never expose a "create RAR" affordance anywhere in the UI, on any path. RAR
   compression is not implemented upstream and must not be.
 * If RAR is ever split into a separately loadable `Codecs/Rar.so` plugin (the
-  layout Keka uses), it is still a *separate* file loaded by a *separate*
-  process, never linked into anything GPL-3.0.
+  layout Keka uses), it remains a separate file loaded by a separate process,
+  not linked into ArcSeven's first-party executable.
 
 ---
 

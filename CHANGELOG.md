@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2026 Rajesh D'Monte
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 -->
 
 # Changelog
@@ -20,7 +20,10 @@ calls M1.
 
 ## [Unreleased]
 
-Nothing yet.
+### Changed
+
+- Relicensed all first-party ArcSeven code and documentation from GPL-3.0-or-later to
+  Apache-2.0. Existing third-party components retain their respective licenses.
 
 ## [0.1.6] - 2026-08-27
 
@@ -423,7 +426,7 @@ Scaffolding, compliance and the engine layer. No user interface.
 ### Notes
 
 - ArcSeven drives the **stock, unmodified upstream `7zz`** as a subprocess and links no 7-Zip code.
-  This is what keeps the project's `GPL-3.0-or-later` licensing valid while RAR support is present:
+  At the time of this release, this kept the project's `GPL-3.0-or-later` licensing valid while RAR support was present:
   the unRAR use restriction is a *further restriction*, which GPLv3 §7 classifies as such and §10
   forbids imposing, so RAR-capable code must never enter the GPL boundary. The planned in-process
   engine will be built **without the RAR handlers**, and `.rar` will continue to route to the `7zz`

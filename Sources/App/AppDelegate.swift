@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 
 import AppKit
@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             let alert = NSAlert()
             alert.messageText = "Licences are not in this build"
             alert.informativeText = """
-                ArcSeven is licensed under GPL-3.0-or-later and bundles 7-Zip (LGPL-2.1) and \
+                ArcSeven is licensed under Apache-2.0 and bundles 7-Zip (LGPL-2.1) and \
                 Sparkle (MIT). The full texts ship in Contents/Resources/Legal of a release \
                 build, and are always available at \
                 https://github.com/havokentity/ArcSeven.

@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (C) 2026 Rajesh D'Monte -->
 
 # Sparkle 2 in ArcSeven
@@ -54,8 +54,8 @@ UpdaterPreferences.{automaticallyChecks, hasAskedForConsent, includesPrereleases
 
 **Automatic checking defaults to off and stays off until the user has been asked.** A
 scheduled check is an unattended HTTPS request carrying the app version and the OS
-version. Making it on first launch, unasked, is phoning home, and a GPL tool does not get
-to do that quietly. So:
+version. Making it on first launch, unasked, is phoning home, and a privacy-conscious
+open-source tool does not get to do that quietly. So:
 
 * `SUEnableAutomaticChecks` is `false` in Info.plist ([§1.3](#13-infoplist-keys)).
 * `UpdaterController.start()` forces `automaticallyChecksForUpdates` and
@@ -99,9 +99,9 @@ Three things about that, each deliberate:
   resolved pin is recorded in
   `ArcSeven.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved`; check
   there, not here, for what a given build actually linked.
-* **MIT, which is GPL-3.0 compatible in the direction we need** (permissive into
-  copyleft). Sparkle is *linked*, not exec'd like the `7zz` helper, so it is genuinely
-  part of the combined work — see [§7](#7-third-party-licence-bookkeeping).
+* **MIT, which is compatible with Apache-2.0.** Sparkle is *linked*, not exec'd like the
+  `7zz` helper, so its MIT notice ships with the combined binary — see
+  [§7](#7-third-party-licence-bookkeeping).
 
 Bumping it is a one-line edit plus `xcodegen`. A tag that does not exist fails at
 generation time with a resolution error, which is loud and harmless.
@@ -415,7 +415,7 @@ Recurring notarisation failures, and what each actually means:
 
 ## 7. Third-party licence bookkeeping
 
-Sparkle 2 is MIT with some bundled BSD-licensed pieces. Both are GPL-3.0-or-later
+Sparkle 2 is MIT with some bundled BSD-licensed pieces. Both are Apache-2.0
 compatible, and unlike the 7zz helper — which is exec'd as a separate process precisely to
 avoid combining with it — Sparkle is **linked**, so it is part of the combined work and
 its notices ship with the binary.

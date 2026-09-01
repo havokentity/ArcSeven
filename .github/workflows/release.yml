@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # Release pipeline for ArcSeven: tag -> universal build -> sign -> DMG -> notarise -> staple
@@ -399,9 +399,9 @@ jobs:
 
           ### Licensing
 
-          ArcSeven is free software under the GNU General Public License, version 3 or later,
-          and comes with ABSOLUTELY NO WARRANTY. Source: this repository, at tag
-          \`${{ steps.version.outputs.tag }}\`.
+          ArcSeven is open-source software under the Apache License, Version 2.0,
+          and is provided on an AS IS basis without warranties or conditions of any kind.
+          Source: this repository, at tag \`${{ steps.version.outputs.tag }}\`.
 
           The application bundles an unmodified copy of the 7-Zip console binary
           (\`7zz\`) in \`Contents/Helpers/\` and drives it as a subprocess. 7-Zip is

@@ -1,16 +1,14 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // The shipping `ArchiveEngine`: drives the bundled upstream `7zz` as a subprocess.
 //
 // ## Why a subprocess
 //
-// `7zz` is vendored verbatim and executed as a separate program. That is what keeps
-// this GPL-3.0 application compatible with an upstream that is LGPL-2.1+ *plus* the
-// unRAR restriction: the RAR decoder carries a use-restriction that GPLv3 §7 treats
-// as a forbidden "further restriction", so it must never be linked into our
-// copyleft boundary. Two programs communicating over argv and pipes are separate
-// works; see docs/ENGINE-PROTOCOL.md and NOTICE.
+// `7zz` is vendored verbatim and executed as a separate program. That keeps the license
+// boundary explicit: ArcSeven remains Apache-2.0 while the upstream executable retains
+// its LGPL, BSD, and unRAR terms. Two programs communicating over argv and pipes remain
+// separate works; see docs/ENGINE-PROTOCOL.md and NOTICE.
 //
 // It also buys process isolation — a malformed archive that crashes a decoder takes
 // down a child, not the file manager — and turns a security update into a file swap.

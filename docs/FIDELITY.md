@@ -1,5 +1,5 @@
 <!--
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 Copyright (C) 2026 Rajesh D'Monte
 -->
 
@@ -59,7 +59,7 @@ mapping names a `7zz` switch, that is the concrete mechanism.
 | WIN-06 | Menu bar location | In-window menu bar (File / Edit / View / Favorites / Tools / Help) (`resource.rc` `IDM_MENU`) | macOS system menu bar with the same six menus, plus the mandatory `ArcSeven` app menu | **Adapted** | See MH-03/MT-01 for the items that move into the app menu |
 | WIN-07 | Splitter | 4 px, position stored as a ratio out of `kSplitterRateMax = 1<<16`, proportional on resize; first-time 2-pane = dead centre (`FM.cpp`) | `NSSplitView`, `dividerThickness = 4`, identical ratio math and identical first-time centring, autosaved | **1:1** | |
 | WIN-08 | Drag & drop registration | `RegisterDragDrop` on `WM_CREATE` (`FM.cpp`) | `registerForDraggedTypes` on both panel tables; outbound via `NSFilePromiseProvider` | **1:1** | Promise-drag out of an archive is an improvement, not a divergence |
-| WIN-09 | About box | `IDD_ABOUT` — logo, version, build date, copyright, `www.7-zip.org` button, OK (`AboutDialog.rc`) | Standard macOS About panel + Acknowledgements pane carrying GPL-3.0 notice, 7-Zip's `License.txt`, LGPL-2.1 text and the unRAR paragraph verbatim | **Adapted** | GPLv3 §5(d) Appropriate Legal Notices. The homepage button links to 7-zip.org **and** to the ArcSeven repository, labelled so the two are not confused |
+| WIN-09 | About box | `IDD_ABOUT` — logo, version, build date, copyright, `www.7-zip.org` button, OK (`AboutDialog.rc`) | Standard macOS About panel + Acknowledgements pane carrying the Apache-2.0 notice, 7-Zip's `License.txt`, LGPL-2.1 text and the unRAR paragraph verbatim | **Adapted** | The homepage button links to 7-zip.org **and** to the ArcSeven repository, labelled so the two are not confused |
 
 ---
 

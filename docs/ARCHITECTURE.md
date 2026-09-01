@@ -15,12 +15,12 @@ Not affiliated with, endorsed by, or sponsored by the 7-Zip project or Igor Pavl
 
 | | |
 |---|---|
-| **License** | `GPL-3.0-or-later` (first-party). Bundled 7-Zip remains LGPL-2.1-or-later / BSD-2 / BSD-3 / unRAR-restricted, as a separate program. |
+| **License** | `Apache-2.0` (first-party). Bundled 7-Zip remains LGPL-2.1-or-later / BSD-2 / BSD-3 / unRAR-restricted, as a separate program. |
 | **Language / UI** | Swift 6 (strict concurrency) + AppKit. SwiftUI islands via `NSHostingController` for settings and sheets only. |
 | **Minimum OS** | macOS 14.0 Sonoma. Built against the macOS 26 SDK with Xcode 26. |
 | **Architectures** | Universal 2 (`arm64` + `x86_64`). |
 | **Engine** | Bundled unmodified upstream `7zz` (subprocess) → in-process `7z.dylib` in an XPC service from M5. |
-| **Distribution** | Developer ID signed + notarized + stapled DMG, Homebrew Cask, Sparkle 2 auto-update. **No Mac App Store.** |
+| **Distribution** | Developer ID signed + notarized + stapled DMG, Homebrew Cask, Sparkle 2 auto-update. A future App Store build requires sandbox-specific file access. |
 | **Reference spec** | `github.com/ip7z/7zip`, branch `main`, 7-Zip 26.02. The `.rc` resource scripts are the authoritative behavioral specification. |
 
 ---
@@ -31,7 +31,7 @@ Not affiliated with, endorsed by, or sponsored by the 7-Zip project or Igor Pavl
 2. **Fidelity is about semantics, not pixels.** We reproduce 7zFM's *behavior* exactly — its sort comparator, its status-bar formulas, its column defaults, its dialog control sets, its quirks. We do **not** reproduce Win32 dialog-unit geometry, modal property sheets, or F-key defaults that are broken on Mac hardware.
 3. **Native or nothing.** `NSTableView`, `NSToolbar`, `NSMenu`, `NSPathControl`, semantic colors, Liquid Glass, VoiceOver. The reason every existing cross-platform archiver loses Mac users is that it looks like a port.
 4. **The engine is behind a protocol from commit one.** `ArchiveEngine` is written in M0 with one implementation and swapped in M5 without touching a line of UI.
-5. **RAR-capable code never enters the GPL boundary.** The subprocess is aggregation; the linked dylib is not.
+5. **RAR-capable upstream code stays in a separate executable.** The subprocess keeps its LGPL/BSD/unRAR terms separate from ArcSeven's Apache-2.0 code.
 6. **Ship signed and notarized from M1.** PeaZip's `xattr -dr com.apple.quarantine` instruction and ShichiZip's bare unsigned `.zip` releases are product failures we start ahead of.
 
 ---
@@ -41,7 +41,7 @@ Not affiliated with, endorsed by, or sponsored by the 7-Zip project or Igor Pavl
 ### M0 — Foundations *(2–3 weeks)*
 No UI. De-risk the two assumptions everything rests on.
 
-- Repo, `LICENSE` (verbatim GPL-3.0), `NOTICE`, `THIRD_PARTY_LICENSES/`, `CONTRIBUTING.md` with inbound=outbound + DCO + *"do not paste 7-Zip/unRAR source into this repo"*, SPDX headers, `reuse lint` in CI.
+- Repo, `LICENSE` (verbatim Apache-2.0), `NOTICE`, `THIRD_PARTY_LICENSES/`, `CONTRIBUTING.md` with DCO + *"do not paste 7-Zip/unRAR source into this repo"*, SPDX headers, `reuse lint` in CI.
 - **Phase 0 spike:** signed + hardened + notarized throwaway bundle that spawns `7zz` and extracts a user-selected archive from an **external volume** to a user-selected destination. Confirm `lipo -info 7zz` → `x86_64 arm64`. Confirm the 26.02 progress encoding is still backspace-based.
 - `ArchiveCore.framework`: `ArchiveEngine` protocol, `SevenZipCLIEngine`, the byte-oriented stream reader (splits on `\b`/`\n`/`\r`), the `l -slt` state-machine parser, exit-code mapping (1 = success-with-warnings), process-group cancellation.
 - **Golden-file test corpus:** 7z (solid + non-solid), zip, tar.gz, rar, encrypted body, encrypted headers, multi-volume, 200k-entry archive, UTF-8 filenames (`café_日本.txt`), NFD-vs-NFC pairs, CP932 legacy zip, deliberately corrupted archive, filename-with-newline. Every parser change re-runs these.
@@ -220,7 +220,7 @@ Then: convert/recompress, batch operations, a persistent pausable operation queu
 | 56 | Progress dialog: 10 value fields, exact formatting thresholds, status verbs, hidden-until-first-error message list, Background↔Foreground, Pause↔Continue, Cancel→Close | Same content and behavior, but **non-modal**, plus `NSDockTile` progress and a completion notification when not frontmost. Background uses `DispatchQoS`/`setpriority` instead of `IDLE_PRIORITY_CLASS` | **adapted** |
 | 57 | Memory-usage-request dialog (`IDD_MEM`) | Identical | **1:1** |
 | 58 | Diagnostic messages dialog (`IDD_MESSAGES`) | — | **dropped**: no code path instantiates it in 24.x–26.x; errors surface in the progress list |
-| 59 | About dialog (logo, version, build date, copyright, `www.7-zip.org`, OK) | macOS About panel + a Legal/Acknowledgements pane carrying GPL notices, the 7-Zip triple, and the unRAR paragraph (GPLv3 §5(d) Appropriate Legal Notices) | **adapted** |
+| 59 | About dialog (logo, version, build date, copyright, `www.7-zip.org`, OK) | macOS About panel + a Legal/Acknowledgements pane carrying the Apache notice, the 7-Zip triple, and the unRAR paragraph | **adapted** |
 | 60 | SFX creation (`7z.sfx`, a Windows `.exe`) | Retained — it produces a Windows self-extractor, which is still useful output from a Mac. **Improvement:** also offer a macOS self-extracting `.command` | **1:1 +** |
 | 61 | RAR: read-only (7zFM cannot create RAR either) | Read-only, via the bundled `7zz` subprocess only, never linked | **1:1** |
 
@@ -332,7 +332,7 @@ Ordered by differentiation × feasibility. Every one is additive — none change
 | 1 | **App Sandbox blocks arbitrary-directory browsing.** The single most likely thing to force an architecture rethink. | Critical | **Ship non-sandboxed, Developer ID.** Prove child-process file access from a signed, hardened, notarized bundle against an external volume in the **M0 Phase-0 spike**, before any UI exists. Sandbox only the appexes. |
 | 2 | **Subprocess output is a human-facing UI, not a contract** — backspace erasure, format-dependent `-slt` keys, the undocumented `-ba`, filenames containing newlines. All behavior here was verified against 7-Zip **18.05**, not 26.02. | High | Golden-file parser suite in CI. Pin the bundled version. Re-run the suite on every bump. Cross-check `-slt` item count against the `l` summary. Verify in M0 that 26.02 still uses backspace and not `\r`. Long-term: M5 removes the parser entirely for the read path. |
 | 3 | **Solid-archive N² on promise drag and Quick Look multi-select.** Dragging 500 files out of a 2 GB solid `.7z` naively re-scans 2 GB five hundred times. | High | Coalesce per drag session behind a `DispatchGroup` gate; `maxConcurrentOperationCount = 1` on the promise queue; single batch extraction to a staging dir; sweep abandoned staging on launch. M5 makes this structural. |
-| 4 | **unRAR / GPL incompatibility.** Linking the RAR decoder into a GPL-3.0 work is a violation (GPLv3 §7/§10; Fedora: *"GPL-Incompatible and non-free"*). | High | RAR touches only the unmodified `7zz` subprocess (aggregation). The M5 dylib is built **without** RAR handlers; `.rar` routes to the CLI engine. `CONTRIBUTING.md` forbids pasting 7-Zip/unRAR source into the repo. unRAR paragraph verbatim in `NOTICE`, `README.md`, and the in-app Acknowledgements. Never expose a "create RAR" affordance. |
+| 4 | **unRAR terms accidentally imported into first-party code.** Copying or linking the restricted RAR decoder would add upstream obligations and contradict ArcSeven's Apache-only first-party boundary. | High | RAR touches only the unmodified `7zz` subprocess. The M5 dylib is built **without** RAR handlers; `.rar` routes to the CLI engine. `CONTRIBUTING.md` forbids pasting 7-Zip/unRAR source into the repo. Keep the unRAR paragraph verbatim in `NOTICE`, `README.md`, and the in-app Acknowledgements. Never expose a "create RAR" affordance. |
 | 5 | **Password on create leaks into `ps`.** `-p` must be on argv; piping on stdin silently produces an **unencrypted** archive with exit 0. | High | Document with a loud code comment so nobody "fixes" it. Move only the creation path in-process at M5 to close it. If a hard security promise is made about encrypted archives, promote M5's `IOutArchive` work ahead of the rest of M5. |
 | 6 | **`NSTableView` at 100k rows.** | Medium | Fixed `rowHeight`, never `usesAutomaticRowHeights`; `NSTableViewDataSource` over a `ContiguousArray` of structs; `reloadData(forRowIndexes:columnIndexes:)` for progressive fills; hand-rolled `NSTableCellView`, not `NSHostingConfiguration`, in the file list. **Prove 120 Hz scroll at 100k rows in M1 before writing archive code.** |
 | 7 | **Notarization fails on a nested binary.** | Medium | Sign inside-out (helpers → frameworks → appexes → app), `--options runtime --timestamp` on every Mach-O, never `--deep` to sign. Verification gate in CI before publish. On failure, `notarytool log <id>` names the offender. |
@@ -354,9 +354,9 @@ Ordered by differentiation × feasibility. Every one is additive — none change
 - [ ] DMG signed inside-out, hardened runtime on every Mach-O, notarized, stapled
 - [ ] Bundled `7zz` byte-identical to upstream; SHA-256 recorded in `THIRD_PARTY_LICENSES/7-Zip/VERSION.txt` with `Modifications: NONE`
 - [ ] `7z<ver>-src.tar.xz` attached to the **same** GitHub Release as the DMG *(LGPL-2.1 §4 discharge — "equivalent access from the same place")*
-- [ ] Source tarball / signed git tag published for ArcSeven itself *(GPLv3 §6)*
+- [ ] Signed git tag published so the source maps unambiguously to the shipped ArcSeven build
 - [ ] `LICENSE`, `NOTICE`, `THIRD_PARTY_LICENSES/` present inside `.app/Contents/Resources/Legal/`
-- [ ] About panel shows copyright, "no warranty", "may convey under the GPL", and a link to the license *(GPLv3 §5(d))*
+- [ ] About panel shows copyright, the Apache-2.0 identifier, warranty disclaimer, and a link to the license
 - [ ] Acknowledgements pane carries the unRAR paragraph **verbatim**
 - [ ] No "7-Zip" in app name, bundle ID, DMG volume name, or repo name
 - [ ] No "create RAR" affordance anywhere in the UI

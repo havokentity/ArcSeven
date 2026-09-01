@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # XcodeGen spec for ArcSeven.
@@ -165,8 +165,8 @@ targets:
         # helper, follows symlinks across volumes, writes xattrs and hands file promises
         # to Finder cannot function inside a container, and the sandbox-inheritance rules
         # would strip the helper of every dynamically acquired PowerBox grant. See
-        # docs/ARCHITECTURE.md. Distribution is Developer ID + notarised, not Mac App
-        # Store - GPL-3.0 is incompatible with Apple's Licensed Application EULA anyway.
+        # docs/ARCHITECTURE.md. The current distribution is Developer ID + notarised;
+        # an App Store build requires a separate sandbox-aware file-access design.
         # com.apple.security.app-sandbox lives in the entitlements block below and
         # nowhere else: setting ENABLE_APP_SANDBOX as well makes Xcode merge two
         # sources for one key, and any disagreement fails at signing time.
@@ -199,9 +199,9 @@ targets:
       # Built by vendor/build-7zz.sh (invoked from Scripts/bootstrap.sh) out of the
       # pinned, UNMODIFIED vendor/7zip submodule: an arm64 make, an x86_64 make, then
       # `lipo -create`. It is a separate executable driven as a subprocess and is never
-      # linked into this process - with the RAR handlers present, linking would import
-      # the unRAR restriction, which is a GPL-incompatible "further restriction" under
-      # GPLv3 s7. THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the upstream COMMIT the
+      # linked into this process. Keeping the RAR handlers in the separate executable
+      # prevents their unRAR use restriction from entering ArcSeven's first-party code.
+      # THIRD_PARTY_LICENSES/7-Zip/VERSION.txt records the upstream COMMIT the
       # binary was built from - not a SHA-256 of the binary, which differs on every build
       # because it is compiled per release rather than mirrored. Per-release checksums
       # live in SHA256SUMS.txt on the GitHub release.
@@ -218,8 +218,8 @@ targets:
             subpath: Contents/Helpers
 
       # -- Copy Files: legal notices inside the bundle -----------------------------------
-      # GPLv3 s5(d) wants Appropriate Legal Notices reachable from the UI, LGPL-2.1 s6
-      # and the 7-Zip license.txt want their text reproduced with any binary
+      # Apache-2.0 section 4(d), LGPL-2.1, and the 7-Zip license.txt require the relevant
+      # notices and license texts to remain available with binary
       # redistribution. Shipping them inside Contents/Resources/Legal/ is what the About
       # box and the Acknowledgements pane read from.
       - path: LICENSE
@@ -294,7 +294,7 @@ targets:
         # False on purpose: a running compress or extract must never be killed silently.
         NSSupportsSuddenTermination: false
         NSHumanReadableCopyright: >-
-          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later, with
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under Apache-2.0, with
           ABSOLUTELY NO WARRANTY. Bundles an unmodified copy of the 7-Zip console binary
           (LGPL-2.1-or-later, BSD-3-Clause, BSD-2-Clause, plus the unRAR restriction).
           ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov.
@@ -315,7 +315,7 @@ targets:
         # no feed URL, so it could not have checked for an update even once.
         #
         # Automatic checks default to OFF and the app asks once, on the second launch. A
-        # GPL tool that phones home on first launch without consent is not acceptable.
+        # A privacy-conscious tool must not phone home on first launch without consent.
         SUFeedURL: https://github.com/havokentity/ArcSeven/releases/latest/download/appcast.xml
         SUEnableAutomaticChecks: false
         SUScheduledCheckInterval: 86400
@@ -786,7 +786,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSHumanReadableCopyright: >-
-          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under Apache-2.0.
 
         NSExtension:
           NSExtensionPointIdentifier: com.apple.quicklook.preview
@@ -900,8 +900,7 @@ targets:
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         NSHumanReadableCopyright: >-
-          Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.
+          Copyright (C) 2026 Rajesh D'Monte. Licensed under Apache-2.0.
         NSExtension:
           NSExtensionPointIdentifier: com.apple.FinderSync
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).FinderSyncExtension
-

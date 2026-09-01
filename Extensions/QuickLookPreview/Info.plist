@@ -40,6 +40,6 @@
 		<string>$(PRODUCT_MODULE_NAME).PreviewViewController</string>
 	</dict>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later.</string>
+	<string>Copyright (C) 2026 Rajesh D'Monte. Licensed under Apache-2.0.</string>
 </dict>
 </plist>

@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 ## What this changes
 
 <!-- One or two sentences. Link the issue if there is one. -->
@@ -7,7 +7,7 @@
 
 - [ ] Commits are signed off (`git commit -s`) — the DCO is required, see [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [ ] `swift build` and `swift test` pass
-- [ ] New first-party files carry the `// SPDX-License-Identifier: GPL-3.0-or-later` header
+- [ ] New first-party files carry the `// SPDX-License-Identifier: Apache-2.0` header
 - [ ] **No 7-Zip, unRAR, p7zip or NanaZip source has been copied into this repo.**
       Describing upstream behaviour and citing `file:line` is expected; pasting code is not.
 - [ ] Any deliberate behavioural difference from Windows 7zFM is recorded in [docs/DIVERGENCES.md](../docs/DIVERGENCES.md)

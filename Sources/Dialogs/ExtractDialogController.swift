@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // The Extract dialog — 7zFM's `IDD_EXTRACT` (FIDELITY §12.3, EXT-01…EXT-14).

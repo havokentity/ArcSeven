@@ -1,5 +1,5 @@
 // swift-tools-version: 6.0
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // SwiftPM manifest for the pure-logic half of ArcSeven.

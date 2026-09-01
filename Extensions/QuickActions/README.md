@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # QuickActions (not built)
 
 This extension is **not in the build**. It has an `Info.plist` and entitlements but no

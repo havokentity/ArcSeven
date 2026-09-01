@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 //
 // Sparkle 2 auto-update, wrapped so that nothing else in the app ever imports Sparkle.
@@ -15,8 +15,8 @@
 //
 // 2. AUTOMATIC CHECKING DEFAULTS TO OFF AND STAYS OFF UNTIL THE USER IS ASKED. A check
 //    is an HTTPS request to a server we control carrying the app version and the OS
-//    version; doing that on first launch, unasked, is phoning home. In a GPL tool whose
-//    whole pitch is that you can read what it does, that is not acceptable. So the
+//    version; doing that on first launch, unasked, is phoning home. In a privacy-conscious
+//    open-source tool, that is not acceptable. So the
 //    updater is *started* at launch — starting is inert — but `automaticallyChecksFor-
 //    Updates` is forced to false until `presentAutomaticUpdateConsentIfNeeded()` has put
 //    the question to the user exactly once. "Check for Updates…" in the menu is always

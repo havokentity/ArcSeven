@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # SwiftLint configuration for ArcSeven.
@@ -227,7 +227,7 @@ todo:
 # Every first-party Swift file opens with the SPDX identifier and the copyright line.
 # `(?s).*` at the end lets the file add its own explanatory header below those two lines.
 file_header:
-  required_pattern: '(?s)\A\/\/ SPDX-License-Identifier: GPL-3\.0-or-later\n\/\/ Copyright \(C\) \d{4} .+'
+  required_pattern: '(?s)\A\/\/ SPDX-License-Identifier: Apache-2\.0\n\/\/ Copyright \(C\) \d{4} .+'
 
 # ---------------------------------------------------------------------------------------
 # Project rules
@@ -237,10 +237,10 @@ custom_rules:
   no_upstream_archiver_source:
     name: "Upstream 7-Zip / unRAR source in the repo"
     message: >-
-      This looks like 7-Zip or unRAR source pasted into the repo. Never do that: the unRAR
-      restriction is a GPL-incompatible further restriction under GPLv3 s7, and the LGPL
-      code has to stay in vendor/7zip as an unmodified subprocess. Describe the behaviour,
-      cite file and line, and reimplement it clean-room.
+      This looks like 7-Zip or unRAR source pasted into the repo. Never do that: those
+      components retain their upstream LGPL, BSD, and unRAR terms and must stay in
+      vendor/7zip as an unmodified subprocess. Describe the behaviour, cite file and line,
+      and reimplement it clean-room.
     regex: '(?i)copyright\s*(\(c\)|©)?\s*[-0-9\s]{4,12}(igor\s+pavlov|alexander\s+roshal|win\.?rar\s+gmbh|rarlab)'
     severity: error
 

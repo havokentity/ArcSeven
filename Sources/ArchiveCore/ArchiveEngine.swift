@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 
 import Foundation
@@ -556,9 +556,8 @@ public struct EngineCapabilities: Sendable, Hashable {
 ///   decoder crashes in a child process, and turns a security update into a file swap.
 /// - A future in-process XPC engine will drive `7z.dylib` through its COM-style
 ///   interfaces, gaining real byte-level progress, random access and in-memory
-///   passwords. It must be built **without** the RAR handlers, because the unRAR
-///   restriction is a "further restriction" that GPLv3 §7 does not permit us to
-///   link against.
+///   passwords. It must be built **without** the RAR handlers so the in-process engine
+///   does not import the upstream unRAR use restriction into first-party code.
 ///
 /// ### Concurrency
 ///

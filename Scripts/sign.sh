@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # sign.sh — inside-out Developer ID code signing for the ArcSeven app bundle.

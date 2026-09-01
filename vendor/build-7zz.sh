@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # build-7zz.sh — build the pinned upstream 7-Zip source into a UNIVERSAL `7zz`
 # helper binary and stage it for the Xcode "Copy Files" phase.
 #
 # ArcSeven ships `7zz` as a SEPARATE EXECUTABLE in ArcSeven.app/Contents/Helpers/.
-# It is never linked into the app. That separation is what keeps a GPL-3.0-or-later
-# application compatible with an upstream that carries the unRAR "further
-# restriction" (see vendor/README.md). The binary must therefore be byte-for-byte
-# a build of UNMODIFIED upstream source — this script refuses to produce anything
-# else without an explicit, loud override.
+# It is never linked into the app. That process boundary keeps the Apache-2.0
+# first-party application distinct from the LGPL-2.1-or-later + unRAR-restricted
+# helper (see vendor/README.md). The binary must be a verifiable build of
+# UNMODIFIED upstream source — this script refuses to produce anything else
+# without an explicit, loud override.
 #
 # Build recipe (empirically verified on this machine against ip7z/7zip 26.02,
 # zero patches, both slices, `-Werror -Wall -Wextra` as upstream ships them):
@@ -242,8 +242,8 @@ verify_pristine() {
       "$SRC_DIR is not a git work tree." \
       "" \
       "The pinned-tag guarantee is the entire basis of ArcSeven's license posture:" \
-      "we ship 7zz UNMODIFIED, which is what makes bundling an LGPL-2.1 +" \
-      "unRAR-restricted upstream compatible with a GPL-3.0-or-later app." \
+      "we ship 7zz UNMODIFIED as a separately licensed LGPL-2.1 +" \
+      "unRAR-restricted helper alongside the Apache-2.0 app." \
       "A dropped-in tarball cannot be verified, so it is not accepted." \
       "" \
       "Fix:  rm -rf '$SRC_DIR' && Scripts/bootstrap.sh"

@@ -407,7 +407,7 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSHumanReadableCopyright</key>
-	<string>Copyright (C) 2026 Rajesh D'Monte. Licensed under GPL-3.0-or-later, with ABSOLUTELY NO WARRANTY. Bundles an unmodified copy of the 7-Zip console binary (LGPL-2.1-or-later, BSD-3-Clause, BSD-2-Clause, plus the unRAR restriction). ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov.</string>
+	<string>Copyright (C) 2026 Rajesh D'Monte. Licensed under Apache-2.0, with ABSOLUTELY NO WARRANTY. Bundles an unmodified copy of the 7-Zip console binary (LGPL-2.1-or-later, BSD-3-Clause, BSD-2-Clause, plus the unRAR restriction). ArcSeven is not affiliated with or endorsed by 7-Zip or Igor Pavlov.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>ArcSeven needs access to network volumes so it can browse and extract archives stored on file servers.</string>
 	<key>NSPrincipalClass</key>

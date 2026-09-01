@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 #
 # verify-release.sh — the gate that runs before anything is published.
@@ -323,12 +323,12 @@ check_app() {
         fail "Legal/THIRD_PARTY_LICENSES/ missing"
     fi
 
-    if [ -f "$legal/LICENSE" ] && grep -q 'GNU GENERAL PUBLIC LICENSE' "$legal/LICENSE" 2>/dev/null; then
-        pass "Legal/LICENSE is the GPL text"
-    elif [ -f "$legal/LICENSE.txt" ] && grep -q 'GNU GENERAL PUBLIC LICENSE' "$legal/LICENSE.txt" 2>/dev/null; then
-        pass "Legal/LICENSE.txt is the GPL text"
+    if [ -f "$legal/LICENSE" ] && grep -q 'Apache License' "$legal/LICENSE" 2>/dev/null; then
+        pass "Legal/LICENSE is the Apache-2.0 text"
+    elif [ -f "$legal/LICENSE.txt" ] && grep -q 'Apache License' "$legal/LICENSE.txt" 2>/dev/null; then
+        pass "Legal/LICENSE.txt is the Apache-2.0 text"
     else
-        fail "Legal/LICENSE does not contain the GNU General Public License text"
+        fail "Legal/LICENSE does not contain the Apache License 2.0 text"
     fi
 
     # unRAR: the restriction must be stated "in the documentation", which for a
@@ -514,5 +514,5 @@ fi
 printf '\n%sClear to publish.%s Remember the release itself must also carry:\n' "$C_OK" "$C_OFF"
 printf '  * the 7-Zip SOURCE TARBALL as an asset on the SAME release as the DMG\n'
 printf '    (LGPL-2.1 section 4: equivalent access to the source from the same place)\n'
-printf '  * a signed git tag, so the Corresponding Source for ArcSeven itself is public (GPLv3 section 6)\n'
+printf '  * a signed git tag, so the published source maps unambiguously to this build\n'
 exit 0

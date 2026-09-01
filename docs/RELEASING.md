@@ -1,4 +1,4 @@
-<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 <!-- Copyright (C) 2026 Rajesh D'Monte -->
 
 # Releasing ArcSeven
@@ -94,7 +94,7 @@ xcodebuild -project ArcSeven.xcodeproj -scheme ArcSeven -showBuildSettings \
   | grep -E 'MARKETING_VERSION|CURRENT_PROJECT_VERSION'
 ```
 
-Then tag — signed, because the tag is the GPLv3 §6 Corresponding Source anchor:
+Then tag — signed, so the published source maps unambiguously to the release build:
 
 ```sh
 git commit -am "Release 1.0.0"
@@ -544,7 +544,7 @@ every shipped bundle, so a stable release without it 404s the installed base.
 > version lands, and a `git archive` of the exact commit we compiled cannot go
 > stale or disagree with the binary.
 
-The signed tag covers our own Corresponding Source under GPLv3 §6.
+The signed tag anchors ArcSeven's published source to the release build.
 
 Also verify the release page carries `SHA256SUMS.txt`, so users can check what
 they downloaded — and so the per-release binary and source hashes that
@@ -618,7 +618,7 @@ checks the mechanical ones and exits non-zero if any fail; the rest are yours.
 
 ### Licence files — shipped, not just committed
 
-- [ ] **`LICENSE` present** — the complete, unmodified GPL-3.0 text, at the repo
+- [ ] **`LICENSE` present** — the complete, unmodified Apache-2.0 text, at the repo
       root **and** inside the bundle at `Contents/Resources/Legal/LICENSE`.
       *(checked by `verify-release.sh`)*
 - [ ] **`NOTICE` present** — at the repo root **and** at
@@ -648,8 +648,8 @@ checks the mechanical ones and exits non-zero if any fail; the rest are yours.
       `VERSION.txt` deliberately records no per-release checksum — the binary is
       compiled per release, so the release's own checksum file is the only place
       a true one can live.
-- [ ] A signed git tag for this exact release is pushed, so ArcSeven's own
-      Corresponding Source is available (GPLv3 §6).
+- [ ] A signed git tag for this exact release is pushed so the public source can be
+      matched to the shipped ArcSeven build.
 
 ### unRAR
 
@@ -662,11 +662,10 @@ checks the mechanical ones and exits non-zero if any fail; the rest are yours.
 - [ ] **No "create RAR archive" affordance anywhere in the UI**, and no RAR
       compression code in the repository. RAR is read-only, forever.
 
-### GPL obligations in the UI
+### First-party license notice in the UI
 
-- [ ] The About panel shows the copyright, "no warranty", "you may convey this
-      work under the GPL", and how to view the licence — GPLv3 §5(d) Appropriate
-      Legal Notices. A prominent menu item satisfies it.
+- [ ] The About panel shows the copyright, Apache-2.0 identifier, warranty disclaimer,
+      and how to view the license. A prominent menu item satisfies it.
 - [ ] Help ▸ Legal Notices opens the Acknowledgements pane.
 
 ### Trademark posture
@@ -688,7 +687,7 @@ checks the mechanical ones and exits non-zero if any fail; the rest are yours.
       UUIDs match `vendor/bin/7zz`, and `VERSION.txt`'s `Upstream commit:`
       matches what the submodule is pinned at. *(checked)*
 - [ ] `reuse lint` passes: every first-party file carries
-      `SPDX-License-Identifier: GPL-3.0-or-later`.
+      `SPDX-License-Identifier: Apache-2.0`.
 - [ ] No `com.apple.security.cs.*` entitlements. *(checked)*
 - [ ] Every appex is sandboxed. *(checked)*
 

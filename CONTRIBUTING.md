@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2026 Rajesh D'Monte
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 -->
 
 # Contributing to ArcSeven
@@ -13,28 +13,28 @@ It is the one rule that, if broken, cannot be fixed by a follow-up commit.
 
 ---
 
-## Licensing of contributions: inbound = outbound
+## Licensing of contributions
 
-ArcSeven is **`GPL-3.0-or-later`**. Contributions are accepted under that same license — *inbound =
-outbound*. There is **no CLA and no copyright assignment**: you keep the copyright in your work, and
-you license it to the project and to everyone downstream under the GPL, exactly as the project is
-already licensed.
+ArcSeven is **`Apache-2.0`**. Unless explicitly stated otherwise, contributions intentionally
+submitted for inclusion are accepted under that same license, as described by section 5 of the
+Apache License. There is **no CLA and no copyright assignment**: you keep the copyright in your
+work while granting the copyright and patent permissions stated in Apache-2.0.
 
 Every new first-party file must begin with the SPDX header, using the comment syntax of its
 language:
 
 ```swift
-// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: Apache-2.0
 // Copyright (C) 2026 Rajesh D'Monte
 ```
 
 ```bash
-# SPDX-License-Identifier: GPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (C) 2026 Rajesh D'Monte
 ```
 
-Use the deprecated identifiers `GPL-3.0` or `GPL-3.0+` nowhere. CI runs `reuse lint`, which fails
-the build on any file that is not accounted for.
+Use the exact identifier `Apache-2.0`. CI runs `reuse lint`, which fails the build on any file that
+is not accounted for.
 
 If you contribute substantially, add your own `SPDX-FileCopyrightText:` line above the existing
 one rather than replacing it. You are not signing your copyright away.
@@ -92,21 +92,19 @@ language, in any quantity, ever.**
 
 This is not stylistic purity. It is the load-bearing beam of the project's legal position:
 
-- 7-Zip is **LGPL-2.1-or-later** with **BSD-2/BSD-3** parts and, critically, an **unRAR use
-  restriction** on the RAR decoder. That restriction — *"the code may not be used to develop a
-  RAR (WinRAR) compatible archiver"* — is a **further restriction**, forbidden by GPLv3 §10 and
-  classified as such by GPLv3 §7. Fedora's determination is that it makes the code
-  "GPL-Incompatible and non-free".
-- ArcSeven stays GPL-clean *only* because the RAR-capable code lives in a **separate process** we do
-  not link, embed, or modify. That is mere aggregation. One convenient copy-paste of a
-  `Rar5Handler` helper, one "I just ported this small function", and the aggregation argument
-  collapses into a combined work that we have no right to distribute.
+- 7-Zip is **LGPL-2.1-or-later** with **BSD-2/BSD-3** parts and an **unRAR use restriction**
+  on the RAR decoder. Those upstream components retain their own terms; Apache-2.0 does not
+  relicense them.
+- ArcSeven keeps that boundary explicit by running the unmodified, RAR-capable `7zz` as a
+  **separate process**. Copying a `Rar5Handler` helper or porting upstream implementation code
+  would import different licensing and source-distribution obligations into first-party code and
+  invalidate the repository's provenance claims.
 - p7zip is a dead 2016 fork of 7-Zip carrying the same restriction. NanaZip is a 7-Zip derivative
   whose `SevenZip` directories remain under the 7-Zip license. Neither is a laundering route.
 
 Also do not paste from **ShichiZip**, **7-Zip-zstd**, **PeaZip**, **Double Commander**, or any other
 archiver: they are either 7-Zip derivatives, or differently licensed, or both. If you want to bring
-in third-party code under a GPL-compatible license, open an issue *first* and we will vendor it
+in third-party code under a compatible license, open an issue *first* and we will vendor it
 properly with its own directory, its own license file, and an entry in `THIRD_PARTY_LICENSES/`.
 
 ### What you do instead

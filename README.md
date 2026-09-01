@@ -1,6 +1,6 @@
 <!--
 SPDX-FileCopyrightText: 2026 Rajesh D'Monte
-SPDX-License-Identifier: GPL-3.0-or-later
+SPDX-License-Identifier: Apache-2.0
 -->
 
 <div align="center">
@@ -11,7 +11,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 Written from scratch in Swift 6 and AppKit. Universal, notarised, and free software.
 
-[![Licence](https://img.shields.io/badge/licence-GPL--3.0--or--later-blue)](LICENSE)
+[![Licence](https://img.shields.io/badge/licence-Apache--2.0-blue)](LICENSE)
 [![Release](https://img.shields.io/github/v/release/havokentity/ArcSeven)](https://github.com/havokentity/ArcSeven/releases/latest)
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black)](#requirements)
 [![Architecture](https://img.shields.io/badge/arch-arm64%20%2B%20x86__64-lightgrey)](#requirements)
@@ -83,18 +83,15 @@ Honest list, because a list of features is worth little without one.
 
 ## How it works
 
-**ArcSeven does not contain 7-Zip.** It ships the console program `7zz` — built from
+**ArcSeven bundles 7-Zip as a separate program.** It ships the console program `7zz` — built from
 **unmodified upstream source** — as a separate executable at
 `ArcSeven.app/Contents/Helpers/7zz`, and drives it over argv, stdin and stdout. No 7-Zip
 code is linked, embedded, patched or copied into this repository.
 
-That is a licensing constraint, not a preference. 7-Zip's RAR decompression derives from
-unRAR, whose licence carries a **use restriction** — an *additional restriction*, which
-GPLv3 §7 calls a "further restriction" and §10 forbids imposing. Linking RAR-capable 7-Zip
-code into a GPL-3.0 application would be a violation. Running stock `7zz` as a separate
-program is mere aggregation; pipes, argv and `fork`/`exec` are the FSF's own examples of
-communication between two separate programs. So the engine boundary is an architectural
-rule: **RAR-capable code never enters the GPL boundary.**
+The process boundary keeps ownership and licensing unambiguous: ArcSeven's first-party
+code is Apache-2.0, while the unmodified `7zz` executable retains its upstream LGPL, BSD,
+and unRAR terms. The RAR decoder's use restriction applies only to that upstream component.
+It is never copied into or linked with ArcSeven, and ArcSeven never offers RAR creation.
 
 **Vendoring.** `vendor/7zip` is a submodule pinned to [ip7z/7zip](https://github.com/ip7z/7zip)
 **26.02** (`f9d78aff`). `vendor/build-7zz.sh` builds it with upstream's own makefiles — zero
@@ -205,12 +202,11 @@ fails the app target with "Unable to resolve module dependency".
 
 ## Licence
 
-**ArcSeven is free software under the [GNU GPL, version 3 or later](LICENSE)** — SPDX:
-`GPL-3.0-or-later`. Copyright © 2026 Rajesh D'Monte.
+**ArcSeven is open-source software under the [Apache License 2.0](LICENSE)** — SPDX:
+`Apache-2.0`. Copyright © 2026 Rajesh D'Monte.
 
-> Distributed in the hope that it will be useful, but **WITHOUT ANY WARRANTY**; without even
-> the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-> General Public License for more details.
+> Distributed on an **AS IS** basis, without warranties or conditions of any kind. See the
+> Apache License 2.0 for the complete terms.
 
 Every first-party source file carries an SPDX identifier. The complete third-party
 inventory is [`THIRD_PARTY_LICENSES/README.md`](THIRD_PARTY_LICENSES/README.md); the
@@ -281,21 +277,13 @@ No upstream code is copied into this repository. See
 
 "7-Zip", "WinRAR" and all other trademarks are the property of their respective owners.
 
-## Why not the Mac App Store
+## Distribution
 
-Because the GPL and Apple's store terms are incompatible, and no paperwork fixes it. Every
-Mac App Store app is licensed under Apple's Licensed Application EULA, which grants a
-"nontransferable" licence and states you "may not transfer, redistribute or sublicense",
-subject to Usage Rules capping installs to approved devices. Redistribution is the *core*
-freedom the GPL grants, and GPLv3 §10 forbids imposing further restrictions on it — the
-argument the FSF used to have GNU Go pulled in 2010, and why VLC was removed in 2011.
-GPLv2 §6 says materially the same thing, so downgrading buys nothing; and the bundled LGPL
-`7zz` raises it from the other side, since LGPL-2.1 §6 requires users be able to relink a
-modified library, which a sandboxed store binary cannot allow.
-
-So ArcSeven ships as a Developer ID–signed, notarised, stapled DMG — which, as a bonus,
-keeps it out of the App Sandbox, an environment fundamentally at odds with a whole-disk
-two-pane file manager. The signature is a convenience for *our* build, not a lock on yours.
+ArcSeven currently ships as a Developer ID–signed, notarised, stapled DMG. The application
+is deliberately unsandboxed because its two-pane file manager browses arbitrary folders,
+mounted volumes, and network shares. Apache-2.0 permits an additional Mac App Store build,
+but that build would first need a sandbox-aware file-access layer, security-scoped bookmarks,
+and a sandbox-inheriting signature for the bundled `7zz` helper.
 
 ## Related projects
 
@@ -326,5 +314,5 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md) first — in particular the clean-room r
 not boilerplate, and the [`module-guard`](#build-systems-the-module-guard-idiom) requirement,
 which will break your build if you skip it.
 
-Contributions are inbound = outbound under `GPL-3.0-or-later`, with a DCO sign-off and no
-CLA. Bug reports and fidelity discrepancies against Windows 7zFM are especially welcome.
+Contributions are accepted under `Apache-2.0`, with a DCO sign-off and no CLA. Bug reports
+and fidelity discrepancies against Windows 7zFM are especially welcome.
