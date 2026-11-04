@@ -18,6 +18,14 @@ import ArchiveCore
 #endif
 #if canImport(FMKit)   // module-guard
 import FMKit
+/// The panel's sort key, named by module. Foundation exports a `SortDescriptor` too, and
+/// with both imported a bare mention in type position is ambiguous — an initialiser call
+/// resolves by its argument labels, a parameter type does not. The Xcode build compiles
+/// everything as one module, where the local type shadows Foundation's and no module
+/// name exists to qualify with, hence the guard.
+private typealias PanelSortDescriptor = FMKit.SortDescriptor
+#else
+private typealias PanelSortDescriptor = SortDescriptor
 #endif
 
 /// Told when the panel's contents or selection change, so the window can retitle
@@ -297,7 +305,7 @@ public final class PanelViewController: NSViewController {
     /// always needed.
     nonisolated private static func loadRows(
         from provider: any FolderProvider,
-        sortedBy descriptor: SortDescriptor,
+        sortedBy descriptor: PanelSortDescriptor,
         showingParentRow: Bool
     ) async throws -> (rows: [FolderItem], isEmpty: Bool) {
         let children = try await provider.loadChildren()
