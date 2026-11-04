@@ -20,6 +20,14 @@ calls M1.
 
 ## [Unreleased]
 
+Nothing yet.
+
+## [0.1.7] - 2026-11-04
+
+A correctness and responsiveness release from a full review of the source. One hang, one
+way to empty an archive, a keyboard shortcut family that did nothing, and the main thread
+freed of every long file operation.
+
 ### Fixed
 
 - **Reading a member past its size cap hung the app.** Crossing `maximumByteCount` stopped
