@@ -121,6 +121,21 @@ enum MainMenuBuilder {
 
     private static func editMenuItem() -> NSMenuItem {
         let menu = NSMenu(title: "Edit")
+
+        // The standard six come first, and they are not decoration. AppKit dispatches
+        // ⌘Z, ⌘X, ⌘C and ⌘V to a text field ONLY through a menu item carrying that key
+        // equivalent; with none declared, pasting a path into the Extract dialog's
+        // destination field or a passphrase into the password prompt did nothing at all.
+        // Nil targets, so each one reaches whatever has focus: a field editor, or the
+        // Properties inspector's own `copy:`.
+        menu.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")
+        let redo = NSMenuItem(title: "Redo", action: Selector(("redo:")), keyEquivalent: "z")
+        redo.keyEquivalentModifierMask = [.command, .shift]
+        menu.addItem(redo)
+        menu.addItem(.separator())
+        menu.addItem(withTitle: "Cut", action: #selector(NSText.cut(_:)), keyEquivalent: "x")
+        menu.addItem(withTitle: "Copy", action: #selector(NSText.copy(_:)), keyEquivalent: "c")
+        menu.addItem(withTitle: "Paste", action: #selector(NSText.paste(_:)), keyEquivalent: "v")
         menu.addItem(withTitle: "Select All", action: #selector(NSText.selectAll(_:)), keyEquivalent: "a")
         menu.addItem(.separator())
         menu.addItem(withTitle: "Copy to Other Panel", action: Selector(("copyAction:")), keyEquivalent: "")
@@ -158,11 +173,15 @@ enum MainMenuBuilder {
         // Finder preset binds Cmd+2; the Classic preset will add F9 alongside.
         menu.addItem(withTitle: "Toggle Two Panels", action: Selector(("toggleDualPane:")), keyEquivalent: "2")
         menu.addItem(.separator())
-        menu.addItem(
-            withTitle: "Enter Full Screen",
+        // ⌃⌘F, the system-wide chord. With the default mask this was bare ⌘F, which is
+        // Find everywhere else on the Mac and not what anyone pressing it here expects.
+        let fullScreen = NSMenuItem(
+            title: "Enter Full Screen",
             action: #selector(NSWindow.toggleFullScreen(_:)),
             keyEquivalent: "f"
         )
+        fullScreen.keyEquivalentModifierMask = [.command, .control]
+        menu.addItem(fullScreen)
         let item = NSMenuItem()
         item.submenu = menu
         return item

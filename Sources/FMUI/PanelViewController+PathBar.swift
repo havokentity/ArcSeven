@@ -36,7 +36,12 @@ extension PanelViewController {
     /// what makes `archive.7z/docs/img` read as one continuous path — 7zFM's model.
     private func pathComponents() -> [(title: String, image: NSImage?)] {
         let archiveIcon = NSImage(systemSymbolName: "doc.zipper", accessibilityDescription: nil)
-        let folderIcon = NSWorkspace.shared.icon(for: .folder)
+        // Copied before resizing. `NSWorkspace.icon(for:)` hands back a shared, cached
+        // instance; resizing that in place resized the folder icon for every other
+        // caller in the process — the list cells included, which copy theirs for
+        // exactly this reason.
+        let shared = NSWorkspace.shared.icon(for: .folder)
+        let folderIcon = shared.copy() as? NSImage ?? shared
         folderIcon.size = NSSize(width: 16, height: 16)
 
         switch provider.kind {

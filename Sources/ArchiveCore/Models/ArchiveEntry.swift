@@ -253,7 +253,7 @@ extension ArchiveEntry {
                 if let mode = parsePOSIXModeString(token) {
                     result.posixFileType = token.first
                     result.posixMode = mode
-                } else if token.allSatisfy({ "RHSDA".contains($0) }) {
+                } else if token.allSatisfy({ windowsAttributeLetters.contains($0) }) {
                     for character in token {
                         switch character {
                         case "R": result.dos.insert(.readOnly)
@@ -268,6 +268,18 @@ extension ArchiveEntry {
             }
             return result
         }
+
+        /// Every letter 7-Zip can put in the Windows-attribute field.
+        ///
+        /// The five we interpret are `R H S D A`; the rest (`8 d N T s L C O I E V`) are
+        /// the other `FILE_ATTRIBUTE_*` bits, and `_` marks an entry whose high word
+        /// carries POSIX bits. A token is only read as attribute letters when every
+        /// character is one of these, which is what keeps a one-letter filename out of
+        /// it — but the test used to accept only `RHSDA`, so the `A_` and `D_` that
+        /// `7zz` prints for every Unix-created member matched nothing, and the Archive
+        /// and Directory flags were silently dropped for exactly the archives this app
+        /// creates.
+        private static let windowsAttributeLetters: Set<Character> = Set("RHS8DAdNTsLCOIEV_")
 
         /// Decode a ten-character `drwxr-xr-x`-style mode string into permission
         /// bits, honouring the `s`/`S`/`t`/`T` setuid/setgid/sticky spellings.

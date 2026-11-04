@@ -192,6 +192,10 @@ public struct ArchiveFolderProvider: FolderProvider {
     /// 7-Zip stores `\` for archives created on Windows, and some writers append a
     /// trailing `/` to directory entries.
     static func normalise(_ path: String) -> String {
+        // Runs once per entry on every navigation, so the common case — a path that
+        // needs nothing done to it — must not allocate. `ArchiveEntry` has already
+        // folded `\` at parse time; this is the belt to that brace.
+        guard path.contains("\\") || path.hasSuffix("/") else { return path }
         var value = path.replacingOccurrences(of: "\\", with: "/")
         while value.hasSuffix("/") { value.removeLast() }
         return value

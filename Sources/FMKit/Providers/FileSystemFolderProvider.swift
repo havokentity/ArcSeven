@@ -118,9 +118,12 @@ public struct FileSystemFolderProvider: FolderProvider {
         // Resolved once per load, so a setting changed mid-enumeration cannot produce a
         // listing that is half filtered.
         let showsHidden = showsHiddenFiles
+        // Built once, not once per row: a directory of fifty thousand files is fifty
+        // thousand hashed sets otherwise.
+        let keySet = Set(keys)
 
         return contents.compactMap { url -> FolderItem? in
-            let values = try? url.resourceValues(forKeys: Set(keys))
+            let values = try? url.resourceValues(forKeys: keySet)
             // `isHidden` is the whole Finder rule, not just a leading dot: it also
             // covers the `UF_HIDDEN` flag that `~/Library` and `/Volumes/.timemachine`
             // carry, which a name test would miss.

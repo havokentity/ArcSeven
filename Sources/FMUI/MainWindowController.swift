@@ -440,19 +440,62 @@ extension MainWindowController {
             return    // the volumes / root levels are not writable drop targets
         }
 
-        let manager = FileManager.default
-        var failures: [String] = []
-        for url in urls {
-            let landing = destination.appendingPathComponent(url.lastPathComponent)
-            // A file dropped back onto its own folder is a no-op, not an error.
-            guard landing.standardizedFileURL != url.standardizedFileURL else { continue }
-            do { try manager.copyItem(at: url, to: landing) } catch { failures.append("\(url.lastPathComponent): \(error.localizedDescription)") }
+        // A file dropped back onto its own folder is a no-op, not an error.
+        let sources = urls.filter {
+            destination.appendingPathComponent($0.lastPathComponent).standardizedFileURL
+                != $0.standardizedFileURL
         }
-        for other in panels { other.reload() }
-        if !failures.isEmpty {
-            presentMessage("Some items could not be copied",
-                           failures.prefix(5).joined(separator: "\n"))
+        Task { [weak self] in
+            let failures = await Self.transferOffMain(sources, into: destination, move: false)
+            guard let self else { return }
+            for other in panels { other.reload() }
+            if !failures.isEmpty {
+                presentMessage("Some items could not be copied",
+                               failures.prefix(5).joined(separator: "\n"))
+            }
         }
+    }
+
+    /// Copy or move `urls` into `destination`, away from the main actor.
+    ///
+    /// `FileManager.copyItem` is synchronous and takes as long as the bytes take: a
+    /// dragged folder of disk images used to beachball the whole app, toolbar and
+    /// Cancel buttons included, until the copy finished. The work goes to the pool and
+    /// the failures come back as the sentences the alert shows.
+    nonisolated static func transferOffMain(_ urls: [URL], into destination: URL, move: Bool) async -> [String] {
+        await Task.detached(priority: .userInitiated) {
+            let manager = FileManager.default
+            var failures: [String] = []
+            for url in urls {
+                let target = destination.appendingPathComponent(url.lastPathComponent)
+                do {
+                    if move {
+                        try manager.moveItem(at: url, to: target)
+                    } else {
+                        try manager.copyItem(at: url, to: target)
+                    }
+                } catch {
+                    failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            return failures
+        }.value
+    }
+
+    /// Unlink `urls`, away from the main actor, for the same reason as ``transferOffMain``.
+    nonisolated static func removeOffMain(_ urls: [URL]) async -> [String] {
+        await Task.detached(priority: .userInitiated) {
+            let manager = FileManager.default
+            var failures: [String] = []
+            for url in urls {
+                do {
+                    try manager.removeItem(at: url)
+                } catch {
+                    failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                }
+            }
+            return failures
+        }.value
     }
 
     /// Insert files into an archive open in a panel, landing under `destinationSubPath`.

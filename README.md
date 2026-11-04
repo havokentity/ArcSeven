@@ -15,7 +15,7 @@ Written from scratch in Swift 6 and AppKit. Universal, notarised, and free softw
 [![Release](https://img.shields.io/github/v/release/havokentity/ArcSeven)](https://github.com/havokentity/ArcSeven/releases/latest)
 [![Platform](https://img.shields.io/badge/macOS-14.0%2B-black)](#requirements)
 [![Architecture](https://img.shields.io/badge/arch-arm64%20%2B%20x86__64-lightgrey)](#requirements)
-[![Tests](https://img.shields.io/badge/tests-392%20in%2048%20suites-brightgreen)](#tests)
+[![Tests](https://img.shields.io/badge/tests-405%20in%2052%20suites-brightgreen)](#tests)
 
 <img src="docs/images/toolbar.png" alt="The ArcSeven toolbar in light and dark appearance: Add, Extract, Test, Copy, Move, Delete and Info as colour-coded badges" width="620">
 

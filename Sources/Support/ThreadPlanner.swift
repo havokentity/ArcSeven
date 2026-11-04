@@ -35,27 +35,19 @@
 // On Intel Macs `hw.perflevel*` does not exist, `sysctlbyname` fails, and the fallback is
 // `hw.logicalcpu`, which is the Windows behaviour and correct there.
 //
-// NOTHING CALLS THIS YET, and saying so here is the point. `CompressDialogModel` still takes
-// `ProcessInfo.processInfo.activeProcessorCount` and hands it to
-// `FormatCatalog.automaticThreads`, so ADD-17's "prefers the P-core count on Apple silicon"
-// and ADD-18's `hw.perflevel*` hardware hint are, today, claims and not behaviour - every
-// automatic compression on an Apple silicon Mac asks for every logical core, E-cores
-// included, which the analysis above calls actively harmful. Sources/Dialogs is where that
-// changes, in three places:
+// WHO CALLS THIS. `CompressDialogModel` takes a `CPUTopology` (defaulting to `topology`
+// below) and reaches here in three places: `automaticThreadCount` is
+// `recommendedThreadCount(upperBound: FormatCatalog.maximumThreads(format:method:))`, the
+// thread combo's ceiling is `maximumSelectableThreadCount(algorithmMaximum:)` - deliberately
+// still the *logical* core count doubled, per ADD-17; only the automatic value drops the
+// E-cores - and `makeRequest()` spells the automatic entry out as an explicit `-mmt` on a
+// heterogeneous machine, because `.automatic` would let `7zz` count the E-cores itself.
+// `CPUTopology.summary` ("12P + 4E (16 threads)") is the `/ N` hint beside that combo.
 //
-//   * `CompressDialogModel.effectiveThreads` - replace
-//     `FormatCatalog.automaticThreads(format:method:hardwareThreads:)` with
-//     `ThreadPlanner.recommendedThreadCount(upperBound: FormatCatalog.maximumThreads(format:method:))`.
-//   * `CompressDialogModel.threadChoices` and `reconcileThreads` - the `hardwareThreads * 2`
-//     ceilings become `ThreadPlanner.maximumSelectableThreadCount(algorithmMaximum:)`. Note
-//     that this ceiling is deliberately still the *logical* core count doubled, per ADD-17;
-//     only the automatic value drops the E-cores.
-//   * `CompressDialogModel.init`'s `hardwareThreads` default -
-//     `ThreadPlanner.topology.logicalCoreCount`, which is the same number
-//     `activeProcessorCount` reports but comes from the same read as everything else here.
-//
-// `CPUTopology.summary` ("12P + 4E (16 threads)") is ADD-18's hint string, and has no home
-// until the Add dialog grows a place to show it.
+// Through 0.1.6 none of that was wired: the model took `activeProcessorCount` and handed it
+// to `FormatCatalog.automaticThreads`, so every automatic compression on an Apple silicon
+// Mac asked for every logical core, E-cores included, which the analysis above calls
+// actively harmful.
 
 import Foundation
 #if canImport(ArchiveCore)   // module-guard

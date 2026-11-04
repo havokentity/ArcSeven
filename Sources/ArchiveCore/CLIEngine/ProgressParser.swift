@@ -185,7 +185,11 @@ public struct ProgressParser: Sendable {
         // Leading numeric field. A percentage when `7zz` knows the total, a running
         // size in `M` when it does not — which is every tick of the scan, since the
         // total is what the scan exists to measure.
-        let digits = scanner.prefix(while: \.isNumber)
+        //
+        // ASCII digits only. `Character.isNumber` is also true of `½`, `²` and every
+        // non-Latin digit, none of which `Int(_:)` accepts, so a path starting with one
+        // of those used to read as a percentage that then parsed to `nil`.
+        let digits = scanner.prefix(while: Self.isASCIIDigit)
         guard !digits.isEmpty else { return nil }   // Not a progress row at all.
         switch scanner.dropFirst(digits.count).first {
         case "%":
@@ -202,7 +206,7 @@ public struct ProgressParser: Sendable {
         dropSpaces()
 
         // File count: a bare integer.
-        let countDigits = scanner.prefix(while: \.isNumber)
+        let countDigits = scanner.prefix(while: Self.isASCIIDigit)
         if !countDigits.isEmpty {
             let after = scanner.dropFirst(countDigits.count).first
             if after == nil || after == " " {
@@ -245,6 +249,11 @@ public struct ProgressParser: Sendable {
 
     /// Markers `7zz` uses in both progress rows and `-bb3` member lines.
     static let markerCharacters: Set<Character> = ["-", "+", "U", "T", ".", "="]
+
+    /// `0`...`9` and nothing else — the only digits `7zz` prints and `Int(_:)` reads.
+    private static func isASCIIDigit(_ character: Character) -> Bool {
+        character.isASCII && character.isNumber
+    }
 
     /// Decode a `-bb3` member line into an action and a path.
     static func parseMemberLine(_ text: String) -> (ArchiveItemEvent.Action, String)? {

@@ -415,6 +415,15 @@ public enum ArchiveError: Error, Sendable, Hashable {
     /// The engine's output did not match the grammar we parse.
     case malformedOutput(String)
 
+    /// A streamed member grew past the byte ceiling the request set.
+    ///
+    /// Raised by ``ArchiveEngine/readEntry(_:)`` when the member exceeds
+    /// ``ReadEntryRequest/maximumByteCount``. The consumer has received at most that
+    /// many bytes and must treat them as a truncated prefix, never as the member. The
+    /// child is stopped the moment the limit is crossed, so a decompression bomb costs
+    /// one pipe buffer, not a disk.
+    case outputLimitExceeded(UInt64)
+
     /// An archive was created with encryption requested, but a post-creation check
     /// found it unencrypted.
     ///
@@ -441,7 +450,7 @@ extension ArchiveError {
              .unexpectedExitCode(_, let detail), .inputRequired(_, let detail):
             return detail
         case .cancelled, .engineUnavailable, .launchFailed, .invalidRequest,
-             .malformedOutput, .encryptionVerificationFailed, .io:
+             .malformedOutput, .outputLimitExceeded, .encryptionVerificationFailed, .io:
             return nil
         }
     }
@@ -487,6 +496,8 @@ extension ArchiveError: LocalizedError {
             return "The request is not valid: \(reason)"
         case .malformedOutput(let reason):
             return "The archive engine produced output that could not be understood: \(reason)"
+        case .outputLimitExceeded(let limit):
+            return "The item is larger than the \(limit)-byte limit for reading it into memory."
         case .encryptionVerificationFailed(let reason):
             return "The archive was not encrypted: \(reason)"
         case .io(let reason):
@@ -678,14 +689,16 @@ extension ArchiveEngine {
     ///
     /// Convenience for small members — previews, comment files, manifests. Anything
     /// that could be large should consume ``readEntry(_:)`` incrementally instead.
+    ///
+    /// - Throws: ``ArchiveError/outputLimitExceeded(_:)`` when the member is larger than
+    ///   ``ReadEntryRequest/maximumByteCount``. The CLI engine raises it from the stream
+    ///   itself; the check here is the same guard for an engine that does not.
     public func readEntryData(_ request: ReadEntryRequest) async throws -> Data {
         var data = Data()
         for try await chunk in readEntry(request) {
             data.append(chunk)
             if let limit = request.maximumByteCount, UInt64(data.count) > limit {
-                throw ArchiveError.invalidRequest(
-                    "\(request.entryPath) exceeds the \(limit)-byte read limit."
-                )
+                throw ArchiveError.outputLimitExceeded(limit)
             }
         }
         return data

@@ -20,8 +20,33 @@ calls M1.
 
 ## [Unreleased]
 
+### Fixed
+
+- **Reading a member past its size cap hung the app.** Crossing `maximumByteCount` stopped
+  the reader but not `7zz`, which blocked on a full pipe forever; what had arrived was then
+  reported as a complete, successful read. The child is now stopped at the limit and the
+  read fails with `outputLimitExceeded`.
+- **An empty Delete request meant "delete everything"** to `7zz`; it is refused before
+  anything is spawned. Deleting thousands of members at once overflowed the argument list
+  the way Extract and Test used to; the same list file now carries them.
+- **Archive and Directory flags were dropped for every archive made on a Mac or Linux.**
+  `7zz` prints them as `A_` / `D_`, and the parser accepted only `RHSDA`.
+- **⌘V, ⌘C, ⌘X and ⌘Z did nothing in any text field** — the Extract destination, the
+  password prompt, the Add dialog's path — because the Edit menu declared no items for
+  them. Enter Full Screen was bound to bare ⌘F instead of ⌃⌘F.
+- The path bar resized the system's shared folder icon in place, shrinking it for every
+  other view that used it. Non-ASCII digits could open a bogus progress row.
+
 ### Changed
 
+- **Large listings no longer freeze the window.** Sorting an 80,000-member archive, and
+  re-sorting it from a column header, now happens off the main thread. Disk copies, moves,
+  permanent deletes, the pre-extraction overwrite scan and quarantine propagation have left
+  the main thread too; a long copy keeps the window responsive instead of beachballing.
+- **Automatic thread count on Apple silicon is the P-core count**, not every logical core.
+  LZMA2 splits input into equal blocks per thread, so handing it the E-cores made every
+  automatic compression finish on its slowest block. The Add dialog shows the P/E split
+  beside the combo, and the request spells the count out so `7zz` cannot count for itself.
 - Relicensed all first-party ArcSeven code and documentation from GPL-3.0-or-later to
   Apache-2.0. Existing third-party components retain their respective licenses.
 
