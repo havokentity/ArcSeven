@@ -24,6 +24,9 @@ import Foundation
 #if canImport(ArchiveCore)   // module-guard
 import ArchiveCore
 #endif
+#if canImport(Support)   // module-guard
+import Support
+#endif
 
 /// Everything the Add to Archive dialog holds, plus the rules that keep it coherent.
 ///
@@ -89,7 +92,12 @@ public struct CompressDialogModel: Sendable, Equatable {
     /// ships in the bundle (D-07), so the checkbox is honest about producing nothing.
     public var selfExtractingModuleURL: URL?
 
-    /// Logical CPUs, injected so the thread rules can be exercised without a machine.
+    /// The machine's core layout, injected so the thread rules can be exercised without
+    /// a machine. `ThreadPlanner` turns it into the automatic thread count (ADD-17).
+    public let topology: CPUTopology
+
+    /// Logical CPUs — `topology.logicalCoreCount`, kept as its own field because the
+    /// thread combo's ceiling and the `/ N` hint are stated in those terms.
     public let hardwareThreads: Int
 
     // MARK: - Construction
@@ -97,11 +105,12 @@ public struct CompressDialogModel: Sendable, Equatable {
     public init(
         defaultArchiveURL: URL,
         inputs: [URL],
-        hardwareThreads: Int = ProcessInfo.processInfo.activeProcessorCount
+        topology: CPUTopology = ThreadPlanner.topology
     ) {
         self.archivePath = defaultArchiveURL.path
         self.inputs = inputs
-        self.hardwareThreads = max(1, hardwareThreads)
+        self.topology = topology
+        self.hardwareThreads = max(1, topology.logicalCoreCount)
 
         // One regular file, not a directory and not a bundle we would descend into.
         if inputs.count == 1,
@@ -196,7 +205,7 @@ public struct CompressDialogModel: Sendable, Equatable {
     /// one the numeric list is dropped and only the automatic entry remains (ADD-17).
     public var threadChoices: [Int] {
         guard let descriptor, descriptor.supportsMultithreading else { return [] }
-        let ceiling = min(hardwareThreads * 2, FormatCatalog.maximumThreads(format: format, method: method))
+        let ceiling = selectableThreadCeiling
         guard ceiling > 1 else { return [] }
         return Array(1...ceiling)
     }
@@ -217,12 +226,7 @@ public struct CompressDialogModel: Sendable, Equatable {
 
     /// The thread count that will actually be used.
     public var effectiveThreads: Int {
-        threads.intValue
-            ?? FormatCatalog.automaticThreads(
-                format: format,
-                method: method,
-                hardwareThreads: hardwareThreads
-            )
+        threads.intValue ?? automaticThreadCount
     }
 
     /// The method that will actually run, resolving the `*` entry to the format default.
@@ -378,7 +382,7 @@ public struct CompressDialogModel: Sendable, Equatable {
     /// use it; otherwise fall back to automatic rather than silently clamping, because a
     /// clamped number looks like the user's choice and is not.
     private mutating func reconcileThreads(with descriptor: FormatCatalog.CreatableFormat) {
-        let ceiling = min(hardwareThreads * 2, FormatCatalog.maximumThreads(format: format, method: method))
+        let ceiling = selectableThreadCeiling
         if let count = threads.intValue, count < 1 || count > ceiling {
             threads = .automatic
         }
@@ -790,7 +794,7 @@ extension CompressDialogModel {
         request.dictionarySize = dictionarySize
         request.wordSize = wordSize
         request.solidBlockSize = solidBlockSize
-        request.threads = threads
+        request.threads = requestedThreads
         request.updateMode = updateMode
         request.pathMode = pathMode
         request.volumeSizes = try VolumeSizeGrammar.parse(volumeText)

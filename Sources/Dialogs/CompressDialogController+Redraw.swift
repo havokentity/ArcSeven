@@ -137,14 +137,16 @@ extension CompressDialogController {
         let threadChoices = model.threadChoices
         var threadTitles: [String] = []
         if !threadChoices.isEmpty {
-            threadTitles.append("*  \(FormatCatalog.automaticThreads(format: model.format, method: model.method, hardwareThreads: model.hardwareThreads))")
+            threadTitles.append("*  \(model.automaticThreadCount)")
             threadTitles.append(contentsOf: threadChoices.map(String.init))
         }
         let threadIndex = model.threads.intValue
             .flatMap { threadChoices.firstIndex(of: $0) }
             .map { $0 + 1 } ?? 0
         apply(threadsPopup, titles: threadTitles, selectedIndex: threadIndex, enabled: availability.threadsEnabled)
-        threadsHint.stringValue = "/ \(model.hardwareThreads)"
+        // ADD-18's hardware hint: `12P + 4E (16 threads)` on Apple silicon, the bare
+        // count elsewhere, so the automatic entry above reads as the P-core budget it is.
+        threadsHint.stringValue = "/ \(model.topology.summary)"
     }
 
     private func refreshFileSelectionControls(_ availability: CompressDialogModel.Availability) {

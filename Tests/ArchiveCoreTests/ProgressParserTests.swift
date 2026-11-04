@@ -26,6 +26,16 @@ struct ProgressParserTests {
         #expect(counted?.path == nil)
     }
 
+    /// `Character.isNumber` is true of `½`, `²` and every non-Latin digit, none of which
+    /// `Int(_:)` accepts. A row starting with one used to be read as a progress tick
+    /// whose percentage then parsed to nothing; it is not a progress row at all.
+    @Test("Only ASCII digits open a progress row")
+    func asciiDigitsOnly() {
+        #expect(ProgressParser.parseProgressRow("½ docs") == nil)
+        #expect(ProgressParser.parseProgressRow("٣٤% 1 - x") == nil)
+        #expect(ProgressParser.parseProgressRow("34% 1 - x")?.percent == 34)
+    }
+
     /// While `7zz` is still walking the input it has no total to take a percentage of,
     /// so it prints a running size and the word `Scan` where the marker goes. That is
     /// a phase indicator, and it must not arrive at the UI as a filename.

@@ -73,58 +73,107 @@ public enum ProcessRunner {
         byteLimit: UInt64? = nil,
         currentDirectory: URL? = nil
     ) -> AsyncThrowingStream<Event, any Error> {
-        AsyncThrowingStream { continuation in
-            let process = Process()
-            process.executableURL = executableURL
-            process.arguments = arguments
-            if let environment { process.environment = environment }
-            // Working directory, not a cosmetic detail: `7zz a` stores each input under
-            // the path it was GIVEN, so the only way to place a member at
-            // `docs/img/logo.png` inside the archive is to run from a directory where the
-            // input really is at `docs/img/logo.png`.
-            if let currentDirectory { process.currentDirectoryURL = currentDirectory }
-
-            let pipes = ChildPipes()
-            pipes.attach(to: process)
-
-            // Completion needs TWO independent facts: the child has exited, and both
-            // pipes have hit EOF. Emitting on either alone either truncates output or
-            // reports an exit status that is not yet set.
-            let completionGate = CompletionGate { completion in
-                continuation.yield(.finished(completion))
-                continuation.finish()
-            }
-            process.terminationHandler = { finished in
-                completionGate.processExited(Self.completion(for: finished))
-            }
-
-            do {
-                try process.run()
-            } catch {
-                continuation.finish(throwing: ArchiveError.launchFailed(error.localizedDescription))
-                return
-            }
-
-            let config = PumpConfig(
-                continuation: continuation,
-                group: DispatchGroup(),
-                counter: ByteCounter(),
-                byteLimit: byteLimit
-            )
-            pump(pipes.output, wrap: Event.standardOutput, config: config)
-            pump(pipes.error, wrap: Event.standardError, config: config)
-            feed(standardInput, into: pipes.input)
-
-            // Both pipes at EOF: no output can be lost now.
-            config.group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
-                completionGate.pipesDrained()
-            }
-
-            continuation.onTermination = cancellationHandler(for: process)
+        let launch = Launch(
+            executableURL: executableURL,
+            arguments: arguments,
+            environment: environment,
+            standardInput: standardInput,
+            readChunkSize: max(readChunkSize, 4096),
+            byteLimit: byteLimit,
+            currentDirectory: currentDirectory
+        )
+        return AsyncThrowingStream { continuation in
+            spawn(launch, into: continuation)
         }
     }
 
+    /// Everything `stream(...)` was asked for, carried into the spawn as one value.
+    private struct Launch: Sendable {
+        var executableURL: URL
+        var arguments: [String]
+        var environment: [String: String]?
+        var standardInput: Data?
+        var readChunkSize: Int
+        var byteLimit: UInt64?
+        var currentDirectory: URL?
+    }
+
     // MARK: Spawn steps
+
+    /// Start the child and wire its pipes and exit to `continuation`.
+    private static func spawn(
+        _ launch: Launch,
+        into continuation: AsyncThrowingStream<Event, any Error>.Continuation
+    ) {
+        let process = makeProcess(for: launch)
+        let pipes = ChildPipes()
+        pipes.attach(to: process)
+
+        // Completion needs TWO independent facts: the child has exited, and both
+        // pipes have hit EOF. Emitting on either alone either truncates output or
+        // reports an exit status that is not yet set.
+        //
+        // A run that blew through `byteLimit` is a failure, not a short success: the
+        // consumer has been handed a truncated payload, and reporting exit 0 on top of
+        // it is how a preview shows half a file as if it were the whole thing.
+        let limit = ByteLimit(launch.byteLimit)
+        let completionGate = CompletionGate { completion in
+            if let byteLimit = launch.byteLimit, limit.wasExceeded {
+                continuation.finish(throwing: ArchiveError.outputLimitExceeded(byteLimit))
+                return
+            }
+            continuation.yield(.finished(completion))
+            continuation.finish()
+        }
+        process.terminationHandler = { finished in
+            completionGate.processExited(Self.completion(for: finished))
+        }
+
+        do {
+            try process.run()
+        } catch {
+            continuation.finish(throwing: ArchiveError.launchFailed(error.localizedDescription))
+            return
+        }
+
+        // Once the limit is crossed the child has nothing left to say that anyone will
+        // read. Stopping it promptly matters: the alternative is decompressing the rest
+        // of a multi-gigabyte member into a pipe that is only ever drained to /dev/null.
+        let pid = process.processIdentifier
+        let config = PumpConfig(
+            continuation: continuation,
+            group: DispatchGroup(),
+            limit: limit,
+            readChunkSize: launch.readChunkSize,
+            onLimitExceeded: { kill(pid, SIGKILL) }
+        )
+        pump(pipes.output, wrap: Event.standardOutput, config: config)
+        pump(pipes.error, wrap: Event.standardError, config: config)
+        feed(launch.standardInput, into: pipes.input)
+
+        // Both pipes at EOF: no output can be lost now.
+        config.group.notify(queue: DispatchQueue.global(qos: .userInitiated)) {
+            completionGate.pipesDrained()
+        }
+
+        continuation.onTermination = cancellationHandler(for: process)
+    }
+
+    /// A `Process` configured but not yet run.
+    private static func makeProcess(for launch: Launch) -> Process {
+        let process = Process()
+        process.executableURL = launch.executableURL
+        process.arguments = launch.arguments
+        if let environment = launch.environment { process.environment = environment }
+        // Working directory, not a cosmetic detail: `7zz a` stores each input under
+        // the path it was GIVEN, so the only way to place a member at
+        // `docs/img/logo.png` inside the archive is to run from a directory where the
+        // input really is at `docs/img/logo.png`.
+        if let currentDirectory = launch.currentDirectory {
+            process.currentDirectoryURL = currentDirectory
+        }
+        return process
+    }
 
     /// Read a finished child's exit status.
     ///
@@ -158,20 +207,34 @@ public enum ProcessRunner {
     ) {
         let handle = pipe.fileHandleForReading
         DispatchQueue.global(qos: .userInitiated).async(group: config.group) {
-            while true {
-                let data = handle.availableData
-                if data.isEmpty { break }
-                if let byteLimit = config.byteLimit {
-                    let total = config.counter.add(UInt64(data.count))
-                    if total > byteLimit {
-                        let keep = Int(byteLimit &- (total &- UInt64(data.count)))
-                        if keep > 0 { config.continuation.yield(wrap(data.prefix(keep))) }
-                        break
-                    }
+            // Always read to EOF, even after the limit. The pump that stops reading
+            // leaves the child blocked on a full pipe, the child never exits, the
+            // completion gate never fires, and the consumer waits forever. That is the
+            // deadlock `byteLimit` used to produce on any member larger than the limit
+            // plus one pipe buffer.
+            while let data = readChunk(from: handle, upTo: config.readChunkSize) {
+                switch config.limit.admit(UInt64(data.count)) {
+                case .whole:
+                    config.continuation.yield(wrap(data))
+                case .truncated(let keep):
+                    if keep > 0 { config.continuation.yield(wrap(data.prefix(keep))) }
+                    config.onLimitExceeded()
+                case .dropped:
+                    continue
                 }
-                config.continuation.yield(wrap(data))
             }
         }
+    }
+
+    /// One blocking read of at most `limit` bytes, or `nil` at EOF.
+    ///
+    /// `read(upToCount:)` rather than `availableData`, so the `readChunkSize` the engine
+    /// asks for is actually honoured; the old call ignored it and read whatever the pipe
+    /// happened to hold. A read error on a pipe we own means the other end is gone,
+    /// which for the pump's purposes is EOF.
+    private static func readChunk(from handle: FileHandle, upTo limit: Int) -> Data? {
+        guard let data = try? handle.read(upToCount: limit), !data.isEmpty else { return nil }
+        return data
     }
 
     /// Feed stdin, then close it.
@@ -265,8 +328,11 @@ public enum ProcessRunner {
         /// Both pumps join this group, so `notify` fires when both pipes hit EOF.
         let group: DispatchGroup
         /// Shared across both pipes: `byteLimit` caps the run, not each stream.
-        let counter: ByteCounter
-        let byteLimit: UInt64?
+        let limit: ByteLimit
+        /// Bytes asked for per read.
+        let readChunkSize: Int
+        /// Fired exactly once, by whichever pump crosses the limit.
+        let onLimitExceeded: @Sendable () -> Void
     }
 
     // MARK: Completion gate
@@ -308,23 +374,53 @@ public enum ProcessRunner {
         }
     }
 
-    // MARK: Shared counter
+    // MARK: Shared byte budget
 
-    /// Tracks bytes emitted, for `byteLimit`.
+    /// Tracks bytes emitted against `byteLimit`, across both pipes.
     ///
     /// A lock rather than an actor: the callers are dispatch work items, not async
     /// contexts, and `await`-ing an actor from them would reintroduce exactly the
     /// cooperative-pool dependency the dispatch queues exist to avoid.
-    private final class ByteCounter: @unchecked Sendable {
-        private let lock = NSLock()
-        private var byteCount: UInt64 = 0
+    private final class ByteLimit: @unchecked Sendable {
+        /// What a pump may do with the chunk it just read.
+        enum Admission {
+            /// Within budget: yield the whole chunk.
+            case whole
+            /// This chunk crosses the limit: yield its first `keep` bytes, then stop
+            /// the child. Returned exactly once per run.
+            case truncated(keep: Int)
+            /// The limit was already crossed: read on to EOF, yield nothing.
+            case dropped
+        }
 
-        /// Add to the running total and return the new value.
-        func add(_ count: UInt64) -> UInt64 {
+        private let lock = NSLock()
+        private let limit: UInt64?
+        private var byteCount: UInt64 = 0
+        private var exceeded = false
+
+        init(_ limit: UInt64?) {
+            self.limit = limit
+        }
+
+        var wasExceeded: Bool {
             lock.lock()
             defer { lock.unlock() }
-            byteCount &+= count
-            return byteCount
+            return exceeded
+        }
+
+        func admit(_ count: UInt64) -> Admission {
+            lock.lock()
+            defer { lock.unlock() }
+            guard let limit else { return .whole }
+            if exceeded { return .dropped }
+            let remaining = limit - byteCount
+            if count <= remaining {
+                byteCount += count
+                return .whole
+            }
+            exceeded = true
+            byteCount = limit
+            return .truncated(keep: Int(remaining))
         }
     }
 }

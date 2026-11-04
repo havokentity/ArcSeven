@@ -268,18 +268,40 @@ public struct SevenZipCLIEngine: ArchiveEngine {
     }
 
     public func delete(_ request: DeleteRequest) -> ArchiveOperationStream {
+        // `d` with no member names deletes EVERY member — 7-Zip reads the empty
+        // selection as "all". `DeleteRequest` documents the list as never empty, and a
+        // caller that breaks that contract gets an error, not an emptied archive.
+        guard !request.entryPaths.isEmpty else {
+            return Self.failedStream(
+                .delete, ArchiveError.invalidRequest("Delete was asked to remove no members.")
+            )
+        }
+
         let delivery = Self.readDelivery(request.password)
         var arguments = ["d"]
         arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
-        if !request.entryPaths.isEmpty { arguments.append(Self.literalNames) }
+        if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
+        // Same `ARG_MAX` hazard as extract and test, and it was left unguarded here: a
+        // Select All ▸ Delete over a few thousand deep paths failed to spawn with an
+        // opaque `E2BIG`. The list file goes before `--`, the names it could not hold go
+        // after the archive, and `-spd` keeps both literal.
+        let selection: SelectionListFile.Prepared
+        do {
+            selection = try SelectionListFile.prepare(request.entryPaths)
+        } catch {
+            return Self.failedStream(.delete, error)
+        }
+        arguments.append(contentsOf: selection.switches)
+        arguments.append(Self.literalNames)
         arguments.append("--")
         arguments.append(request.archiveURL.path)
-        arguments.append(contentsOf: request.entryPaths)
+        arguments.append(contentsOf: selection.arguments)
         return runStreaming(
             operation: .delete,
             arguments: arguments,
             delivery: delivery,
-            path: request.archiveURL.path
+            path: request.archiveURL.path,
+            temporaryFiles: selection.temporaryFiles
         )
     }
 
@@ -287,6 +309,7 @@ public struct SevenZipCLIEngine: ArchiveEngine {
         let delivery = Self.readDelivery(request.password)
         var arguments = ["rn"]
         arguments += Self.commonSwitches(passwordOnStdin: delivery.usesStdin)
+        if let format = request.formatOverride { arguments.append("-t\(format.rawValue)") }
         arguments.append("--")
         arguments.append(request.archiveURL.path)
         for pair in request.renames {

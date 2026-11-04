@@ -138,7 +138,7 @@ let package = Package(
         ),
         .testTarget(
             name: "DialogsTests",
-            dependencies: ["Dialogs", "ArchiveCore"],
+            dependencies: ["Dialogs", "ArchiveCore", "Support"],
             path: "Tests/DialogsTests",
             swiftSettings: strictSettings
         ),

@@ -259,6 +259,10 @@ public final class PanelViewController: NSViewController {
         loadToken += 1
         let token = loadToken
         let provider = self.provider
+        let descriptor = sort
+        // OPT-18 / DOT-01: `..` needs BOTH a parent to point at and the switch on. The
+        // root folder shows none whatever the switch says, which is upstream's rule too.
+        let showsParentRow = listSettings.showDots
 
         isLoading = true
         spinner.startAnimation(nil)
@@ -266,10 +270,11 @@ public final class PanelViewController: NSViewController {
 
         Task { [weak self] in
             do {
-                let children = try await provider.loadChildren()
-                let parent = try await provider.parent()
+                let loaded = try await Self.loadRows(
+                    from: provider, sortedBy: descriptor, showingParentRow: showsParentRow
+                )
                 guard let self, token == loadToken else { return }
-                apply(children: children, hasParent: parent != nil)
+                apply(rows: loaded.rows, isEmpty: loaded.isEmpty)
             } catch {
                 guard let self, token == loadToken else { return }
                 isLoading = false
@@ -282,6 +287,61 @@ public final class PanelViewController: NSViewController {
         }
     }
 
+    /// Load a level and sort it, both away from the main actor.
+    ///
+    /// `nonisolated` and `async`, so it runs on the cooperative pool rather than on the
+    /// caller's executor (SE-0338). That is the point: `SortEngine` compares with a
+    /// locale-aware, numeric, case-folding comparator, and doing that for an 80,000-row
+    /// tarball on the main thread froze the window for the whole of the sort. Here the
+    /// listing arrives on the main actor already ordered, in the one hop the load
+    /// always needed.
+    nonisolated private static func loadRows(
+        from provider: any FolderProvider,
+        sortedBy descriptor: SortDescriptor,
+        showingParentRow: Bool
+    ) async throws -> (rows: [FolderItem], isEmpty: Bool) {
+        let children = try await provider.loadChildren()
+        let hasParent = try await provider.parent() != nil
+        let parentRow = hasParent && showingParentRow ? Self.parentRow : nil
+        return (SortEngine.sort(children, by: descriptor, parentItem: parentRow), children.isEmpty)
+    }
+
+    /// The synthetic `..` row.
+    nonisolated private static var parentRow: FolderItem {
+        FolderItem(path: "..", name: "..", isNavigable: true, isDirectory: true)
+    }
+
+    /// Re-sort what is already loaded, off the main actor when there is enough of it.
+    ///
+    /// Small listings are sorted inline: the hop costs more than the sort, and a header
+    /// click should feel immediate. Large ones go to the pool, and a load that lands in
+    /// the meantime wins, because it carries the new descriptor itself.
+    private func resortRows() {
+        let body = rows.filter { !$0.isParentRow }
+        let parentRow = rows.first(where: \.isParentRow)
+        let descriptor = sort
+
+        if body.count <= Self.inlineSortLimit {
+            rows = SortEngine.sort(body, by: descriptor, parentItem: parentRow)
+            tableView.reloadData()
+            return
+        }
+
+        loadToken += 1
+        let token = loadToken
+        Task { [weak self] in
+            let sorted = await Task.detached(priority: .userInitiated) {
+                SortEngine.sort(body, by: descriptor, parentItem: parentRow)
+            }.value
+            guard let self, token == loadToken else { return }
+            rows = sorted
+            tableView.reloadData()
+        }
+    }
+
+    /// Row counts up to this are sorted on the main actor; see ``resortRows()``.
+    private static let inlineSortLimit = 2000
+
     /// Navigate to a new level.
     public func go(to provider: any FolderProvider) {
         clearMarks()
@@ -292,23 +352,19 @@ public final class PanelViewController: NSViewController {
         delegate?.panelDidChangeLocation(self)
     }
 
-    private func apply(children: [FolderItem], hasParent: Bool) {
+    /// Show a loaded, already-sorted level.
+    private func apply(rows sorted: [FolderItem], isEmpty: Bool) {
         isLoading = false
         spinner.stopAnimation(nil)
 
-        // OPT-18 / DOT-01: `..` needs BOTH a parent to point at and the switch on. The
-        // root folder shows none whatever the switch says, which is upstream's rule too.
-        let parentRow = hasParent && listSettings.showDots
-            ? FolderItem(path: "..", name: "..", isNavigable: true, isDirectory: true)
-            : nil
-        rows = SortEngine.sort(children, by: sort, parentItem: parentRow)
+        rows = sorted
 
         tableView.reloadData()
         updateStatusBar()
         updateSelectionStatus()
         focusTable()
 
-        if children.isEmpty {
+        if isEmpty {
             showMessage("This folder is empty.")
         } else {
             messageLabel.isHidden = true
@@ -579,15 +635,15 @@ extension PanelViewController: NSTableViewDataSource {
         sort = property == sort.column
             ? SortDescriptor(column: property, direction: sort.direction.reversed)
             : SortDescriptor(column: property, direction: .ascending)
-
-        let parentRow = rows.first(where: \.isParentRow)
-        rows = SortEngine.sort(
-            rows.filter { !$0.isParentRow },
-            by: sort,
-            parentItem: parentRow
-        )
-        tableView.reloadData()
         updateSortIndicator()
+
+        // A load in flight read the previous descriptor when it started. Restarting it
+        // is cheaper than racing it, and the restart sorts with the new one.
+        if isLoading {
+            reload()
+            return
+        }
+        resortRows()
     }
 
     private func updateSortIndicator() {

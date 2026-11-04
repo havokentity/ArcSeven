@@ -201,8 +201,9 @@ public enum Quarantine {
         guard let value = try rawValue(of: source), !value.isEmpty else { return 0 }
 
         var marked = 0
-        try? apply(value, to: root)
-        marked += 1
+        // Counted only when it took: the return value is "items marked", and a root
+        // whose write failed was being reported as one of them.
+        if (try? apply(value, to: root)) != nil { marked += 1 }
 
         let manager = FileManager()
         guard let enumerator = manager.enumerator(

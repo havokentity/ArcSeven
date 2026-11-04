@@ -27,6 +27,20 @@ private let quarantineLog = Logger(
     subsystem: "com.havokentity.ArcSeven", category: "quarantine"
 )
 
+/// The first file an extraction would overwrite, and whether it is the only one.
+///
+/// At file scope rather than nested in the controller so it is plainly free of the
+/// controller's main-actor isolation: it is built on the pool and read on the main actor.
+struct ExtractionConflictScan: Sendable {
+    var existing: URL?
+    var entry: ArchiveEntry?
+    /// Counted, not just detected, because the count decides which answers are honest.
+    /// Stops at two: the only question is "exactly one collision, or more than one", and
+    /// a large archive over a large directory is a lot of stat calls to make for a
+    /// number nobody reads.
+    var count = 0
+}
+
 extension MainWindowController {
     // MARK: Operations
 
@@ -222,13 +236,21 @@ extension MainWindowController {
             operation: engine.extract(request),
             title: "Extracting \(request.archiveURL.lastPathComponent)"
         ) { [weak self] result in
-            Self.propagateQuarantine(from: request)
-            self?.reportSuccess(
-                result,
-                title: "Extraction complete",
-                detail: "Extracted to \(request.destinationURL.path).",
-                reveal: request.destinationURL
-            )
+            // Off the main actor: propagation is two xattr calls per extracted item, and
+            // for a hundred-thousand-file tree that was a visible stall between the
+            // progress sheet closing and the completion alert opening. The alert waits
+            // for it, so what it reports is still true when it is read.
+            Task { [weak self] in
+                await Task.detached(priority: .userInitiated) {
+                    Self.propagateQuarantine(from: request)
+                }.value
+                self?.reportSuccess(
+                    result,
+                    title: "Extraction complete",
+                    detail: "Extracted to \(request.destinationURL.path).",
+                    reveal: request.destinationURL
+                )
+            }
         }
     }
 
@@ -244,7 +266,7 @@ extension MainWindowController {
     /// Best-effort by design. A failure here must not turn a successful extraction into a
     /// user-visible error, but it is worth a log line, because the silent version of this
     /// is exactly the bug being fixed.
-    private static func propagateQuarantine(from request: ExtractRequest) {
+    nonisolated private static func propagateQuarantine(from request: ExtractRequest) {
         do {
             let marked = try Quarantine.propagate(
                 from: request.archiveURL, toTreeAt: request.destinationURL
@@ -270,7 +292,7 @@ extension MainWindowController {
     ///   A selected directory now expands to every member beneath it.
     /// * An empty selection means "everything", which is already handled by falling back
     ///   to the whole listing.
-    static func filesAffected(
+    nonisolated static func filesAffected(
         by request: ExtractRequest,
         in listing: ArchiveListing
     ) -> [ArchiveEntry] {
@@ -296,7 +318,7 @@ extension MainWindowController {
     /// exist, finds no conflict, and lets the extraction proceed over the top of the
     /// user's data. Resolution still goes through the zip-slip guard rather than joining
     /// paths by hand.
-    static func extractionDestination(
+    nonisolated static func extractionDestination(
         of entry: ArchiveEntry,
         under request: ExtractRequest
     ) -> URL? {
@@ -323,30 +345,55 @@ extension MainWindowController {
         in listing: ArchiveListing,
         completion: @escaping @MainActor (ExtractRequest?) -> Void
     ) {
+        // The scan resolves every affected member through the zip-slip gate — a
+        // `realpath` plus an `lstat` per path component — and then stats it. Over a
+        // large archive that is seconds of syscalls, which used to run on the main
+        // thread between the Extract sheet closing and anything else happening.
+        Task { [weak self] in
+            let scan = await Task.detached(priority: .userInitiated) {
+                Self.scanForConflicts(request, in: listing)
+            }.value
+            guard let self else {
+                completion(nil)
+                return
+            }
+            askAboutConflict(scan, for: request, completion: completion)
+        }
+    }
+
+    nonisolated static func scanForConflicts(
+        _ request: ExtractRequest, in listing: ArchiveListing
+    ) -> ExtractionConflictScan {
         let manager = FileManager.default
-        var conflict: (existing: URL, entry: ArchiveEntry)?
-        // Counted, not just detected, because the count decides which answers are honest.
-        // Stops at two: the only question is "exactly one collision, or more than one", and
-        // a large archive over a large directory is a lot of stat calls to make for a
-        // number nobody reads.
-        var conflictCount = 0
-        for entry in Self.filesAffected(by: request, in: listing) {
-            guard let destination = Self.extractionDestination(
-                of: entry, under: request
-            ) else { continue }
+        var scan = ExtractionConflictScan()
+        for entry in filesAffected(by: request, in: listing) {
+            guard let destination = extractionDestination(of: entry, under: request) else { continue }
             if manager.fileExists(atPath: destination.path) {
-                if conflict == nil { conflict = (destination, entry) }
-                conflictCount += 1
-                if conflictCount > 1 { break }
+                if scan.existing == nil {
+                    scan.existing = destination
+                    scan.entry = entry
+                }
+                scan.count += 1
+                if scan.count > 1 { break }
             }
         }
+        return scan
+    }
 
-        guard let conflict, let window else {
+    /// Put the one dialog up, or pass the request straight through when nothing collides.
+    private func askAboutConflict(
+        _ scan: ExtractionConflictScan,
+        for request: ExtractRequest,
+        completion: @escaping @MainActor (ExtractRequest?) -> Void
+    ) {
+        guard let existing = scan.existing, let entry = scan.entry, let window else {
             completion(request)
             return
         }
+        let conflict = (existing: existing, entry: entry)
+        let conflictCount = scan.count
 
-        let attributes = try? manager.attributesOfItem(atPath: conflict.existing.path)
+        let attributes = try? FileManager.default.attributesOfItem(atPath: conflict.existing.path)
         let dialog = OverwriteDialogController(
             existing: FileInfo(
                 path: conflict.existing.path,
@@ -542,21 +589,16 @@ extension MainWindowController {
 
     /// The only unlink in the app, and it is behind the confirmation above.
     private func permanentlyDelete(_ urls: [URL]) {
-        let manager = FileManager.default
-        var failures: [String] = []
-        for url in urls {
-            do {
-                try manager.removeItem(at: url)
-            } catch {
-                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+        Task { [weak self] in
+            let failures = await Self.removeOffMain(urls)
+            guard let self else { return }
+            for panel in panels { panel.reload() }
+            if !failures.isEmpty {
+                presentMessage(
+                    "Some items could not be deleted",
+                    failures.prefix(5).joined(separator: "\n")
+                )
             }
-        }
-        for panel in panels { panel.reload() }
-        if !failures.isEmpty {
-            presentMessage(
-                "Some items could not be deleted",
-                failures.prefix(5).joined(separator: "\n")
-            )
         }
     }
 
@@ -597,20 +639,15 @@ extension MainWindowController {
             return
         }
 
-        let manager = FileManager.default
-        var failures: [String] = []
-        for url in items.compactMap(\.url) {
-            let target = destination.appendingPathComponent(url.lastPathComponent)
-            do {
-                if move { try manager.moveItem(at: url, to: target) } else { try manager.copyItem(at: url, to: target) }
-            } catch {
-                failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+        let sources = items.compactMap(\.url)
+        Task { [weak self] in
+            let failures = await Self.transferOffMain(sources, into: destination, move: move)
+            guard let self else { return }
+            for other in panels { other.reload() }
+            if !failures.isEmpty {
+                presentMessage("Some items could not be \(move ? "moved" : "copied")",
+                               failures.prefix(5).joined(separator: "\n"))
             }
-        }
-        for other in panels { other.reload() }
-        if !failures.isEmpty {
-            presentMessage("Some items could not be \(move ? "moved" : "copied")",
-                           failures.prefix(5).joined(separator: "\n"))
         }
     }
 
